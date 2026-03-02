@@ -7,33 +7,14 @@ interface HUDProps {
 
 export default function HUD({ title = "GALAXY GRAPH", stats }: HUDProps) {
   return (
-    <div
-      style={{
-        position: "absolute",
-        top: 20,
-        left: 24,
-        color: "rgba(255,255,255,0.6)",
-        fontSize: 11,
-        lineHeight: 1.8,
-        pointerEvents: "none",
-        fontFamily: "'JetBrains Mono', 'SF Mono', monospace",
-      }}
-    >
-      <div
-        style={{
-          fontSize: 16,
-          fontWeight: 500,
-          color: "rgba(255,255,255,0.85)",
-          letterSpacing: 3,
-          marginBottom: 8,
-        }}
-      >
+    <div className="absolute top-5 left-6 text-white/60 text-[11px] leading-[1.8] pointer-events-none font-['JetBrains_Mono','SF_Mono',monospace]">
+      <div className="text-base font-medium text-white/85 tracking-[3px] mb-2">
         {title}
       </div>
-      <div style={{ opacity: 0.5 }}>
+      <div className="opacity-50">
         {stats.nodes} nodes · {stats.edges} edges · {stats.clusters} clusters
       </div>
-      <div style={{ opacity: 0.35, marginTop: 4, fontSize: 10 }}>
+      <div className="opacity-[0.35] mt-1 text-[10px]">
         drag to rotate · scroll to zoom
       </div>
     </div>

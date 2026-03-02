@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { AnimatePresence } from "framer-motion";
 import type { Graph, ProjectedNode, GraphStats } from "./types/graph";
 import { generateGraph, forceStep } from "./lib/graph";
 import {
@@ -228,26 +229,13 @@ export default function GalaxyGraph() {
   }, []);
 
   return (
-    <div
-      style={{
-        width: "100%",
-        height: "100vh",
-        background: BG,
-        position: "relative",
-        overflow: "hidden",
-      }}
-    >
-      <link
-        href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500&display=swap"
-        rel="stylesheet"
-      />
-      <canvas
-        ref={canvasRef}
-        style={{ width: "100%", height: "100%", cursor: "grab" }}
-      />
+    <div className="w-full h-screen bg-[#05050f] relative overflow-hidden">
+      <canvas ref={canvasRef} className="w-full h-full cursor-grab" />
       <HUD stats={stats} />
       <ClusterLegend clusters={CLUSTER_COLORS} />
-      {hovered && <NodeDetail node={hovered} clusterColors={CLUSTER_COLORS} />}
+      <AnimatePresence>
+        {hovered && <NodeDetail key={hovered.id} node={hovered} clusterColors={CLUSTER_COLORS} />}
+      </AnimatePresence>
     </div>
   );
 }

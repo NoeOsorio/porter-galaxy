@@ -1,0 +1,36 @@
+name: porter-galaxy-dev
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.dev
+    volumes:
+      - ./backend:/app
+    environment:
+      - BACKEND_PORT=${BACKEND_PORT:-4000}
+      - LOG_LEVEL=debug
+    ports:
+      - "${BACKEND_PORT:-4000}:${BACKEND_PORT:-4000}"
+    restart: unless-stopped
+    networks:
+      - galaxy-dev-net
+
+  nginx:
+    build:
+      context: ./infra/nginx
+      dockerfile: Dockerfile
+    volumes:
+      - ./infra/nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./frontend/public:/usr/share/nginx/html:ro
+    ports:
+      - "${NGINX_PORT:-8080}:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
+    networks:
+      - galaxy-dev-net
+
+networks:
+  galaxy-dev-net:
+    driver: bridge

@@ -1,0 +1,39 @@
+name: porter-galaxy
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    environment:
+      - BACKEND_PORT=${BACKEND_PORT:-4000}
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+    expose:
+      - "${BACKEND_PORT:-4000}"
+    restart: unless-stopped
+    networks:
+      - galaxy-net
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    networks:
+      - galaxy-net
+
+  nginx:
+    build:
+      context: ./infra/nginx
+      dockerfile: Dockerfile
+    ports:
+      - "${NGINX_PORT:-8080}:80"
+    depends_on:
+      - backend
+      - frontend
+    restart: unless-stopped
+    networks:
+      - galaxy-net
+
+networks:
+  galaxy-net:
+    driver: bridge

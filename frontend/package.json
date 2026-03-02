@@ -1,0 +1,15 @@
+{
+  "name": "porter-galaxy-frontend",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Porter Galaxy — Tailwind CSS build tooling for the WebAssembly frontend",
+  "scripts": {
+    "build:css": "tailwindcss -i src/styles/main.css -o public/dist/styles.css --minify",
+    "watch:css": "tailwindcss -i src/styles/main.css -o public/dist/styles.css --watch"
+  },
+  "devDependencies": {
+    "tailwindcss": "^3.4.0",
+    "autoprefixer": "^10.4.0",
+    "postcss": "^8.4.0"
+  }
+}

@@ -1,7 +1,7 @@
 import { useRef, useMemo, useCallback } from "react";
 import * as THREE from "three";
 import { useFrame, useThree } from "@react-three/fiber";
-import type { TopologyNode, TopologyEdge, TopologyGraph } from "../../types/topology";
+import type { TopologyNode, TopologyGraph } from "../../types/topology";
 
 interface TopologySceneProps {
   graph: TopologyGraph;
@@ -38,7 +38,8 @@ export default function TopologyScene({
       edgesRef.current.children.forEach((line, i) => {
         const edge = graph.edges[i];
         if (edge?.active) {
-          const material = (line as THREE.Line).material as THREE.LineBasicMaterial;
+          const material = (line as THREE.Line)
+            .material as THREE.LineBasicMaterial;
           material.opacity = 0.3 + Math.sin(clock.elapsedTime * 2 + i) * 0.2;
         }
       });
@@ -68,10 +69,7 @@ export default function TopologyScene({
                   }}
                 >
                   <sphereGeometry args={[node.size, 32, 32]} />
-                  <meshBasicMaterial
-                    color={node.color}
-                    toneMapped={false}
-                  />
+                  <meshBasicMaterial color={node.color} toneMapped={false} />
                 </mesh>
                 <mesh>
                   <sphereGeometry args={[node.size * 1.3, 32, 32]} />
@@ -92,21 +90,23 @@ export default function TopologyScene({
         {graph.edges.map((edge, i) => {
           const fromNode = graph.nodes.find((n) => n.id === edge.from);
           const toNode = graph.nodes.find((n) => n.id === edge.to);
-          
+
           if (!fromNode || !toNode) return null;
 
           const start = new THREE.Vector3(fromNode.x, fromNode.y, fromNode.z);
           const end = new THREE.Vector3(toNode.x, toNode.y, toNode.z);
           const direction = new THREE.Vector3().subVectors(end, start);
           const length = direction.length();
-          const midpoint = new THREE.Vector3().addVectors(start, end).multiplyScalar(0.5);
-          
+          const midpoint = new THREE.Vector3()
+            .addVectors(start, end)
+            .multiplyScalar(0.5);
+
           const quaternion = new THREE.Quaternion();
           quaternion.setFromUnitVectors(
             new THREE.Vector3(0, 1, 0),
-            direction.normalize()
+            direction.normalize(),
           );
-          
+
           return (
             <mesh
               key={`${edge.from}-${edge.to}-${i}`}

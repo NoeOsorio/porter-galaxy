@@ -1,7 +1,7 @@
 import { useState, useMemo, useRef } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Canvas } from "@react-three/fiber";
-import { OrbitControls, Stars } from "@react-three/drei";
+import { OrbitControls } from "@react-three/drei";
 import { EffectComposer, Bloom } from "@react-three/postprocessing";
 import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
 import { useClustersSSE } from "./hooks/useClustersSSE";
@@ -51,7 +51,7 @@ export default function Topology() {
           <div className="text-white/70 text-sm">Loading topology...</div>
         </div>
       )}
-      
+
       {isError && (
         <div className="absolute inset-0 flex items-center justify-center">
           <div className="text-red-400 text-sm">
@@ -59,7 +59,7 @@ export default function Topology() {
           </div>
         </div>
       )}
-      
+
       {topologyGraph && (
         <Canvas
           camera={{ position: [250, 50, 350], fov: 60 }}
@@ -110,7 +110,9 @@ export default function Topology() {
             <div className="font-semibold opacity-80 mb-1">NETWORK MAP</div>
             <div>Nodes: {topologyGraph.nodes.length}</div>
             <div>Connections: {topologyGraph.edges.length}</div>
-            <div>Active: {topologyGraph.edges.filter(e => e.active).length}</div>
+            <div>
+              Active: {topologyGraph.edges.filter((e) => e.active).length}
+            </div>
           </div>
         )}
       </div>
@@ -153,9 +155,7 @@ export default function Topology() {
           >
             <div className="bg-[rgba(8,8,25,0.9)] border border-white/[0.08] rounded-xl py-3.5 px-[18px] text-white/70 text-[11px] leading-[1.9] backdrop-blur-xl">
               <div className="flex items-center gap-2 mb-1.5">
-                <span className="text-base">
-                  {TYPE_ICONS[hovered.type]}
-                </span>
+                <span className="text-base">{TYPE_ICONS[hovered.type]}</span>
                 <div>
                   <div
                     className="font-medium text-[13px]"
@@ -170,7 +170,8 @@ export default function Topology() {
               </div>
               {hovered.namespace && (
                 <div>
-                  namespace: <span className="opacity-80">{hovered.namespace}</span>
+                  namespace:{" "}
+                  <span className="opacity-80">{hovered.namespace}</span>
                 </div>
               )}
               {hovered.status && (
@@ -183,7 +184,10 @@ export default function Topology() {
               )}
               {hovered.metadata?.connections !== undefined && (
                 <div>
-                  connections: <span className="opacity-80">{hovered.metadata.connections}</span>
+                  connections:{" "}
+                  <span className="opacity-80">
+                    {hovered.metadata.connections}
+                  </span>
                 </div>
               )}
             </div>
@@ -222,22 +226,33 @@ export default function Topology() {
                   ×
                 </button>
               </div>
-              
+
               <div className="border-t border-white/[0.06] pt-2 space-y-1">
-                <div className="text-[10px] font-semibold opacity-60 mb-1.5">DETAILS</div>
-                
-                <div>
-                  type: <span className="text-white/90">{TYPE_LABELS[selected.type]}</span>
+                <div className="text-[10px] font-semibold opacity-60 mb-1.5">
+                  DETAILS
                 </div>
-                
+
                 <div>
-                  id: <span className="text-white/60 text-[10px] font-mono break-all">{selected.id}</span>
+                  type:{" "}
+                  <span className="text-white/90">
+                    {TYPE_LABELS[selected.type]}
+                  </span>
                 </div>
-                
+
+                <div>
+                  id:{" "}
+                  <span className="text-white/60 text-[10px] font-mono break-all">
+                    {selected.id}
+                  </span>
+                </div>
+
                 {selected.namespace && (
-                  <div>namespace: <span className="text-white/90">{selected.namespace}</span></div>
+                  <div>
+                    namespace:{" "}
+                    <span className="text-white/90">{selected.namespace}</span>
+                  </div>
                 )}
-                
+
                 {selected.status && (
                   <div>
                     status:{" "}
@@ -246,43 +261,80 @@ export default function Topology() {
                     </span>
                   </div>
                 )}
-                
+
                 {selected.metadata?.connections !== undefined && (
-                  <div>connections: <span className="text-white/90">{selected.metadata.connections}</span></div>
+                  <div>
+                    connections:{" "}
+                    <span className="text-white/90">
+                      {selected.metadata.connections}
+                    </span>
+                  </div>
                 )}
               </div>
-              
-              {(selected.type === "deployment" && selected.metadata) && (
+
+              {selected.type === "deployment" && selected.metadata && (
                 <div className="border-t border-white/[0.06] pt-2 mt-2 space-y-1">
-                  <div className="text-[10px] font-semibold opacity-60 mb-1.5">REPLICAS</div>
+                  <div className="text-[10px] font-semibold opacity-60 mb-1.5">
+                    REPLICAS
+                  </div>
                   {selected.metadata.desired !== undefined && (
-                    <div>desired: <span className="text-white/90">{selected.metadata.desired}</span></div>
+                    <div>
+                      desired:{" "}
+                      <span className="text-white/90">
+                        {selected.metadata.desired}
+                      </span>
+                    </div>
                   )}
                   {selected.metadata.ready !== undefined && (
-                    <div>ready: <span className="text-[#5bffb0]">{selected.metadata.ready}</span></div>
+                    <div>
+                      ready:{" "}
+                      <span className="text-[#5bffb0]">
+                        {selected.metadata.ready}
+                      </span>
+                    </div>
                   )}
                   {selected.metadata.available !== undefined && (
-                    <div>available: <span className="text-white/90">{selected.metadata.available}</span></div>
+                    <div>
+                      available:{" "}
+                      <span className="text-white/90">
+                        {selected.metadata.available}
+                      </span>
+                    </div>
                   )}
                 </div>
               )}
-              
-              {(selected.type === "pod" && selected.metadata) && (
+
+              {selected.type === "pod" && selected.metadata && (
                 <div className="border-t border-white/[0.06] pt-2 mt-2 space-y-1">
-                  <div className="text-[10px] font-semibold opacity-60 mb-1.5">POD INFO</div>
+                  <div className="text-[10px] font-semibold opacity-60 mb-1.5">
+                    POD INFO
+                  </div>
                   {selected.metadata.version && (
-                    <div>version: <span className="text-white/90">{selected.metadata.version}</span></div>
+                    <div>
+                      version:{" "}
+                      <span className="text-white/90">
+                        {selected.metadata.version}
+                      </span>
+                    </div>
                   )}
                   {selected.metadata.nodeId && (
-                    <div>node: <span className="text-white/60 text-[10px] font-mono">{selected.metadata.nodeId}</span></div>
+                    <div>
+                      node:{" "}
+                      <span className="text-white/60 text-[10px] font-mono">
+                        {selected.metadata.nodeId}
+                      </span>
+                    </div>
                   )}
                 </div>
               )}
-              
+
               <div className="border-t border-white/[0.06] pt-2 mt-2 space-y-1">
-                <div className="text-[10px] font-semibold opacity-60 mb-1.5">POSITION</div>
+                <div className="text-[10px] font-semibold opacity-60 mb-1.5">
+                  POSITION
+                </div>
                 <div className="text-[10px] font-mono text-white/50">
-                  x: {selected.x.toFixed(1)} · y: {selected.y.toFixed(1)} · z: {selected.z.toFixed(1)}
+                  x: {selected.x.toFixed(1)} · y: {selected.y.toFixed(1)} · z:{" "}
+                  {selected.z.toFixed(1)}
                 </div>
               </div>
             </div>

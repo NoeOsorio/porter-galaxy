@@ -41,11 +41,14 @@ export default function Topology() {
   const [searchQuery, setSearchQuery] = useState("");
   const [filterType, setFilterType] = useState<string>("all");
   const [hoveredEdge, setHoveredEdge] = useState<{ from: string; to: string; type: string } | null>(null);
+  const [showFilters, setShowFilters] = useState(false);
+  const [showLegend, setShowLegend] = useState(false);
+  const [selectedClusterIndex, setSelectedClusterIndex] = useState(0);
 
   const topologyGraph = useMemo(() => {
-    if (!data?.clusters[0]) return null;
-    return transformTopology(data.clusters[0]);
-  }, [data]);
+    if (!data?.clusters || !data.clusters[selectedClusterIndex]) return null;
+    return transformTopology(data.clusters[selectedClusterIndex]);
+  }, [data, selectedClusterIndex]);
 
   const filteredNodes = useMemo(() => {
     if (!topologyGraph) return new Set<string>();
@@ -66,6 +69,13 @@ export default function Topology() {
     
     return matchingNodes;
   }, [topologyGraph, searchQuery, filterType]);
+
+  const errorPods = useMemo(() => {
+    if (!topologyGraph) return [];
+    return topologyGraph.nodes.filter(
+      node => node.type === "pod" && node.color === "#ff3333"
+    );
+  }, [topologyGraph]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -141,6 +151,21 @@ export default function Topology() {
     setSelected(null);
   };
 
+  const handleAlarmClick = () => {
+    if (errorPods.length > 0) {
+      const firstErrorPod = errorPods[0];
+      if (firstErrorPod) {
+        setSelected(firstErrorPod);
+        handleDoubleClick(firstErrorPod);
+      }
+    }
+  };
+
+  useEffect(() => {
+    setSelected(null);
+    handleResetView();
+  }, [selectedClusterIndex]);
+
   return (
     <div
       className="w-full h-screen bg-[#05050f] relative overflow-hidden font-['JetBrains_Mono','SF_Mono',monospace]"
@@ -180,6 +205,7 @@ export default function Topology() {
             onDoubleClick={handleDoubleClick}
             filteredNodes={filteredNodes}
             onEdgeHover={setHoveredEdge}
+            errorPods={errorPods}
           />
           <OrbitControls
             ref={controlsRef}
@@ -217,93 +243,157 @@ export default function Topology() {
           </div>
         </div>
 
-        <div className="bg-[rgba(8,8,25,0.8)] border border-white/[0.08] rounded-xl p-3 backdrop-blur-xl">
-          <input
-            type="text"
-            placeholder="Search nodes..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white/90 text-[11px] placeholder-white/40 focus:outline-none focus:border-white/20 focus:bg-white/10 transition-all"
-          />
-          
-          <div className="flex gap-1.5 mt-2">
-            <button
-              type="button"
-              onClick={() => setFilterType("all")}
-              className={`px-2.5 py-1 rounded text-[9px] font-medium transition-all ${
-                filterType === "all"
-                  ? "bg-white/20 text-white/90 border border-white/20"
-                  : "bg-white/5 text-white/50 border border-white/10 hover:bg-white/10"
-              }`}
-            >
-              All
-            </button>
-            <button
-              type="button"
-              onClick={() => setFilterType("internet")}
-              className={`px-2.5 py-1 rounded text-[9px] font-medium transition-all ${
-                filterType === "internet"
-                  ? "bg-[#00d4ff]/20 text-[#00d4ff] border border-[#00d4ff]/30"
-                  : "bg-white/5 text-white/50 border border-white/10 hover:bg-white/10"
-              }`}
-            >
-              Internet
-            </button>
-            <button
-              type="button"
-              onClick={() => setFilterType("loadbalancer")}
-              className={`px-2.5 py-1 rounded text-[9px] font-medium transition-all ${
-                filterType === "loadbalancer"
-                  ? "bg-[#f472b6]/20 text-[#f472b6] border border-[#f472b6]/30"
-                  : "bg-white/5 text-white/50 border border-white/10 hover:bg-white/10"
-              }`}
-            >
-              LB
-            </button>
-            <button
-              type="button"
-              onClick={() => setFilterType("ingress")}
-              className={`px-2.5 py-1 rounded text-[9px] font-medium transition-all ${
-                filterType === "ingress"
-                  ? "bg-[#a78bfa]/20 text-[#a78bfa] border border-[#a78bfa]/30"
-                  : "bg-white/5 text-white/50 border border-white/10 hover:bg-white/10"
-              }`}
-            >
-              Ingress
-            </button>
-            <button
-              type="button"
-              onClick={() => setFilterType("deployment")}
-              className={`px-2.5 py-1 rounded text-[9px] font-medium transition-all ${
-                filterType === "deployment"
-                  ? "bg-[#fb923c]/20 text-[#fb923c] border border-[#fb923c]/30"
-                  : "bg-white/5 text-white/50 border border-white/10 hover:bg-white/10"
-              }`}
-            >
-              Deploy
-            </button>
-            <button
-              type="button"
-              onClick={() => setFilterType("pod")}
-              className={`px-2.5 py-1 rounded text-[9px] font-medium transition-all ${
-                filterType === "pod"
-                  ? "bg-[#5bffb0]/20 text-[#5bffb0] border border-[#5bffb0]/30"
-                  : "bg-white/5 text-white/50 border border-white/10 hover:bg-white/10"
-              }`}
-            >
-              Pod
-            </button>
-          </div>
-          
-          {(searchQuery || filterType !== "all") && (
-            <div className="mt-2 text-[9px] text-white/50">
-              {filteredNodes.size} {filteredNodes.size === 1 ? 'node' : 'nodes'} found
+        {data?.clusters && data.clusters.length > 1 && (
+          <div className="bg-[rgba(8,8,25,0.8)] border border-white/[0.08] rounded-xl p-3 backdrop-blur-xl">
+            <div className="text-white/70 text-[10px] mb-2 font-semibold opacity-80">
+              CLUSTER
             </div>
-          )}
+            <select
+              value={selectedClusterIndex}
+              onChange={(e) => setSelectedClusterIndex(Number(e.target.value))}
+              className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white/90 text-[11px] focus:outline-none focus:border-white/20 focus:bg-white/10 transition-all cursor-pointer"
+            >
+              {data.clusters.map((cluster, index) => (
+                <option key={cluster.id} value={index} className="bg-[#08081a] text-white/90">
+                  {cluster.id}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+
+        <div className="bg-[rgba(8,8,25,0.8)] border border-white/[0.08] rounded-xl backdrop-blur-xl overflow-hidden">
+          <button
+            type="button"
+            onClick={() => setShowFilters(!showFilters)}
+            className="w-full px-3 py-2 text-white/70 text-[10px] font-semibold hover:bg-white/5 transition-all flex items-center justify-between pointer-events-auto"
+          >
+            <span>FILTERS & SEARCH</span>
+            <span className="text-[12px]">{showFilters ? "−" : "+"}</span>
+          </button>
+          
+          <AnimatePresence>
+            {showFilters && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: "auto", opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ duration: 0.2 }}
+                className="overflow-hidden"
+              >
+                <div className="p-3 pt-0">
+                  <input
+                    type="text"
+                    placeholder="Search nodes..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white/90 text-[11px] placeholder-white/40 focus:outline-none focus:border-white/20 focus:bg-white/10 transition-all"
+                  />
+                  
+                  <div className="flex gap-1.5 mt-2">
+                    <button
+                      type="button"
+                      onClick={() => setFilterType("all")}
+                      className={`px-2.5 py-1 rounded text-[9px] font-medium transition-all ${
+                        filterType === "all"
+                          ? "bg-white/20 text-white/90 border border-white/20"
+                          : "bg-white/5 text-white/50 border border-white/10 hover:bg-white/10"
+                      }`}
+                    >
+                      All
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setFilterType("internet")}
+                      className={`px-2.5 py-1 rounded text-[9px] font-medium transition-all ${
+                        filterType === "internet"
+                          ? "bg-[#00d4ff]/20 text-[#00d4ff] border border-[#00d4ff]/30"
+                          : "bg-white/5 text-white/50 border border-white/10 hover:bg-white/10"
+                      }`}
+                    >
+                      Internet
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setFilterType("loadbalancer")}
+                      className={`px-2.5 py-1 rounded text-[9px] font-medium transition-all ${
+                        filterType === "loadbalancer"
+                          ? "bg-[#f472b6]/20 text-[#f472b6] border border-[#f472b6]/30"
+                          : "bg-white/5 text-white/50 border border-white/10 hover:bg-white/10"
+                      }`}
+                    >
+                      LB
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setFilterType("ingress")}
+                      className={`px-2.5 py-1 rounded text-[9px] font-medium transition-all ${
+                        filterType === "ingress"
+                          ? "bg-[#a78bfa]/20 text-[#a78bfa] border border-[#a78bfa]/30"
+                          : "bg-white/5 text-white/50 border border-white/10 hover:bg-white/10"
+                      }`}
+                    >
+                      Ingress
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setFilterType("deployment")}
+                      className={`px-2.5 py-1 rounded text-[9px] font-medium transition-all ${
+                        filterType === "deployment"
+                          ? "bg-[#fb923c]/20 text-[#fb923c] border border-[#fb923c]/30"
+                          : "bg-white/5 text-white/50 border border-white/10 hover:bg-white/10"
+                      }`}
+                    >
+                      Deploy
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setFilterType("pod")}
+                      className={`px-2.5 py-1 rounded text-[9px] font-medium transition-all ${
+                        filterType === "pod"
+                          ? "bg-[#5bffb0]/20 text-[#5bffb0] border border-[#5bffb0]/30"
+                          : "bg-white/5 text-white/50 border border-white/10 hover:bg-white/10"
+                      }`}
+                    >
+                      Pod
+                    </button>
+                  </div>
+                  
+                  {(searchQuery || filterType !== "all") && (
+                    <div className="mt-2 text-[9px] text-white/50">
+                      {filteredNodes.size} {filteredNodes.size === 1 ? 'node' : 'nodes'} found
+                    </div>
+                  )}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
       </div>
 
       <div className="absolute top-20 right-6 flex flex-col gap-3 pointer-events-auto">
+        {errorPods.length > 0 && (
+          <motion.button
+            type="button"
+            onClick={handleAlarmClick}
+            className="bg-[rgba(139,0,0,0.8)] border border-red-500/30 rounded-xl py-2.5 px-4 backdrop-blur-xl text-red-400 text-[10px] font-semibold hover:bg-[rgba(139,0,0,0.95)] hover:text-red-300 transition-all duration-200 hover:border-red-500/50 flex items-center gap-2"
+            animate={{
+              boxShadow: [
+                "0 0 10px rgba(255,51,51,0.3)",
+                "0 0 20px rgba(255,51,51,0.6)",
+                "0 0 10px rgba(255,51,51,0.3)",
+              ],
+            }}
+            transition={{
+              duration: 1.5,
+              repeat: Infinity,
+              ease: "easeInOut",
+            }}
+          >
+            <span className="text-base">🚨</span>
+            <span>{errorPods.length} ERROR{errorPods.length > 1 ? 'S' : ''}</span>
+          </motion.button>
+        )}
         <button
           type="button"
           onClick={handleResetView}
@@ -312,32 +402,50 @@ export default function Topology() {
           RESET VIEW
         </button>
         
-        <div className="bg-[rgba(8,8,25,0.8)] border border-white/[0.08] rounded-xl py-3 px-4 backdrop-blur-xl pointer-events-none">
-          <div className="text-white/70 text-[10px] mb-2 font-semibold opacity-80">
-            LEGEND
-          </div>
-          <div className="space-y-2">
-            <div className="flex items-center gap-2.5 text-[10px]">
-              <div className="w-2.5 h-2.5 rounded-full bg-[#00d4ff] shadow-[0_0_8px_rgba(0,212,255,0.6)]" />
-              <span className="text-white/60">Internet</span>
-            </div>
-            <div className="flex items-center gap-2.5 text-[10px]">
-              <div className="w-2.5 h-2.5 rounded-full bg-[#f472b6] shadow-[0_0_8px_rgba(244,114,182,0.6)]" />
-              <span className="text-white/60">Load Balancer</span>
-            </div>
-            <div className="flex items-center gap-2.5 text-[10px]">
-              <div className="w-2.5 h-2.5 rounded-full bg-[#a78bfa] shadow-[0_0_8px_rgba(167,139,250,0.6)]" />
-              <span className="text-white/60">Ingress</span>
-            </div>
-            <div className="flex items-center gap-2.5 text-[10px]">
-              <div className="w-2.5 h-2.5 rounded-full bg-[#fb923c] shadow-[0_0_8px_rgba(251,146,60,0.6)]" />
-              <span className="text-white/60">Deployment</span>
-            </div>
-            <div className="flex items-center gap-2.5 text-[10px]">
-              <div className="w-2.5 h-2.5 rounded-full bg-[#5bffb0] shadow-[0_0_8px_rgba(91,255,176,0.6)]" />
-              <span className="text-white/60">Pod</span>
-            </div>
-          </div>
+        <div className="bg-[rgba(8,8,25,0.8)] border border-white/[0.08] rounded-xl backdrop-blur-xl overflow-hidden">
+          <button
+            type="button"
+            onClick={() => setShowLegend(!showLegend)}
+            className="w-full px-4 py-2.5 text-white/70 text-[10px] font-semibold hover:bg-white/5 transition-all flex items-center justify-between pointer-events-auto"
+          >
+            <span>LEGEND</span>
+            <span className="text-[12px]">{showLegend ? "−" : "+"}</span>
+          </button>
+          
+          <AnimatePresence>
+            {showLegend && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: "auto", opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ duration: 0.2 }}
+                className="overflow-hidden"
+              >
+                <div className="px-4 pb-3 space-y-2 pointer-events-none">
+                  <div className="flex items-center gap-2.5 text-[10px]">
+                    <div className="w-2.5 h-2.5 rounded-full bg-[#00d4ff] shadow-[0_0_8px_rgba(0,212,255,0.6)]" />
+                    <span className="text-white/60">Internet</span>
+                  </div>
+                  <div className="flex items-center gap-2.5 text-[10px]">
+                    <div className="w-2.5 h-2.5 rounded-full bg-[#f472b6] shadow-[0_0_8px_rgba(244,114,182,0.6)]" />
+                    <span className="text-white/60">Load Balancer</span>
+                  </div>
+                  <div className="flex items-center gap-2.5 text-[10px]">
+                    <div className="w-2.5 h-2.5 rounded-full bg-[#a78bfa] shadow-[0_0_8px_rgba(167,139,250,0.6)]" />
+                    <span className="text-white/60">Ingress</span>
+                  </div>
+                  <div className="flex items-center gap-2.5 text-[10px]">
+                    <div className="w-2.5 h-2.5 rounded-full bg-[#fb923c] shadow-[0_0_8px_rgba(251,146,60,0.6)]" />
+                    <span className="text-white/60">Deployment</span>
+                  </div>
+                  <div className="flex items-center gap-2.5 text-[10px]">
+                    <div className="w-2.5 h-2.5 rounded-full bg-[#5bffb0] shadow-[0_0_8px_rgba(91,255,176,0.6)]" />
+                    <span className="text-white/60">Pod</span>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
       </div>
 

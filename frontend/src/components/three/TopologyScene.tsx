@@ -11,6 +11,7 @@ interface TopologySceneProps {
   onDoubleClick: (node: TopologyNode) => void;
   filteredNodes: Set<string>;
   onEdgeHover: (edge: { from: string; to: string; type: string } | null) => void;
+  errorPods: TopologyNode[];
 }
 
 interface FlowParticle {
@@ -56,6 +57,72 @@ function findPathToNode(
   return path;
 }
 
+interface ErrorPodMeshProps {
+  node: TopologyNode;
+  isErrorPod: boolean;
+  nodeOpacity: number;
+  onHover: (node: TopologyNode | null) => void;
+  onClick: (node: TopologyNode | null) => void;
+  onDoubleClick: (node: TopologyNode) => void;
+  gl: THREE.WebGLRenderer;
+  handlePointerOut: () => void;
+}
+
+function ErrorPodMesh({
+  node,
+  isErrorPod,
+  nodeOpacity,
+  onHover,
+  onClick,
+  onDoubleClick,
+  gl,
+  handlePointerOut,
+}: ErrorPodMeshProps) {
+  const meshRef = useRef<THREE.Mesh>(null);
+
+  useFrame(({ clock }) => {
+    if (isErrorPod && meshRef.current?.material) {
+      const material = meshRef.current.material as THREE.MeshBasicMaterial;
+      const blinkValue = 0.4 + Math.sin(clock.elapsedTime * 4) * 0.6;
+      material.opacity = blinkValue * nodeOpacity;
+    }
+  });
+
+  return (
+    <mesh
+      ref={meshRef}
+      frustumCulled={false}
+      onPointerOver={(e) => {
+        e.stopPropagation();
+        onHover(node);
+        gl.domElement.style.cursor = "pointer";
+      }}
+      onPointerOut={(e) => {
+        e.stopPropagation();
+        handlePointerOut();
+      }}
+      onClick={(e) => {
+        e.stopPropagation();
+        onClick(node);
+      }}
+      onDoubleClick={(e) => {
+        e.stopPropagation();
+        onDoubleClick(node);
+      }}
+    >
+      <sphereGeometry args={[node.size, 32, 32]} />
+      <meshBasicMaterial 
+        color={node.color} 
+        toneMapped={false}
+        transparent
+        opacity={nodeOpacity}
+        depthWrite={true}
+        depthTest={true}
+      />
+    </mesh>
+  );
+}
+
 export default function TopologyScene({
   graph,
   onHover,
@@ -64,6 +131,7 @@ export default function TopologyScene({
   onDoubleClick,
   filteredNodes,
   onEdgeHover,
+  errorPods,
 }: TopologySceneProps) {
   const { gl, camera } = useThree();
   const nodesRef = useRef<THREE.Group>(null);
@@ -73,6 +141,10 @@ export default function TopologyScene({
   const cameraTargetRef = useRef<THREE.Vector3 | null>(null);
   const cameraStartRef = useRef<THREE.Vector3 | null>(null);
   const transitionProgressRef = useRef<number>(0);
+
+  const errorPodIds = useMemo(() => {
+    return new Set(errorPods.map(pod => pod.id));
+  }, [errorPods]);
 
   useEffect(() => {
     if (selectedNode) {
@@ -201,42 +273,23 @@ export default function TopologyScene({
             {nodes.map((node) => {
               const isInPath = nodesInPath.has(node.id);
               const isFiltered = filteredNodes.size > 0 && !filteredNodes.has(node.id);
+              const isErrorPod = errorPodIds.has(node.id);
               const glowColor = isInPath ? "#00d4ff" : node.glow;
               const glowOpacity = isInPath ? 0.4 : 0.15;
               const nodeOpacity = isFiltered ? 0.2 : 1;
               
               return (
                 <group key={node.id} position={[node.x, node.y, node.z]}>
-                  <mesh
-                    frustumCulled={false}
-                    onPointerOver={(e) => {
-                      e.stopPropagation();
-                      onHover(node);
-                      gl.domElement.style.cursor = "pointer";
-                    }}
-                    onPointerOut={(e) => {
-                      e.stopPropagation();
-                      handlePointerOut();
-                    }}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onClick(node);
-                    }}
-                    onDoubleClick={(e) => {
-                      e.stopPropagation();
-                      onDoubleClick(node);
-                    }}
-                  >
-                    <sphereGeometry args={[node.size, 32, 32]} />
-                    <meshBasicMaterial 
-                      color={node.color} 
-                      toneMapped={false}
-                      transparent
-                      opacity={nodeOpacity}
-                      depthWrite={true}
-                      depthTest={true}
-                    />
-                  </mesh>
+                  <ErrorPodMesh
+                    node={node}
+                    isErrorPod={isErrorPod}
+                    nodeOpacity={nodeOpacity}
+                    onHover={onHover}
+                    onClick={onClick}
+                    onDoubleClick={onDoubleClick}
+                    gl={gl}
+                    handlePointerOut={handlePointerOut}
+                  />
                   <mesh frustumCulled={false}>
                     <sphereGeometry args={[node.size * 1.3, 32, 32]} />
                     <meshBasicMaterial

@@ -149,7 +149,7 @@ export default function Topology() {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 8 }}
             transition={{ duration: 0.2 }}
-            className="absolute bottom-20 right-6 pointer-events-none min-w-[200px]"
+            className="absolute bottom-20 right-6 pointer-events-none min-w-[220px]"
           >
             <div className="bg-[rgba(8,8,25,0.9)] border border-white/[0.08] rounded-xl py-3.5 px-[18px] text-white/70 text-[11px] leading-[1.9] backdrop-blur-xl">
               <div className="flex items-center gap-2 mb-1.5">
@@ -181,6 +181,11 @@ export default function Topology() {
                   </span>
                 </div>
               )}
+              {hovered.metadata?.connections !== undefined && (
+                <div>
+                  connections: <span className="opacity-80">{hovered.metadata.connections}</span>
+                </div>
+              )}
             </div>
           </motion.div>
         )}
@@ -193,17 +198,17 @@ export default function Topology() {
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: -12 }}
             transition={{ duration: 0.2 }}
-            className="absolute top-20 left-6 pointer-events-auto min-w-[240px] max-w-[300px]"
+            className="absolute top-20 left-6 pointer-events-auto min-w-[260px] max-w-[320px]"
           >
             <div
-              className="bg-[rgba(8,8,25,0.92)] rounded-xl py-4 px-5 text-white/75 text-[11px] leading-8 backdrop-blur-xl border"
+              className="bg-[rgba(8,8,25,0.92)] rounded-xl py-4 px-5 text-white/75 text-[11px] leading-[1.8] backdrop-blur-xl border"
               style={{
                 borderColor: (selected.color || "rgba(255,255,255,0.1)") + "33",
               }}
             >
-              <div className="flex justify-between items-start">
+              <div className="flex justify-between items-start mb-3">
                 <div
-                  className="font-semibold text-[15px] mb-2"
+                  className="font-semibold text-[15px]"
                   style={{ color: selected.color || "#fff" }}
                 >
                   {TYPE_ICONS[selected.type]} {selected.name}
@@ -217,13 +222,22 @@ export default function Topology() {
                   ×
                 </button>
               </div>
-              <div className="border-t border-white/[0.06] pt-2">
+              
+              <div className="border-t border-white/[0.06] pt-2 space-y-1">
+                <div className="text-[10px] font-semibold opacity-60 mb-1.5">DETAILS</div>
+                
                 <div>
                   type: <span className="text-white/90">{TYPE_LABELS[selected.type]}</span>
                 </div>
+                
+                <div>
+                  id: <span className="text-white/60 text-[10px] font-mono break-all">{selected.id}</span>
+                </div>
+                
                 {selected.namespace && (
-                  <div>namespace: {selected.namespace}</div>
+                  <div>namespace: <span className="text-white/90">{selected.namespace}</span></div>
                 )}
+                
                 {selected.status && (
                   <div>
                     status:{" "}
@@ -232,6 +246,44 @@ export default function Topology() {
                     </span>
                   </div>
                 )}
+                
+                {selected.metadata?.connections !== undefined && (
+                  <div>connections: <span className="text-white/90">{selected.metadata.connections}</span></div>
+                )}
+              </div>
+              
+              {(selected.type === "deployment" && selected.metadata) && (
+                <div className="border-t border-white/[0.06] pt-2 mt-2 space-y-1">
+                  <div className="text-[10px] font-semibold opacity-60 mb-1.5">REPLICAS</div>
+                  {selected.metadata.desired !== undefined && (
+                    <div>desired: <span className="text-white/90">{selected.metadata.desired}</span></div>
+                  )}
+                  {selected.metadata.ready !== undefined && (
+                    <div>ready: <span className="text-[#5bffb0]">{selected.metadata.ready}</span></div>
+                  )}
+                  {selected.metadata.available !== undefined && (
+                    <div>available: <span className="text-white/90">{selected.metadata.available}</span></div>
+                  )}
+                </div>
+              )}
+              
+              {(selected.type === "pod" && selected.metadata) && (
+                <div className="border-t border-white/[0.06] pt-2 mt-2 space-y-1">
+                  <div className="text-[10px] font-semibold opacity-60 mb-1.5">POD INFO</div>
+                  {selected.metadata.version && (
+                    <div>version: <span className="text-white/90">{selected.metadata.version}</span></div>
+                  )}
+                  {selected.metadata.nodeId && (
+                    <div>node: <span className="text-white/60 text-[10px] font-mono">{selected.metadata.nodeId}</span></div>
+                  )}
+                </div>
+              )}
+              
+              <div className="border-t border-white/[0.06] pt-2 mt-2 space-y-1">
+                <div className="text-[10px] font-semibold opacity-60 mb-1.5">POSITION</div>
+                <div className="text-[10px] font-mono text-white/50">
+                  x: {selected.x.toFixed(1)} · y: {selected.y.toFixed(1)} · z: {selected.z.toFixed(1)}
+                </div>
               </div>
             </div>
           </motion.div>

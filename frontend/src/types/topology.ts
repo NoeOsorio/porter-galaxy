@@ -10,6 +10,14 @@ export interface TopologyNode {
   glow: string;
   size: number;
   status?: string;
+  metadata?: {
+    desired?: number;
+    ready?: number;
+    available?: number;
+    version?: string;
+    nodeId?: string;
+    connections?: number;
+  };
 }
 
 export interface TopologyEdge {

@@ -68,8 +68,12 @@ export function transformTopology(apiCluster: ApiCluster): TopologyGraph {
   const lbNodes = new Set<string>();
   const deploymentNodes = new Set<string>();
   const podNodes = new Set<string>();
+  
+  const connectionCounts = new Map<string, number>();
 
   apiCluster.topology.forEach((topo) => {
+    connectionCounts.set(topo.from, (connectionCounts.get(topo.from) || 0) + 1);
+    
     if (topo.from === "INTERNET") {
       internetNodes.add(topo.from);
       lbNodes.add(topo.to);
@@ -94,6 +98,7 @@ export function transformTopology(apiCluster: ApiCluster): TopologyGraph {
     const y = 80;
     const z = 0;
     nodePositions.set(internet, { x, y, z });
+    const outgoingConnections = connectionCounts.get(internet) || 0;
     nodes.push({
       id: internet,
       type: "internet",
@@ -104,6 +109,9 @@ export function transformTopology(apiCluster: ApiCluster): TopologyGraph {
       color: COLORS.internet.color,
       glow: COLORS.internet.glow,
       size: 30,
+      metadata: {
+        connections: outgoingConnections === 0 ? 1 : outgoingConnections,
+      },
     });
   }
 
@@ -119,6 +127,8 @@ export function transformTopology(apiCluster: ApiCluster): TopologyGraph {
         ? lb.split("-").slice(-1)[0]?.substring(0, 8) || "LB"
         : "Load Balancer";
       
+      const outgoingConnections = connectionCounts.get(lb) || 0;
+      
       nodes.push({
         id: lb,
         type: "loadbalancer",
@@ -129,6 +139,9 @@ export function transformTopology(apiCluster: ApiCluster): TopologyGraph {
         color: COLORS.loadbalancer.color,
         glow: COLORS.loadbalancer.glow,
         size: 20,
+        metadata: {
+          connections: outgoingConnections === 0 ? 1 : outgoingConnections,
+        },
       });
     });
   }
@@ -146,6 +159,8 @@ export function transformTopology(apiCluster: ApiCluster): TopologyGraph {
       const pos = depPositions[i]!;
       nodePositions.set(depKey, pos);
       
+      const outgoingConnections = connectionCounts.get(depKey) || 0;
+      
       nodes.push({
         id: depKey,
         type: "deployment",
@@ -158,6 +173,12 @@ export function transformTopology(apiCluster: ApiCluster): TopologyGraph {
         glow: COLORS.deployment.glow,
         size: 16,
         status: deployment ? `${deployment.ready}/${deployment.desired}` : undefined,
+        metadata: {
+          desired: deployment?.desired,
+          ready: deployment?.ready,
+          available: deployment?.available,
+          connections: outgoingConnections === 0 ? 1 : outgoingConnections,
+        },
       });
     });
   }
@@ -172,6 +193,8 @@ export function transformTopology(apiCluster: ApiCluster): TopologyGraph {
       
       nodePositions.set(podId, pos);
       
+      const outgoingConnections = connectionCounts.get(podId) || 0;
+      
       nodes.push({
         id: podId,
         type: "pod",
@@ -184,6 +207,11 @@ export function transformTopology(apiCluster: ApiCluster): TopologyGraph {
         glow: COLORS.pod.glow,
         size: 12,
         status: pod?.status,
+        metadata: {
+          version: pod?.version,
+          nodeId: pod?.nodeId,
+          connections: outgoingConnections === 0 ? 1 : outgoingConnections,
+        },
       });
     });
   }

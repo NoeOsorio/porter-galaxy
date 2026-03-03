@@ -109,6 +109,15 @@ export default function TopologyScene({
     return Array.from(grouped.entries());
   }, [graph.nodes]);
 
+  const nodesInPath = useMemo(() => {
+    const nodeIds = new Set<string>();
+    flowPath.forEach(edge => {
+      nodeIds.add(edge.from);
+      nodeIds.add(edge.to);
+    });
+    return nodeIds;
+  }, [flowPath]);
+
   useFrame(({ clock }, delta) => {
     if (edgesRef.current) {
       edgesRef.current.children.forEach((line, i) => {
@@ -155,37 +164,54 @@ export default function TopologyScene({
       <group ref={nodesRef}>
         {nodesByType.map(([type, nodes]) => (
           <group key={type}>
-            {nodes.map((node) => (
-              <group key={node.id} position={[node.x, node.y, node.z]}>
-                <mesh
-                  onPointerOver={(e) => {
-                    e.stopPropagation();
-                    onHover(node);
-                    gl.domElement.style.cursor = "pointer";
-                  }}
-                  onPointerOut={(e) => {
-                    e.stopPropagation();
-                    handlePointerOut();
-                  }}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onClick(node);
-                  }}
-                >
-                  <sphereGeometry args={[node.size, 32, 32]} />
-                  <meshBasicMaterial color={node.color} toneMapped={false} />
-                </mesh>
-                <mesh>
-                  <sphereGeometry args={[node.size * 1.3, 32, 32]} />
-                  <meshBasicMaterial
-                    color={node.glow}
-                    transparent
-                    opacity={0.15}
-                    toneMapped={false}
-                  />
-                </mesh>
-              </group>
-            ))}
+            {nodes.map((node) => {
+              const isInPath = nodesInPath.has(node.id);
+              const glowColor = isInPath ? "#00d4ff" : node.glow;
+              const glowOpacity = isInPath ? 0.4 : 0.15;
+              
+              return (
+                <group key={node.id} position={[node.x, node.y, node.z]}>
+                  <mesh
+                    onPointerOver={(e) => {
+                      e.stopPropagation();
+                      onHover(node);
+                      gl.domElement.style.cursor = "pointer";
+                    }}
+                    onPointerOut={(e) => {
+                      e.stopPropagation();
+                      handlePointerOut();
+                    }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onClick(node);
+                    }}
+                  >
+                    <sphereGeometry args={[node.size, 32, 32]} />
+                    <meshBasicMaterial color={node.color} toneMapped={false} />
+                  </mesh>
+                  <mesh>
+                    <sphereGeometry args={[node.size * 1.3, 32, 32]} />
+                    <meshBasicMaterial
+                      color={glowColor}
+                      transparent
+                      opacity={glowOpacity}
+                      toneMapped={false}
+                    />
+                  </mesh>
+                  {isInPath && (
+                    <mesh>
+                      <sphereGeometry args={[node.size * 1.6, 32, 32]} />
+                      <meshBasicMaterial
+                        color="#00d4ff"
+                        transparent
+                        opacity={0.15}
+                        toneMapped={false}
+                      />
+                    </mesh>
+                  )}
+                </group>
+              );
+            })}
           </group>
         ))}
       </group>
@@ -229,15 +255,21 @@ export default function TopologyScene({
         })}
       </group>
 
-      {graph.nodes.map((node) => (
-        <pointLight
-          key={`light-${node.id}`}
-          position={[node.x, node.y, node.z]}
-          color={node.glow}
-          intensity={node.size * 2}
-          distance={node.size * 10}
-        />
-      ))}
+      {graph.nodes.map((node) => {
+        const isInPath = nodesInPath.has(node.id);
+        const lightColor = isInPath ? "#00d4ff" : node.glow;
+        const lightIntensity = isInPath ? node.size * 3 : node.size * 2;
+        
+        return (
+          <pointLight
+            key={`light-${node.id}`}
+            position={[node.x, node.y, node.z]}
+            color={lightColor}
+            intensity={lightIntensity}
+            distance={node.size * 10}
+          />
+        );
+      })}
 
       {flowPath.length > 0 && flowParticlesRef.current.map((particle, i) => (
         <mesh key={`particle-${i}`} position={particle.position}>

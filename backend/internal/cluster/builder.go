@@ -49,11 +49,12 @@ func (b *Builder) Build() Snapshot {
 	return Snapshot{
 		Clusters: []Cluster{
 			{
-				ID:       b.clusterID,
-				Nodes:    b.buildNodes(),
-				Pods:     b.buildPods(),
-				Topology: b.buildTopology(),
-				Metrics:  map[string]Metrics{},
+				ID:          b.clusterID,
+				Nodes:       b.buildNodes(),
+				Pods:        b.buildPods(),
+				Deployments: b.buildDeployments(),
+				Topology:    b.buildTopology(),
+				Metrics:     map[string]Metrics{},
 			},
 		},
 	}
@@ -126,6 +127,31 @@ func (b *Builder) buildPods() []PodInfo {
 		})
 	}
 	slices.SortFunc(out, func(a, b PodInfo) int {
+		return cmp.Compare(a.Namespace+"/"+a.ID, b.Namespace+"/"+b.ID)
+	})
+	return out
+}
+
+// ── Deployments ───────────────────────────────────────────────────────────────
+
+func (b *Builder) buildDeployments() []DeploymentInfo {
+	k8sDeployments := b.store.ListDeployments()
+	out := make([]DeploymentInfo, 0, len(k8sDeployments))
+
+	for _, d := range k8sDeployments {
+		desired := int32(1)
+		if d.Spec.Replicas != nil {
+			desired = *d.Spec.Replicas
+		}
+		out = append(out, DeploymentInfo{
+			ID:        d.Name,
+			Namespace: d.Namespace,
+			Desired:   desired,
+			Ready:     d.Status.ReadyReplicas,
+			Available: d.Status.AvailableReplicas,
+		})
+	}
+	slices.SortFunc(out, func(a, b DeploymentInfo) int {
 		return cmp.Compare(a.Namespace+"/"+a.ID, b.Namespace+"/"+b.ID)
 	})
 	return out

@@ -3,12 +3,13 @@ package store
 import (
 	"sync"
 
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	discoveryv1 "k8s.io/api/discovery/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 )
 
-// Store is a thread-safe in-memory cache for the five Kubernetes object types
+// Store is a thread-safe in-memory cache for the Kubernetes object types
 // that the informers observe. Every mutation calls the provided notify func so
 // the SSE hub can push an updated snapshot immediately.
 type Store struct {
@@ -18,6 +19,7 @@ type Store struct {
 	services       map[string]*corev1.Service
 	ingresses      map[string]*networkingv1.Ingress
 	endpointSlices map[string]*discoveryv1.EndpointSlice
+	deployments    map[string]*appsv1.Deployment
 	notify         func()
 }
 
@@ -28,6 +30,7 @@ func New(notify func()) *Store {
 		services:       make(map[string]*corev1.Service),
 		ingresses:      make(map[string]*networkingv1.Ingress),
 		endpointSlices: make(map[string]*discoveryv1.EndpointSlice),
+		deployments:    make(map[string]*appsv1.Deployment),
 		notify:         notify,
 	}
 }
@@ -138,6 +141,32 @@ func (s *Store) ListIngresses() []*networkingv1.Ingress {
 	out := make([]*networkingv1.Ingress, 0, len(s.ingresses))
 	for _, ing := range s.ingresses {
 		out = append(out, ing)
+	}
+	return out
+}
+
+// ── Deployments ───────────────────────────────────────────────────────────────
+
+func (s *Store) UpsertDeployment(d *appsv1.Deployment) {
+	s.mu.Lock()
+	s.deployments[d.Namespace+"/"+d.Name] = d
+	s.mu.Unlock()
+	s.signal()
+}
+
+func (s *Store) DeleteDeployment(namespace, name string) {
+	s.mu.Lock()
+	delete(s.deployments, namespace+"/"+name)
+	s.mu.Unlock()
+	s.signal()
+}
+
+func (s *Store) ListDeployments() []*appsv1.Deployment {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	out := make([]*appsv1.Deployment, 0, len(s.deployments))
+	for _, d := range s.deployments {
+		out = append(out, d)
 	}
 	return out
 }

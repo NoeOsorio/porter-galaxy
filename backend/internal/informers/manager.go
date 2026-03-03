@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"time"
 
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	discoveryv1 "k8s.io/api/discovery/v1"
 	networkingv1 "k8s.io/api/networking/v1"
@@ -36,6 +37,7 @@ func NewManager(client kubernetes.Interface, s *store.Store, resync time.Duratio
 func (m *Manager) Start(ctx context.Context) error {
 	m.registerNodes()
 	m.registerPods()
+	m.registerDeployments()
 	m.registerServices()
 	m.registerIngresses()
 	m.registerEndpointSlices()
@@ -176,6 +178,30 @@ func (m *Manager) registerEndpointSlices() {
 	})
 }
 
+// ── Deployments ───────────────────────────────────────────────────────────────
+
+func (m *Manager) registerDeployments() {
+	m.factory.Apps().V1().Deployments().Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc: func(obj any) {
+			if d, ok := obj.(*appsv1.Deployment); ok {
+				m.store.UpsertDeployment(d)
+			}
+		},
+		UpdateFunc: func(_, newObj any) {
+			if d, ok := newObj.(*appsv1.Deployment); ok {
+				m.store.UpsertDeployment(d)
+			}
+		},
+		DeleteFunc: func(obj any) {
+			d := extractDeployment(obj)
+			if d == nil {
+				return
+			}
+			m.store.DeleteDeployment(d.Namespace, d.Name)
+		},
+	})
+}
+
 // ── Tombstone helpers ─────────────────────────────────────────────────────────
 // When a watch connection drops and the informer misses a delete event, the
 // cache replays it as a DeletedFinalStateUnknown tombstone. We must unwrap it.
@@ -235,6 +261,18 @@ func extractEndpointSlice(obj any) *discoveryv1.EndpointSlice {
 	if ts, ok := obj.(cache.DeletedFinalStateUnknown); ok {
 		if es, ok := ts.Obj.(*discoveryv1.EndpointSlice); ok {
 			return es
+		}
+	}
+	return nil
+}
+
+func extractDeployment(obj any) *appsv1.Deployment {
+	if d, ok := obj.(*appsv1.Deployment); ok {
+		return d
+	}
+	if ts, ok := obj.(cache.DeletedFinalStateUnknown); ok {
+		if d, ok := ts.Obj.(*appsv1.Deployment); ok {
+			return d
 		}
 	}
 	return nil

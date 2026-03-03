@@ -51,7 +51,7 @@ type Link struct {
 	To   string `json:"to"`
 	// Active=false when the endpoint behind the link is not ready.
 	Active bool `json:"active"`
-	// Type hints the rendering layer: "internet" | "lb" | "service" | "pod"
+	// Type hints the rendering layer: "internet" | "lb" | "ingress" | "service" | "pod"
 	Type string `json:"type,omitempty"`
 }
 

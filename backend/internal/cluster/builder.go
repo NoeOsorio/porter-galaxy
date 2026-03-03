@@ -192,15 +192,22 @@ func (b *Builder) buildTopology() []Link {
 
 	var links []Link
 
-	// ── Ingress-routed paths: INTERNET → LB → Service → Pods ─────────────────
+	// ── Ingress-routed paths: INTERNET → LB → Ingress → Service → Pods ────────
 	for _, ing := range b.store.ListIngresses() {
 		lbID := ingressLBID(ing)
+		ingID := fmt.Sprintf("ingress/%s/%s", ing.Namespace, ing.Name)
 
 		links = append(links, Link{
 			From:   "INTERNET",
 			To:     lbID,
 			Active: true,
 			Type:   "internet",
+		})
+		links = append(links, Link{
+			From:   lbID,
+			To:     ingID,
+			Active: true,
+			Type:   "lb",
 		})
 
 		for _, rule := range ing.Spec.Rules {
@@ -216,10 +223,10 @@ func (b *Builder) buildTopology() []Link {
 				coveredServices[svcKey] = true
 
 				links = append(links, Link{
-					From:   lbID,
+					From:   ingID,
 					To:     svcKey,
 					Active: true,
-					Type:   "lb",
+					Type:   "ingress",
 				})
 
 				for _, ep := range serviceEPs[svcKey] {

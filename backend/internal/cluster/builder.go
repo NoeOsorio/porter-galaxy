@@ -146,7 +146,7 @@ func (b *Builder) buildPods() []PodInfo {
 			ID:           p.Name,
 			Namespace:    p.Namespace,
 			NodeID:       p.Spec.NodeName,
-			Status:       string(p.Status.Phase),
+			Status:       podStatus(p),
 			Version:      version,
 			ControllerID: controllerID,
 		})
@@ -155,6 +155,22 @@ func (b *Builder) buildPods() []PodInfo {
 		return cmp.Compare(a.Namespace+"/"+a.ID, b.Namespace+"/"+b.ID)
 	})
 	return out
+}
+
+// podStatus returns a human-readable status for a pod, preferring container-level
+// reasons (e.g. CrashLoopBackOff, OOMKilled) over the coarse pod Phase.
+func podStatus(p *corev1.Pod) string {
+	// Check each container's waiting/terminated reason first.
+	for _, cs := range p.Status.ContainerStatuses {
+		if cs.State.Waiting != nil && cs.State.Waiting.Reason != "" {
+			return cs.State.Waiting.Reason
+		}
+		if cs.State.Terminated != nil && cs.State.Terminated.Reason != "" {
+			return cs.State.Terminated.Reason
+		}
+	}
+	// Fall back to pod phase (Pending / Running / Succeeded / Failed / Unknown).
+	return string(p.Status.Phase)
 }
 
 // ── Deployments ───────────────────────────────────────────────────────────────

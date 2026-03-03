@@ -28,8 +28,7 @@ function statusColor(status?: string): string {
   if (!status) return "#ffffff";
   if (status.includes("Running") || status.includes("Ready")) return "#5bffb0";
   if (status.includes("Pending")) return "#ffd666";
-  if (status.includes("Failed") || status.includes("Error")) return "#ff3333";
-  return "#ffffff";
+  return "#ff3333";
 }
 
 export default function Clusters() {

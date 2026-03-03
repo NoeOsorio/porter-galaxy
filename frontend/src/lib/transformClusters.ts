@@ -191,6 +191,13 @@ export function transformClusters(
 
           const podFullId = `${apiCluster.id}::pod::${apiPod.id}`;
 
+          let podColor = { color: "#ff3333", glow: "#dd0000" };
+          if (apiPod.status === "Running") {
+            podColor = { color: "#5bffb0", glow: "#00cc66" };
+          } else if (apiPod.status === "Pending") {
+            podColor = { color: "#ffd666", glow: "#cc9900" };
+          }
+
           const pod: ClusterGalaxyNode = {
             id: podFullId,
             type: "pod",
@@ -199,8 +206,8 @@ export function transformClusters(
             x: podX,
             y: podY,
             z: podZ,
-            color: TYPE_COLORS.pod.color,
-            glow: TYPE_COLORS.pod.glow,
+            color: podColor.color,
+            glow: podColor.glow,
             size: 8,
             status: apiPod.status,
             metadata: {

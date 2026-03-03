@@ -259,6 +259,14 @@ export function transformTopology(apiCluster: ApiCluster): TopologyGraph {
       
       const outgoingConnections = connectionCounts.get(podId) || 0;
       
+      const podStatus = pod?.status;
+      let podColor = { color: "#ff3333", glow: "#dd0000" };
+      if (podStatus === "Running") {
+        podColor = { color: "#5bffb0", glow: "#00cc66" };
+      } else if (podStatus === "Pending") {
+        podColor = { color: "#ffd666", glow: "#cc9900" };
+      }
+      
       nodes.push({
         id: podId,
         type: "pod",
@@ -267,8 +275,8 @@ export function transformTopology(apiCluster: ApiCluster): TopologyGraph {
         x,
         y,
         z,
-        color: COLORS.pod.color,
-        glow: COLORS.pod.glow,
+        color: podColor.color,
+        glow: podColor.glow,
         size: 12,
         status: pod?.status,
         metadata: {

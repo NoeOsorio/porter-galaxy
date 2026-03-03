@@ -68,14 +68,21 @@ export function transformApiToMoleculeGraph(
 
         const containerNames = [apiPod.id.split("-").slice(0, 2).join("-")];
 
+        let podColor = { color: "#ff3333", glow: "#dd0000" };
+        if (apiPod.status === "Running") {
+          podColor = { color: "#5bffb0", glow: "#00cc66" };
+        } else if (apiPod.status === "Pending") {
+          podColor = { color: "#ffd666", glow: "#cc9900" };
+        }
+
         pods.push({
           id: podId,
           kind: "Pod",
           name: apiPod.id,
           x: deployX + Math.cos(podAngle) * podRadius,
           y: deployY + Math.sin(podAngle) * podRadius,
-          color: nodeColor.color,
-          glow: nodeColor.glow,
+          color: podColor.color,
+          glow: podColor.glow,
           size: 2.2,
           status:
             apiPod.status === "Running"

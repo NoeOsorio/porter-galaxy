@@ -64,6 +64,11 @@ export default function Topology() {
         <Canvas
           camera={{ position: [250, 50, 350], fov: 60 }}
           gl={{ antialias: true }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setSelected(null);
+            }
+          }}
         >
           <color attach="background" args={["#05050f"]} />
           <fog attach="fog" args={["#05050f", 500, 1200]} />
@@ -71,6 +76,7 @@ export default function Topology() {
             graph={topologyGraph}
             onHover={setHovered}
             onClick={setSelected}
+            selectedNode={selected}
           />
           <OrbitControls
             ref={controlsRef}

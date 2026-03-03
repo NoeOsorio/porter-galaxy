@@ -215,25 +215,32 @@ func (b *Builder) buildTopology() []Link {
 	// create duplicate INTERNET → LB links for bare LoadBalancer services.
 	coveredServices := make(map[string]bool)
 
+	// Track LB IDs claimed by Ingress objects. The ingress controller's own
+	// LoadBalancer service shares the same external IP/hostname, so we skip it
+	// in the bare-LB pass to avoid a redundant INTERNET → LB → controller path.
+	ingressLBIDs := make(map[string]bool)
+	for _, ing := range b.store.ListIngresses() {
+		ingressLBIDs[ingressLBID(ing)] = true
+	}
+
 	var links []Link
+	seen := make(map[string]bool)
+	addLink := func(l Link) {
+		key := l.From + "|" + l.To
+		if seen[key] {
+			return
+		}
+		seen[key] = true
+		links = append(links, l)
+	}
 
 	// ── Ingress-routed paths: INTERNET → LB → Ingress → Service → Pods ────────
 	for _, ing := range b.store.ListIngresses() {
 		lbID := ingressLBID(ing)
 		ingID := fmt.Sprintf("ingress/%s/%s", ing.Namespace, ing.Name)
 
-		links = append(links, Link{
-			From:   "INTERNET",
-			To:     lbID,
-			Active: true,
-			Type:   "internet",
-		})
-		links = append(links, Link{
-			From:   lbID,
-			To:     ingID,
-			Active: true,
-			Type:   "lb",
-		})
+		addLink(Link{From: "INTERNET", To: lbID, Active: true, Type: "internet"})
+		addLink(Link{From: lbID, To: ingID, Active: true, Type: "lb"})
 
 		for _, rule := range ing.Spec.Rules {
 			if rule.HTTP == nil {
@@ -247,20 +254,10 @@ func (b *Builder) buildTopology() []Link {
 				svcKey := ing.Namespace + "/" + svcName
 				coveredServices[svcKey] = true
 
-				links = append(links, Link{
-					From:   ingID,
-					To:     svcKey,
-					Active: true,
-					Type:   "ingress",
-				})
+				addLink(Link{From: ingID, To: svcKey, Active: true, Type: "ingress"})
 
 				for _, ep := range serviceEPs[svcKey] {
-					links = append(links, Link{
-						From:   svcKey,
-						To:     ep.podName,
-						Active: ep.ready,
-						Type:   "service",
-					})
+					addLink(Link{From: svcKey, To: ep.podName, Active: ep.ready, Type: "service"})
 				}
 			}
 		}
@@ -277,26 +274,14 @@ func (b *Builder) buildTopology() []Link {
 		}
 
 		lbID := serviceLBID(svc)
+		if ingressLBIDs[lbID] {
+			continue
+		}
 
-		links = append(links, Link{
-			From:   "INTERNET",
-			To:     lbID,
-			Active: true,
-			Type:   "internet",
-		})
-		links = append(links, Link{
-			From:   lbID,
-			To:     svcKey,
-			Active: true,
-			Type:   "lb",
-		})
+		addLink(Link{From: "INTERNET", To: lbID, Active: true, Type: "internet"})
+		addLink(Link{From: lbID, To: svcKey, Active: true, Type: "lb"})
 		for _, ep := range serviceEPs[svcKey] {
-			links = append(links, Link{
-				From:   svcKey,
-				To:     ep.podName,
-				Active: ep.ready,
-				Type:   "service",
-			})
+			addLink(Link{From: svcKey, To: ep.podName, Active: ep.ready, Type: "service"})
 		}
 	}
 

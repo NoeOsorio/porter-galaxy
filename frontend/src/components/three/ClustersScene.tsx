@@ -67,17 +67,6 @@ export default function ClustersScene({
 
   return (
     <group>
-      <mesh
-        position={[0, 0, -500]}
-        onClick={(e) => {
-          e.stopPropagation();
-          onClick(null);
-        }}
-      >
-        <planeGeometry args={[5000, 5000]} />
-        <meshBasicMaterial transparent opacity={0} />
-      </mesh>
-
       <group ref={nodesRef}>
         {nodesByType.map(([type, nodes]) => (
           <group key={type}>

@@ -62,11 +62,11 @@ export default function Topology() {
       
       {topologyGraph && (
         <Canvas
-          camera={{ position: [0, 0, 800], fov: 50 }}
+          camera={{ position: [250, 50, 350], fov: 60 }}
           gl={{ antialias: true }}
-          orthographic
         >
           <color attach="background" args={["#05050f"]} />
+          <fog attach="fog" args={["#05050f", 500, 1200]} />
           <TopologyScene
             graph={topologyGraph}
             onHover={setHovered}
@@ -74,25 +74,22 @@ export default function Topology() {
           />
           <OrbitControls
             ref={controlsRef}
-            enableRotate={false}
             enableDamping
             dampingFactor={0.08}
-            minZoom={0.3}
-            maxZoom={3}
-            zoomSpeed={0.5}
-            panSpeed={0.8}
-            mouseButtons={{
-              LEFT: 2,
-              MIDDLE: 1,
-              RIGHT: 0,
-            }}
+            rotateSpeed={0.5}
+            zoomSpeed={0.8}
+            minDistance={200}
+            maxDistance={1000}
+            target={[0, 0, -100]}
+            enablePan={true}
+            panSpeed={0.5}
+            screenSpacePanning={true}
           />
-          <Stars radius={600} depth={50} count={3000} factor={3} />
           <EffectComposer>
             <Bloom
               luminanceThreshold={0.2}
-              intensity={1.8}
-              radius={0.8}
+              intensity={1.5}
+              radius={0.7}
               mipmapBlur
             />
           </EffectComposer>
@@ -106,7 +103,7 @@ export default function Topology() {
           </div>
         </div>
         <div className="opacity-40 text-[10px]">
-          network flow visualization · drag to pan · scroll to zoom
+          network flow visualization · drag to rotate · scroll to zoom
         </div>
         {topologyGraph && (
           <div className="mt-3 text-[10px] opacity-60">

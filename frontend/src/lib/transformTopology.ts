@@ -14,14 +14,55 @@ const EDGE_COLORS = {
   service: "#5bffb0",
 };
 
+function arrangeNodesInCircle(
+  count: number,
+  radius: number,
+  centerY: number,
+  centerZ: number,
+  yVariation: number = 0
+): Array<{ x: number; y: number; z: number }> {
+  const positions: Array<{ x: number; y: number; z: number }> = [];
+  
+  for (let i = 0; i < count; i++) {
+    const angle = (i / count) * Math.PI * 2;
+    const x = Math.cos(angle) * radius;
+    const z = centerZ + Math.sin(angle) * radius;
+    const y = centerY + (yVariation > 0 ? (Math.random() - 0.5) * yVariation : 0);
+    
+    positions.push({ x, y, z });
+  }
+  
+  return positions;
+}
+
+function arrangeNodesInSphere(
+  count: number,
+  radius: number,
+  centerX: number,
+  centerY: number,
+  centerZ: number
+): Array<{ x: number; y: number; z: number }> {
+  const positions: Array<{ x: number; y: number; z: number }> = [];
+  const goldenRatio = (1 + Math.sqrt(5)) / 2;
+  
+  for (let i = 0; i < count; i++) {
+    const theta = 2 * Math.PI * i / goldenRatio;
+    const phi = Math.acos(1 - 2 * (i + 0.5) / count);
+    
+    const x = centerX + radius * Math.sin(phi) * Math.cos(theta);
+    const y = centerY + radius * Math.sin(phi) * Math.sin(theta);
+    const z = centerZ + radius * Math.cos(phi);
+    
+    positions.push({ x, y, z });
+  }
+  
+  return positions;
+}
+
 export function transformTopology(apiCluster: ApiCluster): TopologyGraph {
   const nodes: TopologyNode[] = [];
   const edges: TopologyEdge[] = [];
   const nodePositions = new Map<string, { x: number; y: number; z: number }>();
-
-  let currentY = 0;
-  const layerSpacing = 250;
-  const nodeSpacing = 200;
 
   const internetNodes = new Set<string>();
   const lbNodes = new Set<string>();
@@ -50,29 +91,29 @@ export function transformTopology(apiCluster: ApiCluster): TopologyGraph {
   if (internetNodes.size > 0) {
     const internet = Array.from(internetNodes)[0]!;
     const x = 0;
-    const y = currentY;
-    nodePositions.set(internet, { x, y, z: 0 });
-      nodes.push({
-        id: internet,
-        type: "internet",
-        name: "INTERNET",
-        x,
-        y,
-        z: 0,
-        color: COLORS.internet.color,
-        glow: COLORS.internet.glow,
-        size: 25,
-      });
-    currentY -= layerSpacing;
+    const y = 80;
+    const z = 0;
+    nodePositions.set(internet, { x, y, z });
+    nodes.push({
+      id: internet,
+      type: "internet",
+      name: "INTERNET",
+      x,
+      y,
+      z,
+      color: COLORS.internet.color,
+      glow: COLORS.internet.glow,
+      size: 30,
+    });
   }
 
   if (lbNodes.size > 0) {
     const lbs = Array.from(lbNodes);
-    const startX = -(lbs.length - 1) * nodeSpacing / 2;
+    const lbPositions = arrangeNodesInCircle(lbs.length, 80, 30, -60, 30);
+    
     lbs.forEach((lb, i) => {
-      const x = startX + i * nodeSpacing;
-      const y = currentY;
-      nodePositions.set(lb, { x, y, z: 0 });
+      const pos = lbPositions[i]!;
+      nodePositions.set(lb, pos);
       
       const lbName = lb.includes("elb") 
         ? lb.split("-").slice(-1)[0]?.substring(0, 8) || "LB"
@@ -82,68 +123,66 @@ export function transformTopology(apiCluster: ApiCluster): TopologyGraph {
         id: lb,
         type: "loadbalancer",
         name: lbName,
-        x,
-        y,
-        z: 0,
+        x: pos.x,
+        y: pos.y,
+        z: pos.z,
         color: COLORS.loadbalancer.color,
         glow: COLORS.loadbalancer.glow,
-        size: 18,
+        size: 20,
       });
     });
-    currentY -= layerSpacing;
   }
 
   if (deploymentNodes.size > 0) {
     const deployments = Array.from(deploymentNodes);
-    const startX = -(deployments.length - 1) * nodeSpacing / 2;
+    const depPositions = arrangeNodesInCircle(deployments.length, 120, -30, -150, 40);
+    
     deployments.forEach((depKey, i) => {
       const [namespace, deploymentId] = depKey.split("/");
       const deployment = apiCluster.deployments.find(
         (d) => d.id === deploymentId && d.namespace === namespace
       );
       
-      const x = startX + i * nodeSpacing;
-      const y = currentY;
-      nodePositions.set(depKey, { x, y, z: 0 });
+      const pos = depPositions[i]!;
+      nodePositions.set(depKey, pos);
       
       nodes.push({
         id: depKey,
         type: "deployment",
         name: deploymentId || depKey,
         namespace,
-        x,
-        y,
-        z: 0,
+        x: pos.x,
+        y: pos.y,
+        z: pos.z,
         color: COLORS.deployment.color,
         glow: COLORS.deployment.glow,
-        size: 14,
+        size: 16,
         status: deployment ? `${deployment.ready}/${deployment.desired}` : undefined,
       });
     });
-    currentY -= layerSpacing;
   }
 
   if (podNodes.size > 0) {
     const pods = Array.from(podNodes);
-    const startX = -(pods.length - 1) * nodeSpacing / 2;
+    const podPositions = arrangeNodesInSphere(pods.length, 130, 0, -100, -280);
+    
     pods.forEach((podId, i) => {
       const pod = apiCluster.pods.find((p) => p.id === podId);
+      const pos = podPositions[i]!;
       
-      const x = startX + i * nodeSpacing;
-      const y = currentY;
-      nodePositions.set(podId, { x, y, z: 0 });
+      nodePositions.set(podId, pos);
       
       nodes.push({
         id: podId,
         type: "pod",
         name: podId.split("-").slice(0, 2).join("-"),
         namespace: pod?.namespace,
-        x,
-        y,
-        z: 0,
+        x: pos.x,
+        y: pos.y,
+        z: pos.z,
         color: COLORS.pod.color,
         glow: COLORS.pod.glow,
-        size: 10,
+        size: 12,
         status: pod?.status,
       });
     });

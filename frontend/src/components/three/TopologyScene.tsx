@@ -51,29 +51,38 @@ export default function TopologyScene({
         {nodesByType.map(([type, nodes]) => (
           <group key={type}>
             {nodes.map((node) => (
-              <mesh
-                key={node.id}
-                position={[node.x, node.y, node.z]}
-                onPointerOver={(e) => {
-                  e.stopPropagation();
-                  onHover(node);
-                  gl.domElement.style.cursor = "pointer";
-                }}
-                onPointerOut={(e) => {
-                  e.stopPropagation();
-                  handlePointerOut();
-                }}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onClick(node);
-                }}
-              >
-                <sphereGeometry args={[node.size, 32, 32]} />
-                <meshBasicMaterial
-                  color={node.color}
-                  toneMapped={false}
-                />
-              </mesh>
+              <group key={node.id} position={[node.x, node.y, node.z]}>
+                <mesh
+                  onPointerOver={(e) => {
+                    e.stopPropagation();
+                    onHover(node);
+                    gl.domElement.style.cursor = "pointer";
+                  }}
+                  onPointerOut={(e) => {
+                    e.stopPropagation();
+                    handlePointerOut();
+                  }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onClick(node);
+                  }}
+                >
+                  <sphereGeometry args={[node.size, 32, 32]} />
+                  <meshBasicMaterial
+                    color={node.color}
+                    toneMapped={false}
+                  />
+                </mesh>
+                <mesh>
+                  <sphereGeometry args={[node.size * 1.3, 32, 32]} />
+                  <meshBasicMaterial
+                    color={node.glow}
+                    transparent
+                    opacity={0.15}
+                    toneMapped={false}
+                  />
+                </mesh>
+              </group>
             ))}
           </group>
         ))}
@@ -86,22 +95,32 @@ export default function TopologyScene({
           
           if (!fromNode || !toNode) return null;
 
-          const points = [
-            new THREE.Vector3(fromNode.x, fromNode.y, fromNode.z),
-            new THREE.Vector3(toNode.x, toNode.y, toNode.z),
-          ];
+          const start = new THREE.Vector3(fromNode.x, fromNode.y, fromNode.z);
+          const end = new THREE.Vector3(toNode.x, toNode.y, toNode.z);
+          const direction = new THREE.Vector3().subVectors(end, start);
+          const length = direction.length();
+          const midpoint = new THREE.Vector3().addVectors(start, end).multiplyScalar(0.5);
           
-          const geometry = new THREE.BufferGeometry().setFromPoints(points);
+          const quaternion = new THREE.Quaternion();
+          quaternion.setFromUnitVectors(
+            new THREE.Vector3(0, 1, 0),
+            direction.normalize()
+          );
           
           return (
-            <line key={`${edge.from}-${edge.to}-${i}`} geometry={geometry}>
-              <lineBasicMaterial
+            <mesh
+              key={`${edge.from}-${edge.to}-${i}`}
+              position={midpoint}
+              quaternion={quaternion}
+            >
+              <cylinderGeometry args={[0.5, 0.5, length, 8]} />
+              <meshBasicMaterial
                 color={edge.color}
                 transparent
                 opacity={edge.active ? 0.5 : 0.2}
-                linewidth={2}
+                toneMapped={false}
               />
-            </line>
+            </mesh>
           );
         })}
       </group>

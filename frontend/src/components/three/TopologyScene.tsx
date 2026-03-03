@@ -75,12 +75,12 @@ export default function TopologyScene({
         const firstEdge = path[0]!;
         const startNode = graph.nodes.find(n => n.id === firstEdge.from);
         
-        for (let i = 0; i < 8; i++) {
+        for (let i = 0; i < 5; i++) {
           particles.push({
             position: startNode 
               ? new THREE.Vector3(startNode.x, startNode.y, startNode.z)
               : new THREE.Vector3(),
-            progress: i / 8,
+            progress: i / 5,
             edgeIndex: 0,
           });
         }
@@ -132,7 +132,7 @@ export default function TopologyScene({
 
     if (flowParticlesRef.current.length > 0 && flowPath.length > 0) {
       flowParticlesRef.current.forEach((particle) => {
-        particle.progress += delta * 0.5;
+        particle.progress += delta * 0.8;
         
         if (particle.progress >= flowPath.length) {
           particle.progress = 0;
@@ -161,6 +161,17 @@ export default function TopologyScene({
 
   return (
     <group>
+      <mesh
+        position={[0, 0, -500]}
+        onClick={(e) => {
+          e.stopPropagation();
+          onClick(null);
+        }}
+      >
+        <planeGeometry args={[3000, 3000]} />
+        <meshBasicMaterial transparent opacity={0} />
+      </mesh>
+
       <group ref={nodesRef}>
         {nodesByType.map(([type, nodes]) => (
           <group key={type}>
@@ -272,22 +283,38 @@ export default function TopologyScene({
       })}
 
       {flowPath.length > 0 && flowParticlesRef.current.map((particle, i) => (
-        <mesh key={`particle-${i}`} position={particle.position}>
-          <sphereGeometry args={[3, 16, 16]} />
-          <meshBasicMaterial
-            color="#ffffff"
-            toneMapped={false}
-          />
+        <group key={`particle-${i}`} position={particle.position}>
           <mesh>
-            <sphereGeometry args={[5, 16, 16]} />
+            <sphereGeometry args={[6, 16, 16]} />
             <meshBasicMaterial
-              color="#00d4ff"
-              transparent
-              opacity={0.4}
+              color="#ffffff"
               toneMapped={false}
             />
           </mesh>
-        </mesh>
+          <mesh>
+            <sphereGeometry args={[10, 16, 16]} />
+            <meshBasicMaterial
+              color="#00d4ff"
+              transparent
+              opacity={0.6}
+              toneMapped={false}
+            />
+          </mesh>
+          <mesh>
+            <sphereGeometry args={[14, 16, 16]} />
+            <meshBasicMaterial
+              color="#00d4ff"
+              transparent
+              opacity={0.3}
+              toneMapped={false}
+            />
+          </mesh>
+          <pointLight
+            color="#00d4ff"
+            intensity={100}
+            distance={50}
+          />
+        </group>
       ))}
 
       {flowPath.length > 0 && flowPath.map((edge, i) => {

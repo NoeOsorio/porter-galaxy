@@ -57,15 +57,18 @@ export function transformClusters(
     allNodes.push(clusterNode);
 
     const nodeCount = apiCluster.nodes.length;
-    const nodeRadius = 180;
+    const nodeRadius = 200;
     const nodeAngleStep = (Math.PI * 2) / nodeCount;
 
     apiCluster.nodes.forEach((apiNode, nodeIndex) => {
       const nodeAngle = nodeIndex * nodeAngleStep;
+      
+      const offsetX = Math.cos(nodeAngle) * nodeRadius;
+      const offsetZ = Math.sin(nodeAngle) * nodeRadius;
 
-      const nodeX = clusterCenterX + Math.cos(nodeAngle) * nodeRadius;
+      const nodeX = clusterCenterX + offsetX;
       const nodeY = clusterCenterY + 120;
-      const nodeZ = clusterCenterZ - 120 + Math.sin(nodeAngle) * nodeRadius;
+      const nodeZ = clusterCenterZ + offsetZ;
 
       const nodeFullId = `${apiCluster.id}::node::${apiNode.id}`;
 
@@ -122,17 +125,19 @@ export function transformClusters(
       });
 
       const deploymentCount = deploymentsOnNode.size || 1;
-      const deploymentRadius = 140;
+      const deploymentRadius = 180;
       const deploymentAngleStep = (Math.PI * 2) / deploymentCount;
 
       let deploymentIdx = 0;
       deploymentsOnNode.forEach((pods, depKey) => {
         const deploymentAngle = deploymentIdx * deploymentAngleStep;
-        const deploymentX =
-          nodeX + Math.cos(deploymentAngle) * deploymentRadius;
+        
+        const offsetX = Math.cos(deploymentAngle) * deploymentRadius;
+        const offsetZ = Math.sin(deploymentAngle) * deploymentRadius;
+        
+        const deploymentX = nodeX + offsetX;
         const deploymentY = clusterCenterY - 40;
-        const deploymentZ =
-          nodeZ - 120 + Math.sin(deploymentAngle) * deploymentRadius;
+        const deploymentZ = nodeZ + offsetZ;
 
         const depKeyParts = depKey.split("::");
         const namespaceAndId = depKeyParts[2] || depKey;
@@ -171,14 +176,18 @@ export function transformClusters(
         });
 
         const podCount = pods.length || 1;
-        const podRadius = 55;
+        const podRadius = 70;
         const podAngleStep = (Math.PI * 2) / podCount;
 
         pods.forEach((apiPod, podIdx) => {
           const podAngle = podIdx * podAngleStep;
-          const podX = deploymentX + Math.cos(podAngle) * podRadius;
+          
+          const offsetX = Math.cos(podAngle) * podRadius;
+          const offsetZ = Math.sin(podAngle) * podRadius;
+          
+          const podX = deploymentX + offsetX;
           const podY = clusterCenterY - 180;
-          const podZ = deploymentZ - 120 + Math.sin(podAngle) * podRadius;
+          const podZ = deploymentZ + offsetZ;
 
           const podFullId = `${apiCluster.id}::pod::${apiPod.id}`;
 

@@ -109,7 +109,7 @@ export function transformTopology(apiCluster: ApiCluster): TopologyGraph {
 
   if (lbNodes.size > 0) {
     const lbs = Array.from(lbNodes);
-    const radius = 100;
+    const radius = 120;
     const angleStep = (Math.PI * 2) / lbs.length;
     
     lbs.forEach((lb, i) => {
@@ -147,7 +147,7 @@ export function transformTopology(apiCluster: ApiCluster): TopologyGraph {
 
   if (ingressNodes.size > 0) {
     const ingresses = Array.from(ingressNodes);
-    const radius = 140;
+    const radius = 160;
     const angleStep = (Math.PI * 2) / ingresses.length;
     
     ingresses.forEach((ingressKey, i) => {
@@ -184,7 +184,7 @@ export function transformTopology(apiCluster: ApiCluster): TopologyGraph {
 
   if (deploymentNodes.size > 0) {
     const deployments = Array.from(deploymentNodes);
-    const radius = 180;
+    const radius = 220;
     const angleStep = (Math.PI * 2) / deployments.length;
     
     deployments.forEach((depKey, i) => {
@@ -244,7 +244,7 @@ export function transformTopology(apiCluster: ApiCluster): TopologyGraph {
       }
     });
 
-    const radius = 220;
+    const radius = 280;
     const angleStep = (Math.PI * 2) / pods.length;
     
     pods.forEach((podId, i) => {

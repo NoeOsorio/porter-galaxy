@@ -43,11 +43,12 @@ export default function Topology() {
   const [hoveredEdge, setHoveredEdge] = useState<{ from: string; to: string; type: string } | null>(null);
   const [showFilters, setShowFilters] = useState(false);
   const [showLegend, setShowLegend] = useState(false);
+  const [selectedClusterIndex, setSelectedClusterIndex] = useState(0);
 
   const topologyGraph = useMemo(() => {
-    if (!data?.clusters[0]) return null;
-    return transformTopology(data.clusters[0]);
-  }, [data]);
+    if (!data?.clusters || !data.clusters[selectedClusterIndex]) return null;
+    return transformTopology(data.clusters[selectedClusterIndex]);
+  }, [data, selectedClusterIndex]);
 
   const filteredNodes = useMemo(() => {
     if (!topologyGraph) return new Set<string>();
@@ -160,6 +161,11 @@ export default function Topology() {
     }
   };
 
+  useEffect(() => {
+    setSelected(null);
+    handleResetView();
+  }, [selectedClusterIndex]);
+
   return (
     <div
       className="w-full h-screen bg-[#05050f] relative overflow-hidden font-['JetBrains_Mono','SF_Mono',monospace]"
@@ -236,6 +242,25 @@ export default function Topology() {
             network flow visualization · drag to rotate · scroll to zoom
           </div>
         </div>
+
+        {data?.clusters && data.clusters.length > 1 && (
+          <div className="bg-[rgba(8,8,25,0.8)] border border-white/[0.08] rounded-xl p-3 backdrop-blur-xl">
+            <div className="text-white/70 text-[10px] mb-2 font-semibold opacity-80">
+              CLUSTER
+            </div>
+            <select
+              value={selectedClusterIndex}
+              onChange={(e) => setSelectedClusterIndex(Number(e.target.value))}
+              className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white/90 text-[11px] focus:outline-none focus:border-white/20 focus:bg-white/10 transition-all cursor-pointer"
+            >
+              {data.clusters.map((cluster, index) => (
+                <option key={cluster.id} value={index} className="bg-[#08081a] text-white/90">
+                  {cluster.id}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
 
         <div className="bg-[rgba(8,8,25,0.8)] border border-white/[0.08] rounded-xl backdrop-blur-xl overflow-hidden">
           <button

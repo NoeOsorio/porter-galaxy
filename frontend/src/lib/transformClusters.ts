@@ -107,6 +107,9 @@ export function transformClusters(
         (typeof apiCluster.deployments)[0]
       >();
       apiCluster.deployments.forEach((dep) => {
+        if (dep.id === "standalone") {
+          return;
+        }
         deploymentMap.set(
           `${apiCluster.id}::deployment::${dep.namespace}/${dep.id}`,
           dep,
@@ -115,7 +118,7 @@ export function transformClusters(
 
       const deploymentsOnNode = new Map<string, typeof apiCluster.pods>();
       podsOnThisNode.forEach((pod) => {
-        if (!pod.controllerId) {
+        if (!pod.controllerId || pod.controllerId.trim() === "" || pod.controllerId === "standalone") {
           return;
         }
         const depKey = `${apiCluster.id}::deployment::${pod.namespace}/${pod.controllerId}`;
@@ -131,6 +134,10 @@ export function transformClusters(
 
       let deploymentIdx = 0;
       deploymentsOnNode.forEach((pods, depKey) => {
+        if (pods.length === 0) {
+          return;
+        }
+
         const deploymentAngle = deploymentIdx * deploymentAngleStep;
         
         const offsetX = Math.cos(deploymentAngle) * deploymentRadius;

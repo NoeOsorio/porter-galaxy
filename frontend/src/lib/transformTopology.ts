@@ -189,6 +189,19 @@ export function transformTopology(apiCluster: ApiCluster): TopologyGraph {
     
     deployments.forEach((depKey, i) => {
       const [namespace, deploymentId] = depKey.split("/");
+      
+      if (deploymentId === "standalone") {
+        return;
+      }
+      
+      const hasValidPods = apiCluster.pods.some(
+        (pod) => pod.namespace === namespace && pod.controllerId === deploymentId
+      );
+      
+      if (!hasValidPods) {
+        return;
+      }
+      
       const deployment = apiCluster.deployments.find(
         (d) => d.id === deploymentId && d.namespace === namespace
       );
@@ -230,7 +243,7 @@ export function transformTopology(apiCluster: ApiCluster): TopologyGraph {
     const podsByDeployment = new Map<string, string[]>();
     pods.forEach((podId) => {
       const pod = apiCluster.pods.find((p) => p.id === podId);
-      if (pod) {
+      if (pod && pod.controllerId && pod.controllerId.trim() !== "" && pod.controllerId !== "standalone") {
         const parentDeployments = Array.from(deploymentNodes).filter((depKey) => {
           const [namespace] = depKey.split("/");
           return namespace === pod.namespace;
@@ -249,6 +262,10 @@ export function transformTopology(apiCluster: ApiCluster): TopologyGraph {
     
     pods.forEach((podId, i) => {
       const pod = apiCluster.pods.find((p) => p.id === podId);
+      
+      if (!pod?.controllerId || pod.controllerId.trim() === "" || pod.controllerId === "standalone") {
+        return;
+      }
       
       const angle = i * angleStep + Math.PI / pods.length;
       const x = Math.cos(angle) * radius;

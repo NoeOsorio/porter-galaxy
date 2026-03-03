@@ -30,6 +30,9 @@ export function transformApiToMoleculeGraph(
     const nodeId = apiNode.id;
 
     const nodeDeployments = apiCluster.deployments.filter((deploy) => {
+      if (deploy.id === "standalone") {
+        return false;
+      }
       const nodePods = apiCluster.pods.filter(
         (pod) => pod.nodeId === apiNode.id
       );
@@ -42,6 +45,10 @@ export function transformApiToMoleculeGraph(
     const deployRadius = 80;
 
     nodeDeployments.forEach((apiDeploy, d) => {
+      if (apiDeploy.id === "standalone") {
+        return;
+      }
+
       const deployAngle = d * deployAngleStep;
       const deployId = `${nodeId}-${apiDeploy.namespace}-${apiDeploy.id}`;
 
@@ -49,8 +56,15 @@ export function transformApiToMoleculeGraph(
         (pod) =>
           pod.nodeId === apiNode.id &&
           pod.namespace === apiDeploy.namespace &&
-          pod.id.startsWith(apiDeploy.id)
+          pod.id.startsWith(apiDeploy.id) &&
+          pod.controllerId &&
+          pod.controllerId.trim() !== "" &&
+          pod.controllerId !== "standalone"
       );
+
+      if (deployPods.length === 0) {
+        return;
+      }
 
       const pods: K8sMoleculePodNode[] = [];
       const podCount = deployPods.length || 1;

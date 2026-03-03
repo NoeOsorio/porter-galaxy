@@ -29,13 +29,16 @@ export default function GalaxyGraph() {
   const onStats = useCallback((s: GraphStats) => setStats(s), []);
 
   return (
-    <div className="w-full h-screen bg-[#05050f] relative overflow-hidden">
+    <div
+      className="w-full h-screen bg-[#05050f] relative overflow-hidden"
+      style={{ touchAction: "none" }}
+    >
       <Canvas
         camera={{ position: [0, 0, 500], fov: 60 }}
         gl={{ antialias: true }}
       >
         <color attach="background" args={["#05050f"]} />
-        <fog attach="fog" args={["#05050f", 400, 900]} />
+        <fog attach="fog" args={["#05050f", 550, 1100]} />
         <GalaxyScene
           clusterColors={CLUSTER_COLORS}
           onHover={setHovered}
@@ -45,9 +48,9 @@ export default function GalaxyGraph() {
         <Stars radius={600} depth={200} count={2000} factor={2} />
         <EffectComposer>
           <Bloom
-            luminanceThreshold={0.2}
-            intensity={1.5}
-            radius={0.7}
+            luminanceThreshold={0.4}
+            intensity={1.2}
+            radius={0.6}
             mipmapBlur
           />
         </EffectComposer>

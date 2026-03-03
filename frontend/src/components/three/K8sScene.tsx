@@ -33,6 +33,13 @@ function podColor(node: K8sPodNode): string {
   return node.color;
 }
 
+interface ColorGroup {
+  kind: K8sNodeKind;
+  color: string;
+  nodes: K8sNode[];
+  material: THREE.MeshBasicMaterial;
+}
+
 export interface K8sSceneRef {
   getGraph: () => K8sGraph | null;
 }
@@ -57,19 +64,12 @@ const K8sScene = forwardRef<K8sSceneRef, K8sSceneProps>(function K8sScene(
     Service: [],
     Ingress: [],
   });
-
-  const meshRefs = useRef<Record<K8sNodeKind, THREE.InstancedMesh | null>>({
-    Namespace: null,
-    Deployment: null,
-    Pod: null,
-    Service: null,
-    Ingress: null,
-  });
+  const groupsRef = useRef<ColorGroup[]>([]);
+  const meshRefs = useRef<(THREE.InstancedMesh | null)[]>([]);
   const lineSolidRef = useRef<THREE.LineSegments>(null);
   const lineDashedRef = useRef<THREE.LineSegments>(null);
 
   const matrix = useMemo(() => new THREE.Matrix4(), []);
-  const color = useMemo(() => new THREE.Color(), []);
   const quat = useMemo(() => new THREE.Quaternion(), []);
   const filterRef = useRef(filter);
   filterRef.current = filter;
@@ -96,6 +96,35 @@ const K8sScene = forwardRef<K8sSceneRef, K8sSceneProps>(function K8sScene(
       byKind[n.kind].push(n);
     }
     byKindRef.current = byKind;
+
+    const groups: ColorGroup[] = [];
+    for (const kind of KINDS) {
+      const nodes = byKind[kind];
+      const byColor = new Map<string, K8sNode[]>();
+      for (const n of nodes) {
+        const c =
+          kind === "Pod" && n.kind === "Pod" ? podColor(n as K8sPodNode) : n.color;
+        if (!byColor.has(c)) byColor.set(c, []);
+        byColor.get(c)!.push(n);
+      }
+      for (const [color, nodeList] of byColor) {
+        const isNamespace = kind === "Namespace";
+        groups.push({
+          kind,
+          color,
+          nodes: nodeList,
+          material: new THREE.MeshBasicMaterial({
+            color: new THREE.Color(color),
+            toneMapped: false,
+            transparent: isNamespace,
+            opacity: isNamespace ? 0.6 : 1,
+          }),
+        });
+      }
+    }
+    groupsRef.current = groups;
+    meshRefs.current = new Array(groups.length).fill(null);
+
     onReady(graph);
     for (let i = 0; i < 150; i++) {
       forceStepK8s(graph.nodes, graph.edges, 0.04 * (1 - i / 150));
@@ -132,14 +161,13 @@ const K8sScene = forwardRef<K8sSceneRef, K8sSceneProps>(function K8sScene(
             n.kind === "Namespace" ||
             ("namespace" in n && n.namespace === currentFilter);
 
-    const byKind = byKindRef.current;
-
-    for (const kind of KINDS) {
-      const mesh = meshRefs.current[kind];
-      const nodes = byKind[kind];
+    const groups = groupsRef.current;
+    for (let i = 0; i < groups.length; i++) {
+      const mesh = meshRefs.current[i];
+      const { kind, nodes } = groups[i]!;
       if (!mesh || nodes.length === 0) continue;
-      for (let i = 0; i < nodes.length; i++) {
-        const node = nodes[i]!;
+      for (let j = 0; j < nodes.length; j++) {
+        const node = nodes[j]!;
         const visible = visibleFilterFn === null || visibleFilterFn(node);
         const scale = visible ? node.size : 0.001;
         matrix.compose(
@@ -149,16 +177,9 @@ const K8sScene = forwardRef<K8sSceneRef, K8sSceneProps>(function K8sScene(
             : quat.identity(),
           new THREE.Vector3(scale, scale, scale)
         );
-        mesh.setMatrixAt(i, matrix);
-        const c =
-          kind === "Pod" && node.kind === "Pod"
-            ? podColor(node)
-            : node.color;
-        color.set(c);
-        mesh.setColorAt(i, color);
+        mesh.setMatrixAt(j, matrix);
       }
       mesh.instanceMatrix.needsUpdate = true;
-      if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
     }
 
     const byId = new Map(graph.nodes.map((n) => [n.id, n]));
@@ -194,29 +215,7 @@ const K8sScene = forwardRef<K8sSceneRef, K8sSceneProps>(function K8sScene(
       lineDashedRef.current.computeLineDistances();
   });
 
-  const handlePointerOver = useCallback(
-    (kind: K8sNodeKind) => (e: { stopPropagation: () => void; instanceId?: number }) => {
-      e.stopPropagation();
-      const nodes = byKindRef.current[kind];
-      if (nodes && e.instanceId !== undefined)
-        onHover(nodes[e.instanceId] ?? null);
-    },
-    [onHover]
-  );
-
   const handlePointerOut = useCallback(() => onHover(null), [onHover]);
-
-  const handleClick = useCallback(
-    (kind: K8sNodeKind) => (e: { stopPropagation: () => void; instanceId?: number }) => {
-      e.stopPropagation();
-      const nodes = byKindRef.current[kind];
-      if (nodes && e.instanceId !== undefined) {
-        const node = nodes[e.instanceId];
-        onSelect(node ?? null);
-      }
-    },
-    [onSelect]
-  );
 
   const solidLineGeometry = useMemo(() => {
     const positions = new Float32Array(MAX_EDGES * 2 * 3);
@@ -237,28 +236,14 @@ const K8sScene = forwardRef<K8sSceneRef, K8sSceneProps>(function K8sScene(
   const sphereGeo = useMemo(() => new THREE.SphereGeometry(1, 12, 12), []);
   const boxGeo = useMemo(() => new THREE.BoxGeometry(1, 1, 1), []);
   const torusGeo = useMemo(() => new THREE.TorusGeometry(1, 0.3, 8, 16), []);
-  const opaqueMat = useMemo(
-    () =>
-      new THREE.MeshBasicMaterial({
-        vertexColors: true,
-        toneMapped: false,
-      }),
-    []
-  );
-  const transparentMat = useMemo(
-    () =>
-      new THREE.MeshBasicMaterial({
-        vertexColors: true,
-        toneMapped: false,
-        transparent: true,
-        opacity: 0.6,
-      }),
-    []
-  );
 
   const graph = graphRef.current;
-  const byKind = byKindRef.current;
+  const groups = groupsRef.current;
+
   if (!graph) return null;
+
+  const geometryFor = (kind: K8sNodeKind) =>
+    kind === "Service" ? boxGeo : kind === "Ingress" ? torusGeo : sphereGeo;
 
   return (
     <group>
@@ -281,30 +266,27 @@ const K8sScene = forwardRef<K8sSceneRef, K8sSceneProps>(function K8sScene(
         />
       </lineSegments>
 
-      {KINDS.map((kind) => {
-        const nodes = byKind[kind];
-        const count = nodes.length;
-        if (count === 0) return null;
-
-        const geometry =
-          kind === "Service"
-            ? boxGeo
-            : kind === "Ingress"
-              ? torusGeo
-              : sphereGeo;
-        const material =
-          kind === "Namespace" ? transparentMat : opaqueMat;
-
+      {groups.map((group, i) => {
+        if (group.nodes.length === 0) return null;
+        const nodes = group.nodes;
         return (
           <instancedMesh
-            key={kind}
+            key={`${group.kind}-${group.color}-${i}`}
             ref={(r) => {
-              meshRefs.current[kind] = r;
+              meshRefs.current[i] = r;
             }}
-            args={[geometry, material, count]}
-            onPointerOver={handlePointerOver(kind)}
+            args={[geometryFor(group.kind), group.material, nodes.length]}
+            onPointerOver={(e) => {
+              e.stopPropagation();
+              const node = nodes[e.instanceId ?? 0];
+              onHover(node ?? null);
+            }}
             onPointerOut={handlePointerOut}
-            onClick={handleClick(kind)}
+            onClick={(e) => {
+              e.stopPropagation();
+              const node = nodes[e.instanceId ?? 0];
+              onSelect(node ?? null);
+            }}
           />
         );
       })}

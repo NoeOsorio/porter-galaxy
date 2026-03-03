@@ -5,6 +5,7 @@ import type { Graph, Node, ClusterColor } from "../../types/graph";
 import { generateGraph, forceStep } from "../../lib/graph";
 
 const MAX_EDGES = 5000;
+const CLUSTER_COUNT = 6;
 
 interface GalaxySceneProps {
   clusterColors: ClusterColor[];
@@ -18,14 +19,26 @@ export default function GalaxyScene({
   onStats,
 }: GalaxySceneProps) {
   const graphRef = useRef<Graph | null>(null);
-  const instancedRef = useRef<THREE.InstancedMesh>(null);
+  const byClusterRef = useRef<Node[][]>(
+    Array.from({ length: CLUSTER_COUNT }, () => [])
+  );
+  const meshRefs = useRef<(THREE.InstancedMesh | null)[]>(
+    Array(CLUSTER_COUNT).fill(null)
+  );
   const lineRef = useRef<THREE.LineSegments>(null);
   const matrix = useMemo(() => new THREE.Matrix4(), []);
-  const color = useMemo(() => new THREE.Color(), []);
 
   useEffect(() => {
     const graph = generateGraph(600, 6);
     graphRef.current = graph;
+    const byCluster: Node[][] = Array.from(
+      { length: CLUSTER_COUNT },
+      () => []
+    );
+    for (const node of graph.nodes) {
+      byCluster[node.cluster].push(node);
+    }
+    byClusterRef.current = byCluster;
     onStats({
       nodes: graph.nodes.length,
       edges: graph.edges.length,
@@ -42,20 +55,20 @@ export default function GalaxyScene({
 
     forceStep(graph.nodes, graph.edges, 0.001);
 
-    const mesh = instancedRef.current;
-    if (mesh) {
-      graph.nodes.forEach((node, i) => {
+    const byCluster = byClusterRef.current;
+    for (let c = 0; c < CLUSTER_COUNT; c++) {
+      const mesh = meshRefs.current[c];
+      const nodes = byCluster[c];
+      if (!mesh || nodes.length === 0) continue;
+      nodes.forEach((node, i) => {
         matrix.compose(
           new THREE.Vector3(node.x, node.y, node.z),
           new THREE.Quaternion(),
           new THREE.Vector3(node.size, node.size, node.size)
         );
         mesh.setMatrixAt(i, matrix);
-        color.set(clusterColors[node.cluster].core);
-        mesh.setColorAt(i, color);
       });
       mesh.instanceMatrix.needsUpdate = true;
-      if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
     }
 
     const line = lineRef.current;
@@ -88,20 +101,24 @@ export default function GalaxyScene({
   }, []);
 
   const sphereGeo = useMemo(() => new THREE.SphereGeometry(1, 12, 12), []);
-  const nodeMaterial = useMemo(
+
+  const materials = useMemo(
     () =>
-      new THREE.MeshBasicMaterial({
-        toneMapped: false,
-        vertexColors: true,
-        depthWrite: true,
-      }),
-    []
+      clusterColors.map(
+        (cc) =>
+          new THREE.MeshBasicMaterial({
+            color: new THREE.Color(cc.core),
+            toneMapped: false,
+            depthWrite: true,
+          })
+      ),
+    [clusterColors]
   );
 
   const graph = graphRef.current;
-  const nodeCount = graph?.nodes.length ?? 0;
+  const byCluster = byClusterRef.current;
 
-  if (nodeCount === 0) return null;
+  if (!graph) return null;
 
   return (
     <group>
@@ -113,17 +130,24 @@ export default function GalaxyScene({
           depthWrite={false}
         />
       </lineSegments>
-      <instancedMesh
-        ref={instancedRef}
-        args={[sphereGeo, nodeMaterial, nodeCount]}
-        onPointerOver={(e) => {
-          e.stopPropagation();
-          const g = graphRef.current;
-          if (g && e.instanceId !== undefined)
-            onHover(g.nodes[e.instanceId] ?? null);
-        }}
-        onPointerOut={() => onHover(null)}
-      />
+      {byCluster.map((nodes, c) => {
+        if (nodes.length === 0) return null;
+        return (
+          <instancedMesh
+            key={c}
+            ref={(r) => {
+              meshRefs.current[c] = r;
+            }}
+            args={[sphereGeo, materials[c], nodes.length]}
+            onPointerOver={(e) => {
+              e.stopPropagation();
+              const node = nodes[e.instanceId ?? 0];
+              onHover(node ?? null);
+            }}
+            onPointerOut={() => onHover(null)}
+          />
+        );
+      })}
     </group>
   );
 }

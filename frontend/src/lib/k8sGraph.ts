@@ -66,18 +66,20 @@ export function generateK8sCluster(): K8sGraph {
   const svcMap: Record<string, number> = {};
   const namespaces = NAMESPACES.map((ns) => ({ ...ns }));
 
-  const radius = 130;
+  const armRadius = 200;
+  const armSpread = 80;
   NAMESPACES.forEach((ns, i) => {
     const angle = (i / NAMESPACES.length) * Math.PI * 2 - Math.PI / 2;
     const id = nextId(nodes);
     nsMap[ns.name] = id;
+    const r = armRadius + Math.random() * armSpread;
     nodes.push({
       id,
       kind: "Namespace",
       name: ns.name,
-      x: Math.cos(angle) * (radius + Math.random() * 25),
-      y: Math.sin(angle) * (radius + Math.random() * 25),
-      z: (Math.random() - 0.5) * 20,
+      x: Math.cos(angle) * r,
+      y: Math.sin(angle) * r,
+      z: (Math.random() - 0.5) * 60,
       size: 6,
       nsIndex: i,
       color: ns.color,
@@ -87,11 +89,13 @@ export function generateK8sCluster(): K8sGraph {
     });
   });
 
+  const deploySpread = 70;
+  const deployMin = 50;
   DEPLOYMENTS.forEach((dep) => {
     const nsNode = nodes[nsMap[dep.ns]]!;
     const nsIdx = nsNode.nsIndex;
     const angle = Math.random() * Math.PI * 2;
-    const dist = 25 + Math.random() * 22;
+    const dist = deployMin + Math.random() * deploySpread;
     const id = nextId(nodes);
     deployMap[`${dep.ns}/${dep.name}`] = id;
 
@@ -102,7 +106,7 @@ export function generateK8sCluster(): K8sGraph {
       namespace: dep.ns,
       x: nsNode.x + Math.cos(angle) * dist,
       y: nsNode.y + Math.sin(angle) * dist,
-      z: nsNode.z + (Math.random() - 0.5) * 12,
+      z: nsNode.z + (Math.random() - 0.5) * 40,
       size: 4,
       nsIndex: nsIdx,
       color: namespaces[nsIdx].color,
@@ -115,9 +119,11 @@ export function generateK8sCluster(): K8sGraph {
 
     edges.push({ source: nsMap[dep.ns]!, target: id, type: "ownership" });
 
+    const podSpread = 35;
+    const podMin = 18;
     for (let r = 0; r < dep.replicas; r++) {
-      const podAngle = (r / dep.replicas) * Math.PI * 2 + Math.random() * 0.3;
-      const podDist = 8 + Math.random() * 12;
+      const podAngle = (r / dep.replicas) * Math.PI * 2 + Math.random() * 0.5;
+      const podDist = podMin + Math.random() * podSpread;
       const parent = nodes[id]!;
       const podId = nextId(nodes);
       const status = POD_STATUSES[Math.floor(Math.random() * POD_STATUSES.length)]!;
@@ -134,7 +140,7 @@ export function generateK8sCluster(): K8sGraph {
         namespace: dep.ns,
         x: parent.x + Math.cos(podAngle) * podDist,
         y: parent.y + Math.sin(podAngle) * podDist,
-        z: parent.z + (Math.random() - 0.5) * 6,
+        z: parent.z + (Math.random() - 0.5) * 20,
         size: 2.2,
         nsIndex: nsIdx,
         color: namespaces[nsIdx].color,
@@ -150,11 +156,13 @@ export function generateK8sCluster(): K8sGraph {
     }
   });
 
+  const svcSpread = 55;
+  const svcMin = 45;
   SERVICES.forEach((svc) => {
     const nsNode = nodes[nsMap[svc.ns]]!;
     const nsIdx = nsNode.nsIndex;
     const angle = Math.random() * Math.PI * 2;
-    const dist = 18 + Math.random() * 18;
+    const dist = svcMin + Math.random() * svcSpread;
     const id = nextId(nodes);
     svcMap[`${svc.ns}/${svc.name}`] = id;
 
@@ -165,7 +173,7 @@ export function generateK8sCluster(): K8sGraph {
       namespace: svc.ns,
       x: nsNode.x + Math.cos(angle) * dist,
       y: nsNode.y + Math.sin(angle) * dist,
-      z: nsNode.z + (Math.random() - 0.5) * 10,
+      z: nsNode.z + (Math.random() - 0.5) * 28,
       size: 3,
       nsIndex: nsIdx,
       color: namespaces[nsIdx].color,
@@ -186,6 +194,7 @@ export function generateK8sCluster(): K8sGraph {
     }
   });
 
+  const ingressRadius = 380;
   INGRESSES.forEach((ing) => {
     const nsNode = nodes[nsMap[ing.ns]]!;
     const nsIdx = nsNode.nsIndex;
@@ -197,9 +206,9 @@ export function generateK8sCluster(): K8sGraph {
       kind: "Ingress",
       name: ing.name,
       namespace: ing.ns,
-      x: Math.cos(angle) * 280,
-      y: Math.sin(angle) * 280,
-      z: 0,
+      x: Math.cos(angle) * ingressRadius,
+      y: Math.sin(angle) * ingressRadius,
+      z: (Math.random() - 0.5) * 30,
       size: 4.5,
       nsIndex: nsIdx,
       color: "#ffffff",
@@ -232,13 +241,13 @@ export function forceStepK8s(
   const zoom = Math.max(0.5, Math.min(3, options?.zoomLevel ?? 1));
   const spread = 1 + 1.2 * Math.min(zoom, 2.5);
 
-  const baseRepulsion = focused ? 900 : 500;
+  const baseRepulsion = focused ? 1100 : 750;
   const repulsion = baseRepulsion * spread;
   const invSpread = 1 / spread;
-  const attractionOwnership = (focused ? 0.0009 : 0.0018) * invSpread;
-  const attractionService = (focused ? 0.00025 : 0.0004) * invSpread;
-  const attractionIngress = (focused ? 0.0002 : 0.00035) * invSpread;
-  const centerGravity = 0.0003;
+  const attractionOwnership = (focused ? 0.0005 : 0.001) * invSpread;
+  const attractionService = (focused ? 0.00015 : 0.00025) * invSpread;
+  const attractionIngress = (focused ? 0.00012 : 0.0002) * invSpread;
+  const centerGravity = 0.0002;
 
   for (let i = 0; i < nodes.length; i++) {
     const ni = nodes[i]!;

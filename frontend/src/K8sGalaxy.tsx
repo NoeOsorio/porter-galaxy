@@ -42,13 +42,16 @@ export default function K8sGalaxy() {
   const namespaces = graph?.namespaces ?? [];
 
   return (
-    <div className="w-full h-screen bg-[#05050f] relative overflow-hidden font-['JetBrains_Mono','SF_Mono',monospace]">
+    <div
+      className="w-full h-screen bg-[#05050f] relative overflow-hidden font-['JetBrains_Mono','SF_Mono',monospace]"
+      style={{ touchAction: "none" }}
+    >
       <Canvas
-        camera={{ position: [0, 0, 400], fov: 60 }}
+        camera={{ position: [0, 0, 500], fov: 60 }}
         gl={{ antialias: true }}
       >
         <color attach="background" args={["#05050f"]} />
-        <fog attach="fog" args={["#05050f", 300, 800]} />
+        <fog attach="fog" args={["#05050f", 400, 1100]} />
         <K8sScene
           filter={filter}
           onHover={setHovered}

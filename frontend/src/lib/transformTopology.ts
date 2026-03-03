@@ -4,6 +4,7 @@ import type { TopologyNode, TopologyEdge, TopologyGraph } from "../types/topolog
 const COLORS = {
   internet: { color: "#00d4ff", glow: "#0088dd" },
   loadbalancer: { color: "#c084fc", glow: "#9333ea" },
+  ingress: { color: "#a78bfa", glow: "#7c3aed" },
   deployment: { color: "#fb923c", glow: "#ea580c" },
   pod: { color: "#5bffb0", glow: "#00cc66" },
 };
@@ -11,6 +12,7 @@ const COLORS = {
 const EDGE_COLORS = {
   internet: "#00d4ff",
   lb: "#c084fc",
+  ingress: "#a78bfa",
   service: "#5bffb0",
 };
 
@@ -66,6 +68,7 @@ export function transformTopology(apiCluster: ApiCluster): TopologyGraph {
 
   const internetNodes = new Set<string>();
   const lbNodes = new Set<string>();
+  const ingressNodes = new Set<string>();
   const deploymentNodes = new Set<string>();
   const podNodes = new Set<string>();
   
@@ -79,6 +82,18 @@ export function transformTopology(apiCluster: ApiCluster): TopologyGraph {
       lbNodes.add(topo.to);
     } else if (topo.type === "lb") {
       lbNodes.add(topo.from);
+      if (topo.to.startsWith("ingress/")) {
+        ingressNodes.add(topo.to);
+      } else {
+        const [namespace, deploymentId] = topo.to.split("/");
+        if (namespace && deploymentId) {
+          deploymentNodes.add(topo.to);
+        }
+      }
+    } else if (topo.type === "ingress") {
+      if (topo.from.startsWith("ingress/")) {
+        ingressNodes.add(topo.from);
+      }
       const [namespace, deploymentId] = topo.to.split("/");
       if (namespace && deploymentId) {
         deploymentNodes.add(topo.to);
@@ -125,7 +140,9 @@ export function transformTopology(apiCluster: ApiCluster): TopologyGraph {
       
       const lbName = lb.includes("elb") 
         ? lb.split("-").slice(-1)[0]?.substring(0, 8) || "LB"
-        : "Load Balancer";
+        : lb.match(/\d+\.\d+\.\d+\.\d+/)
+          ? lb.match(/\d+\.\d+\.\d+\.\d+/)?.[0] || "LB"
+          : "Load Balancer";
       
       const outgoingConnections = connectionCounts.get(lb) || 0;
       
@@ -139,6 +156,38 @@ export function transformTopology(apiCluster: ApiCluster): TopologyGraph {
         color: COLORS.loadbalancer.color,
         glow: COLORS.loadbalancer.glow,
         size: 20,
+        metadata: {
+          connections: outgoingConnections === 0 ? 1 : outgoingConnections,
+        },
+      });
+    });
+  }
+
+  if (ingressNodes.size > 0) {
+    const ingresses = Array.from(ingressNodes);
+    const ingressPositions = arrangeNodesInCircle(ingresses.length, 100, 0, -100, 35);
+    
+    ingresses.forEach((ingressKey, i) => {
+      const pos = ingressPositions[i]!;
+      nodePositions.set(ingressKey, pos);
+      
+      const parts = ingressKey.split("/");
+      const namespace = parts[1];
+      const ingressName = parts[2] || "ingress";
+      
+      const outgoingConnections = connectionCounts.get(ingressKey) || 0;
+      
+      nodes.push({
+        id: ingressKey,
+        type: "ingress",
+        name: ingressName,
+        namespace,
+        x: pos.x,
+        y: pos.y,
+        z: pos.z,
+        color: COLORS.ingress.color,
+        glow: COLORS.ingress.glow,
+        size: 18,
         metadata: {
           connections: outgoingConnections === 0 ? 1 : outgoingConnections,
         },
@@ -224,7 +273,7 @@ export function transformTopology(apiCluster: ApiCluster): TopologyGraph {
       edges.push({
         from: topo.from,
         to: topo.to,
-        type: topo.type as "internet" | "lb" | "service",
+        type: topo.type as "internet" | "lb" | "ingress" | "service",
         active: topo.active,
         color: EDGE_COLORS[topo.type as keyof typeof EDGE_COLORS] || "#ffffff",
       });

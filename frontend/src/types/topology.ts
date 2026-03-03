@@ -1,6 +1,6 @@
 export interface TopologyNode {
   id: string;
-  type: "internet" | "loadbalancer" | "deployment" | "pod";
+  type: "internet" | "loadbalancer" | "ingress" | "deployment" | "pod";
   name: string;
   namespace?: string;
   x: number;
@@ -23,7 +23,7 @@ export interface TopologyNode {
 export interface TopologyEdge {
   from: string;
   to: string;
-  type: "internet" | "lb" | "service";
+  type: "internet" | "lb" | "ingress" | "service";
   active: boolean;
   color: string;
 }

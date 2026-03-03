@@ -13,6 +13,7 @@ import type { TopologyNode } from "./types/topology";
 const TYPE_ICONS: Record<string, string> = {
   internet: "🌐",
   loadbalancer: "⚖️",
+  ingress: "🚪",
   deployment: "📦",
   pod: "⚛️",
 };
@@ -20,6 +21,7 @@ const TYPE_ICONS: Record<string, string> = {
 const TYPE_LABELS: Record<string, string> = {
   internet: "Internet",
   loadbalancer: "Load Balancer",
+  ingress: "Ingress",
   deployment: "Deployment",
   pod: "Pod",
 };
@@ -261,6 +263,17 @@ export default function Topology() {
             </button>
             <button
               type="button"
+              onClick={() => setFilterType("ingress")}
+              className={`px-2.5 py-1 rounded text-[9px] font-medium transition-all ${
+                filterType === "ingress"
+                  ? "bg-[#a78bfa]/20 text-[#a78bfa] border border-[#a78bfa]/30"
+                  : "bg-white/5 text-white/50 border border-white/10 hover:bg-white/10"
+              }`}
+            >
+              Ingress
+            </button>
+            <button
+              type="button"
               onClick={() => setFilterType("deployment")}
               className={`px-2.5 py-1 rounded text-[9px] font-medium transition-all ${
                 filterType === "deployment"
@@ -312,6 +325,10 @@ export default function Topology() {
             <div className="flex items-center gap-2.5 text-[10px]">
               <div className="w-2.5 h-2.5 rounded-full bg-[#c084fc] shadow-[0_0_8px_rgba(192,132,252,0.6)]" />
               <span className="text-white/60">Load Balancer</span>
+            </div>
+            <div className="flex items-center gap-2.5 text-[10px]">
+              <div className="w-2.5 h-2.5 rounded-full bg-[#a78bfa] shadow-[0_0_8px_rgba(167,139,250,0.6)]" />
+              <span className="text-white/60">Ingress</span>
             </div>
             <div className="flex items-center gap-2.5 text-[10px]">
               <div className="w-2.5 h-2.5 rounded-full bg-[#fb923c] shadow-[0_0_8px_rgba(251,146,60,0.6)]" />

@@ -253,7 +253,7 @@ export default function Clusters() {
                 </span>
               </div>
               <div className="flex items-center gap-2">
-                <div className="w-2 h-2 rounded-full bg-[#45caff] shadow-[0_0_8px_rgba(69,202,255,0.6)]" />
+                <div className="w-2 h-2 rounded-full bg-[#a78bfa] shadow-[0_0_8px_rgba(167,139,250,0.6)]" />
                 <span className="text-white/60">
                   {clusterStats.nodes} node{clusterStats.nodes !== 1 ? "s" : ""}
                 </span>
@@ -312,7 +312,7 @@ export default function Clusters() {
               onClick={() => setFilterType("node")}
               className={`px-2.5 py-1 rounded text-[9px] font-medium transition-all ${
                 filterType === "node"
-                  ? "bg-[#45caff]/20 text-[#45caff] border border-[#45caff]/30"
+                  ? "bg-[#a78bfa]/20 text-[#a78bfa] border border-[#a78bfa]/30"
                   : "bg-white/5 text-white/50 border border-white/10 hover:bg-white/10"
               }`}
             >
@@ -370,7 +370,7 @@ export default function Clusters() {
               <span className="text-white/60">Cluster</span>
             </div>
             <div className="flex items-center gap-2.5 text-[10px]">
-              <div className="w-2.5 h-2.5 rounded-full bg-[#45caff] shadow-[0_0_8px_rgba(69,202,255,0.6)]" />
+              <div className="w-2.5 h-2.5 rounded-full bg-[#a78bfa] shadow-[0_0_8px_rgba(167,139,250,0.6)]" />
               <span className="text-white/60">Node</span>
             </div>
             <div className="flex items-center gap-2.5 text-[10px]">

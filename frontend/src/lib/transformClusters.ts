@@ -17,7 +17,7 @@ const CLUSTER_COLORS = [
 
 const TYPE_COLORS = {
   cluster: { color: "#00d4ff", glow: "#0088dd" },
-  node: { color: "#45caff", glow: "#0088dd" },
+  node: { color: "#a78bfa", glow: "#7c3aed" },
   deployment: { color: "#fb923c", glow: "#ea580c" },
   pod: { color: "#5bffb0", glow: "#00cc66" },
 };

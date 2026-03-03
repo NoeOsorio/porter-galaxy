@@ -15,6 +15,39 @@ interface ClustersSceneProps {
   filteredNodes: Set<string>;
 }
 
+function findFamilyNodes(
+  targetNodeId: string,
+  graph: ClusterGalaxyGraph
+): { nodes: Set<string>; edges: Set<string> } {
+  const familyNodes = new Set<string>();
+  const familyEdges = new Set<string>();
+  
+  familyNodes.add(targetNodeId);
+  
+  function findAncestors(nodeId: string) {
+    const parentEdges = graph.edges.filter(edge => edge.to === nodeId);
+    parentEdges.forEach(edge => {
+      familyNodes.add(edge.from);
+      familyEdges.add(`${edge.from}-${edge.to}`);
+      findAncestors(edge.from);
+    });
+  }
+  
+  function findDescendants(nodeId: string) {
+    const childEdges = graph.edges.filter(edge => edge.from === nodeId);
+    childEdges.forEach(edge => {
+      familyNodes.add(edge.to);
+      familyEdges.add(`${edge.from}-${edge.to}`);
+      findDescendants(edge.to);
+    });
+  }
+  
+  findAncestors(targetNodeId);
+  findDescendants(targetNodeId);
+  
+  return { nodes: familyNodes, edges: familyEdges };
+}
+
 export default function ClustersScene({
   graph,
   onHover,
@@ -41,6 +74,11 @@ export default function ClustersScene({
     });
     return Array.from(grouped.entries());
   }, [graph.nodes]);
+
+  const familyPath = useMemo(() => {
+    if (!selectedNode) return { nodes: new Set<string>(), edges: new Set<string>() };
+    return findFamilyNodes(selectedNode.id, graph);
+  }, [selectedNode, graph]);
 
   useFrame(({ clock }) => {
     if (edgesRef.current) {
@@ -71,12 +109,12 @@ export default function ClustersScene({
         {nodesByType.map(([type, nodes]) => (
           <group key={type}>
             {nodes.map((node) => {
-              const isSelected = selectedNode?.id === node.id;
+              const isInFamily = familyPath.nodes.has(node.id);
               const isFiltered =
                 filteredNodes.size > 0 && !filteredNodes.has(node.id);
-              const glowColor = isSelected ? "#ffffff" : node.glow;
-              const glowOpacity = isSelected ? 0.5 : 0.2;
-              const nodeOpacity = isFiltered ? 0.2 : 1;
+              const glowColor = isInFamily ? "#00d4ff" : node.glow;
+              const glowOpacity = isInFamily ? 0.5 : 0.2;
+              const nodeOpacity = isFiltered ? 0.2 : (selectedNode && !isInFamily ? 0.3 : 1);
 
               return (
                 <group
@@ -125,13 +163,13 @@ export default function ClustersScene({
                       depthTest={true}
                     />
                   </mesh>
-                  {isSelected && (
+                  {isInFamily && (
                     <mesh frustumCulled={false}>
                       <sphereGeometry args={[node.size * 1.8, 32, 32]} />
                       <meshBasicMaterial
-                        color="#ffffff"
+                        color="#00d4ff"
                         transparent
-                        opacity={0.15 * nodeOpacity}
+                        opacity={0.2 * nodeOpacity}
                         toneMapped={false}
                         depthWrite={false}
                         depthTest={true}
@@ -152,6 +190,9 @@ export default function ClustersScene({
 
           if (!fromNode || !toNode) return null;
 
+          const edgeKey = `${edge.from}-${edge.to}`;
+          const isInFamily = familyPath.edges.has(edgeKey);
+
           const start = new THREE.Vector3(fromNode.x, fromNode.y, fromNode.z);
           const end = new THREE.Vector3(toNode.x, toNode.y, toNode.z);
           const direction = new THREE.Vector3().subVectors(end, start);
@@ -166,7 +207,11 @@ export default function ClustersScene({
             direction.normalize()
           );
 
-          const lineWidth = edge.type === "cluster-node" ? 1.5 : edge.type === "node-deployment" ? 1.0 : 0.6;
+          const lineWidth = isInFamily 
+            ? (edge.type === "cluster-node" ? 2.5 : edge.type === "node-deployment" ? 2.0 : 1.5)
+            : (edge.type === "cluster-node" ? 1.5 : edge.type === "node-deployment" ? 1.0 : 0.6);
+          const edgeOpacity = isInFamily ? 0.7 : (selectedNode ? 0.1 : 0.25);
+          const edgeColor = isInFamily ? "#00d4ff" : edge.color;
 
           return (
             <mesh
@@ -177,9 +222,9 @@ export default function ClustersScene({
             >
               <cylinderGeometry args={[lineWidth, lineWidth, length, 8]} />
               <meshBasicMaterial
-                color={edge.color}
+                color={edgeColor}
                 transparent
-                opacity={0.25}
+                opacity={edgeOpacity}
                 toneMapped={false}
                 depthWrite={false}
                 depthTest={true}
@@ -190,10 +235,10 @@ export default function ClustersScene({
       </group>
 
       {graph.nodes.map((node) => {
-        const isSelected = selectedNode?.id === node.id;
-        const lightColor = isSelected ? "#ffffff" : node.glow;
-        const lightIntensity = isSelected
-          ? node.size * 4
+        const isInFamily = familyPath.nodes.has(node.id);
+        const lightColor = isInFamily ? "#00d4ff" : node.glow;
+        const lightIntensity = isInFamily
+          ? node.size * 5
           : node.type === "cluster"
             ? node.size * 3
             : node.size * 2;

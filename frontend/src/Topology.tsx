@@ -28,7 +28,8 @@ function statusColor(status?: string): string {
   if (!status) return "#ffffff";
   if (status.includes("Running")) return "#5bffb0";
   if (status.includes("Pending")) return "#ffd666";
-  return "#ff3333";
+  if (status.includes("Failed") || status.includes("Error")) return "#ff3333";
+  return "#ffffff";
 }
 
 export default function Topology() {
@@ -252,7 +253,7 @@ export default function Topology() {
               onClick={() => setFilterType("loadbalancer")}
               className={`px-2.5 py-1 rounded text-[9px] font-medium transition-all ${
                 filterType === "loadbalancer"
-                  ? "bg-[#ff4d9f]/20 text-[#ff4d9f] border border-[#ff4d9f]/30"
+                  ? "bg-[#c084fc]/20 text-[#c084fc] border border-[#c084fc]/30"
                   : "bg-white/5 text-white/50 border border-white/10 hover:bg-white/10"
               }`}
             >
@@ -263,7 +264,7 @@ export default function Topology() {
               onClick={() => setFilterType("deployment")}
               className={`px-2.5 py-1 rounded text-[9px] font-medium transition-all ${
                 filterType === "deployment"
-                  ? "bg-[#ffd666]/20 text-[#ffd666] border border-[#ffd666]/30"
+                  ? "bg-[#fb923c]/20 text-[#fb923c] border border-[#fb923c]/30"
                   : "bg-white/5 text-white/50 border border-white/10 hover:bg-white/10"
               }`}
             >
@@ -309,11 +310,11 @@ export default function Topology() {
               <span className="text-white/60">Internet</span>
             </div>
             <div className="flex items-center gap-2.5 text-[10px]">
-              <div className="w-2.5 h-2.5 rounded-full bg-[#ff4d9f] shadow-[0_0_8px_rgba(255,77,159,0.6)]" />
+              <div className="w-2.5 h-2.5 rounded-full bg-[#c084fc] shadow-[0_0_8px_rgba(192,132,252,0.6)]" />
               <span className="text-white/60">Load Balancer</span>
             </div>
             <div className="flex items-center gap-2.5 text-[10px]">
-              <div className="w-2.5 h-2.5 rounded-full bg-[#ffd666] shadow-[0_0_8px_rgba(255,214,102,0.6)]" />
+              <div className="w-2.5 h-2.5 rounded-full bg-[#fb923c] shadow-[0_0_8px_rgba(251,146,60,0.6)]" />
               <span className="text-white/60">Deployment</span>
             </div>
             <div className="flex items-center gap-2.5 text-[10px]">

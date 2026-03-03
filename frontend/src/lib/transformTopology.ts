@@ -2,15 +2,15 @@ import type { ApiCluster } from "../types/api";
 import type { TopologyNode, TopologyEdge, TopologyGraph } from "../types/topology";
 
 const COLORS = {
-  internet: { color: "#45caff", glow: "#0088dd" },
-  loadbalancer: { color: "#ff6b9d", glow: "#dd2266" },
-  deployment: { color: "#ffd666", glow: "#cc9900" },
+  internet: { color: "#00d4ff", glow: "#0088dd" },
+  loadbalancer: { color: "#c084fc", glow: "#9333ea" },
+  deployment: { color: "#fb923c", glow: "#ea580c" },
   pod: { color: "#5bffb0", glow: "#00cc66" },
 };
 
 const EDGE_COLORS = {
-  internet: "#45caff",
-  lb: "#ff6b9d",
+  internet: "#00d4ff",
+  lb: "#c084fc",
   service: "#5bffb0",
 };
 

@@ -7,6 +7,8 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 
 	"github.com/noeosorio/porter-galaxy/backend/internal/store"
 )
@@ -109,8 +111,22 @@ func (b *Builder) buildNodes() []NodeInfo {
 
 func (b *Builder) buildPods() []PodInfo {
 	k8sPods := b.store.ListPods()
-	out := make([]PodInfo, 0, len(k8sPods))
 
+	// Build a per-namespace index of deployment selectors for O(1) lookup.
+	type depEntry struct {
+		id       string
+		selector labels.Selector
+	}
+	depsByNS := make(map[string][]depEntry)
+	for _, d := range b.store.ListDeployments() {
+		sel, err := metav1.LabelSelectorAsSelector(d.Spec.Selector)
+		if err != nil {
+			continue
+		}
+		depsByNS[d.Namespace] = append(depsByNS[d.Namespace], depEntry{id: d.Name, selector: sel})
+	}
+
+	out := make([]PodInfo, 0, len(k8sPods))
 	for _, p := range k8sPods {
 		version := firstNonEmpty(
 			p.Labels["version"],
@@ -118,12 +134,21 @@ func (b *Builder) buildPods() []PodInfo {
 			p.Labels["app.kubernetes.io/version"],
 		)
 
+		var controllerID string
+		for _, dep := range depsByNS[p.Namespace] {
+			if dep.selector.Matches(labels.Set(p.Labels)) {
+				controllerID = dep.id
+				break
+			}
+		}
+
 		out = append(out, PodInfo{
-			ID:        p.Name,
-			Namespace: p.Namespace,
-			NodeID:    p.Spec.NodeName,
-			Status:    string(p.Status.Phase),
-			Version:   version,
+			ID:           p.Name,
+			Namespace:    p.Namespace,
+			NodeID:       p.Spec.NodeName,
+			Status:       string(p.Status.Phase),
+			Version:      version,
+			ControllerID: controllerID,
 		})
 	}
 	slices.SortFunc(out, func(a, b PodInfo) int {

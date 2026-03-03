@@ -25,11 +25,12 @@ type NodeInfo struct {
 
 // PodInfo is a running container workload.
 type PodInfo struct {
-	ID        string `json:"id"`
-	Namespace string `json:"namespace"`
-	NodeID    string `json:"nodeId"`
-	Status    string `json:"status"`
-	Version   string `json:"version,omitempty"`
+	ID           string `json:"id"`
+	Namespace    string `json:"namespace"`
+	NodeID       string `json:"nodeId"`
+	Status       string `json:"status"`
+	Version      string `json:"version,omitempty"`
+	ControllerID string `json:"controllerId,omitempty"`
 }
 
 // DeploymentInfo is a Kubernetes Deployment workload.

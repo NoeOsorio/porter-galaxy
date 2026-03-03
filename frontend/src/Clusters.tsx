@@ -1,71 +1,70 @@
 import { useState, useMemo, useRef, useEffect } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Canvas } from "@react-three/fiber";
-import { OrbitControls } from "@react-three/drei";
+import { OrbitControls, Stars } from "@react-three/drei";
 import { EffectComposer, Bloom } from "@react-three/postprocessing";
 import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
 import * as THREE from "three";
 import { useClustersSSE } from "./hooks/useClustersSSE";
-import { transformTopology } from "./lib/transformTopology";
-import TopologyScene from "./components/three/TopologyScene";
-import type { TopologyNode } from "./types/topology";
+import { transformClusters } from "./lib/transformClusters";
+import ClustersScene from "./components/three/ClustersScene";
+import type { ClusterGalaxyNode } from "./types/clusters";
 
 const TYPE_ICONS: Record<string, string> = {
-  internet: "🌐",
-  loadbalancer: "⚖️",
-  ingress: "🚪",
+  cluster: "🌌",
+  node: "🖥️",
   deployment: "📦",
   pod: "⚛️",
 };
 
 const TYPE_LABELS: Record<string, string> = {
-  internet: "Internet",
-  loadbalancer: "Load Balancer",
-  ingress: "Ingress",
+  cluster: "Cluster",
+  node: "Node",
   deployment: "Deployment",
   pod: "Pod",
 };
 
 function statusColor(status?: string): string {
   if (!status) return "#ffffff";
-  if (status.includes("Running")) return "#5bffb0";
+  if (status.includes("Running") || status.includes("Ready")) return "#5bffb0";
   if (status.includes("Pending")) return "#ffd666";
   return "#ff3333";
 }
 
-export default function Topology() {
+export default function Clusters() {
   const controlsRef = useRef<OrbitControlsImpl | null>(null);
   const { data, isLoading, isError, error } = useClustersSSE();
-  const [hovered, setHovered] = useState<TopologyNode | null>(null);
-  const [selected, setSelected] = useState<TopologyNode | null>(null);
+  const [hovered, setHovered] = useState<ClusterGalaxyNode | null>(null);
+  const [selected, setSelected] = useState<ClusterGalaxyNode | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [filterType, setFilterType] = useState<string>("all");
-  const [hoveredEdge, setHoveredEdge] = useState<{ from: string; to: string; type: string } | null>(null);
 
-  const topologyGraph = useMemo(() => {
-    if (!data?.clusters[0]) return null;
-    return transformTopology(data.clusters[0]);
+  const clustersGraph = useMemo(() => {
+    if (!data?.clusters) return null;
+    return transformClusters(data);
   }, [data]);
 
   const filteredNodes = useMemo(() => {
-    if (!topologyGraph) return new Set<string>();
-    
+    if (!clustersGraph) return new Set<string>();
+
     const matchingNodes = new Set<string>();
-    
-    topologyGraph.nodes.forEach(node => {
-      const matchesSearch = searchQuery === "" || 
+
+    clustersGraph.nodes.forEach((node) => {
+      const matchesSearch =
+        searchQuery === "" ||
         node.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        node.id.toLowerCase().includes(searchQuery.toLowerCase());
-      
+        node.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        node.namespace?.toLowerCase().includes(searchQuery.toLowerCase());
+
       const matchesFilter = filterType === "all" || node.type === filterType;
-      
+
       if (matchesSearch && matchesFilter) {
         matchingNodes.add(node.id);
       }
     });
-    
+
     return matchingNodes;
-  }, [topologyGraph, searchQuery, filterType]);
+  }, [clustersGraph, searchQuery, filterType]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -78,36 +77,37 @@ export default function Topology() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [selected]);
 
-  const handleDoubleClick = (node: TopologyNode) => {
+  const handleDoubleClick = (node: ClusterGalaxyNode) => {
     if (controlsRef.current) {
       const controls = controlsRef.current;
-      const distance = 200;
+      const distance =
+        node.type === "cluster" ? 400 : node.type === "node" ? 250 : 150;
       const direction = new THREE.Vector3(1, 0.5, 1).normalize();
       const newPosition = new THREE.Vector3(
         node.x + direction.x * distance,
         node.y + direction.y * distance,
-        node.z + direction.z * distance
+        node.z + direction.z * distance,
       );
-      
+
       controls.target.set(node.x, node.y, node.z);
-      
+
       const camera = controls.object;
       const startPosition = camera.position.clone();
       const duration = 1000;
       const startTime = Date.now();
-      
+
       const animate = () => {
         const elapsed = Date.now() - startTime;
         const progress = Math.min(elapsed / duration, 1);
         const eased = THREE.MathUtils.smoothstep(progress, 0, 1);
-        
+
         camera.position.lerpVectors(startPosition, newPosition, eased);
-        
+
         if (progress < 1) {
           requestAnimationFrame(animate);
         }
       };
-      
+
       animate();
     }
   };
@@ -118,28 +118,49 @@ export default function Topology() {
       const camera = controls.object;
       const startPosition = camera.position.clone();
       const startTarget = controls.target.clone();
-      const defaultPosition = new THREE.Vector3(300, 200, 300);
-      const defaultTarget = new THREE.Vector3(0, 20, -200);
+      const defaultPosition = new THREE.Vector3(1200, 800, 1200);
+      const defaultTarget = new THREE.Vector3(0, 0, 0);
       const duration = 1000;
       const startTime = Date.now();
-      
+
       const animate = () => {
         const elapsed = Date.now() - startTime;
         const progress = Math.min(elapsed / duration, 1);
         const eased = THREE.MathUtils.smoothstep(progress, 0, 1);
-        
+
         camera.position.lerpVectors(startPosition, defaultPosition, eased);
         controls.target.lerpVectors(startTarget, defaultTarget, eased);
-        
+
         if (progress < 1) {
           requestAnimationFrame(animate);
         }
       };
-      
+
       animate();
     }
     setSelected(null);
   };
+
+  const clusterStats = useMemo(() => {
+    if (!data?.clusters) return null;
+
+    const totalNodes = data.clusters.reduce(
+      (sum, c) => sum + c.nodes.length,
+      0,
+    );
+    const totalPods = data.clusters.reduce((sum, c) => sum + c.pods.length, 0);
+    const totalDeployments = data.clusters.reduce(
+      (sum, c) => sum + c.deployments.length,
+      0,
+    );
+
+    return {
+      clusters: data.clusters.length,
+      nodes: totalNodes,
+      deployments: totalDeployments,
+      pods: totalPods,
+    };
+  }, [data]);
 
   return (
     <div
@@ -148,21 +169,21 @@ export default function Topology() {
     >
       {isLoading && (
         <div className="absolute inset-0 flex items-center justify-center">
-          <div className="text-white/70 text-sm">Loading topology...</div>
+          <div className="text-white/70 text-sm">Loading clusters...</div>
         </div>
       )}
 
       {isError && (
         <div className="absolute inset-0 flex items-center justify-center">
           <div className="text-red-400 text-sm">
-            Error loading topology: {error?.message || "Unknown error"}
+            Error loading clusters: {error?.message || "Unknown error"}
           </div>
         </div>
       )}
 
-      {topologyGraph && (
+      {clustersGraph && (
         <Canvas
-          camera={{ position: [300, 200, 300], fov: 60, near: 1, far: 3000 }}
+          camera={{ position: [600, 400, 600], fov: 60, near: 1, far: 5000 }}
           gl={{ antialias: true }}
           onClick={(e) => {
             if (e.target === e.currentTarget) {
@@ -171,15 +192,14 @@ export default function Topology() {
           }}
         >
           <color attach="background" args={["#05050f"]} />
-          <fog attach="fog" args={["#05050f", 900, 2000]} />
-          <TopologyScene
-            graph={topologyGraph}
+          <fog attach="fog" args={["#05050f", 1200, 3000]} />
+          <ClustersScene
+            graph={clustersGraph}
             onHover={setHovered}
             onClick={setSelected}
             selectedNode={selected}
             onDoubleClick={handleDoubleClick}
             filteredNodes={filteredNodes}
-            onEdgeHover={setHoveredEdge}
           />
           <OrbitControls
             ref={controlsRef}
@@ -187,13 +207,14 @@ export default function Topology() {
             dampingFactor={0.08}
             rotateSpeed={0.5}
             zoomSpeed={0.8}
-            minDistance={200}
-            maxDistance={900}
-            target={[0, 20, -200]}
+            minDistance={100}
+            maxDistance={1500}
+            target={[0, 0, 0]}
             enablePan={true}
             panSpeed={0.5}
             screenSpacePanning={true}
           />
+          <Stars radius={1500} depth={500} count={3000} factor={3} />
           <EffectComposer>
             <Bloom
               luminanceThreshold={0.2}
@@ -209,24 +230,60 @@ export default function Topology() {
         <div className="text-white/70 text-[11px] leading-[1.8] pointer-events-none">
           <div className="flex items-center gap-2 mb-1.5">
             <div className="text-lg font-semibold text-white/90 tracking-[4px]">
-              TOPOLOGY
+              CLUSTERS
             </div>
           </div>
           <div className="opacity-40 text-[10px]">
-            network flow visualization · drag to rotate · scroll to zoom
+            multicluster galaxy view · drag to rotate · scroll to zoom
           </div>
         </div>
+
+        {clusterStats && (
+          <div className="bg-[rgba(8,8,25,0.8)] border border-white/[0.08] rounded-xl p-3 backdrop-blur-xl">
+            <div className="text-white/70 text-[10px] mb-2 font-semibold opacity-80">
+              OVERVIEW
+            </div>
+            <div className="grid grid-cols-2 gap-2 text-[10px]">
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 rounded-full bg-[#00d4ff] shadow-[0_0_8px_rgba(0,212,255,0.6)]" />
+                <span className="text-white/60">
+                  {clusterStats.clusters} cluster
+                  {clusterStats.clusters !== 1 ? "s" : ""}
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 rounded-full bg-[#a78bfa] shadow-[0_0_8px_rgba(167,139,250,0.6)]" />
+                <span className="text-white/60">
+                  {clusterStats.nodes} node{clusterStats.nodes !== 1 ? "s" : ""}
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 rounded-full bg-[#fb923c] shadow-[0_0_8px_rgba(251,146,60,0.6)]" />
+                <span className="text-white/60">
+                  {clusterStats.deployments} deployment
+                  {clusterStats.deployments !== 1 ? "s" : ""}
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 rounded-full bg-[#5bffb0] shadow-[0_0_8px_rgba(91,255,176,0.6)]" />
+                <span className="text-white/60">
+                  {clusterStats.pods} pod{clusterStats.pods !== 1 ? "s" : ""}
+                </span>
+              </div>
+            </div>
+          </div>
+        )}
 
         <div className="bg-[rgba(8,8,25,0.8)] border border-white/[0.08] rounded-xl p-3 backdrop-blur-xl">
           <input
             type="text"
-            placeholder="Search nodes..."
+            placeholder="Search resources..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white/90 text-[11px] placeholder-white/40 focus:outline-none focus:border-white/20 focus:bg-white/10 transition-all"
           />
-          
-          <div className="flex gap-1.5 mt-2">
+
+          <div className="flex gap-1.5 mt-2 flex-wrap">
             <button
               type="button"
               onClick={() => setFilterType("all")}
@@ -240,36 +297,25 @@ export default function Topology() {
             </button>
             <button
               type="button"
-              onClick={() => setFilterType("internet")}
+              onClick={() => setFilterType("cluster")}
               className={`px-2.5 py-1 rounded text-[9px] font-medium transition-all ${
-                filterType === "internet"
+                filterType === "cluster"
                   ? "bg-[#00d4ff]/20 text-[#00d4ff] border border-[#00d4ff]/30"
                   : "bg-white/5 text-white/50 border border-white/10 hover:bg-white/10"
               }`}
             >
-              Internet
+              Cluster
             </button>
             <button
               type="button"
-              onClick={() => setFilterType("loadbalancer")}
+              onClick={() => setFilterType("node")}
               className={`px-2.5 py-1 rounded text-[9px] font-medium transition-all ${
-                filterType === "loadbalancer"
-                  ? "bg-[#f472b6]/20 text-[#f472b6] border border-[#f472b6]/30"
-                  : "bg-white/5 text-white/50 border border-white/10 hover:bg-white/10"
-              }`}
-            >
-              LB
-            </button>
-            <button
-              type="button"
-              onClick={() => setFilterType("ingress")}
-              className={`px-2.5 py-1 rounded text-[9px] font-medium transition-all ${
-                filterType === "ingress"
+                filterType === "node"
                   ? "bg-[#a78bfa]/20 text-[#a78bfa] border border-[#a78bfa]/30"
                   : "bg-white/5 text-white/50 border border-white/10 hover:bg-white/10"
               }`}
             >
-              Ingress
+              Node
             </button>
             <button
               type="button"
@@ -294,10 +340,11 @@ export default function Topology() {
               Pod
             </button>
           </div>
-          
+
           {(searchQuery || filterType !== "all") && (
             <div className="mt-2 text-[9px] text-white/50">
-              {filteredNodes.size} {filteredNodes.size === 1 ? 'node' : 'nodes'} found
+              {filteredNodes.size}{" "}
+              {filteredNodes.size === 1 ? "resource" : "resources"} found
             </div>
           )}
         </div>
@@ -311,7 +358,7 @@ export default function Topology() {
         >
           RESET VIEW
         </button>
-        
+
         <div className="bg-[rgba(8,8,25,0.8)] border border-white/[0.08] rounded-xl py-3 px-4 backdrop-blur-xl pointer-events-none">
           <div className="text-white/70 text-[10px] mb-2 font-semibold opacity-80">
             LEGEND
@@ -319,15 +366,11 @@ export default function Topology() {
           <div className="space-y-2">
             <div className="flex items-center gap-2.5 text-[10px]">
               <div className="w-2.5 h-2.5 rounded-full bg-[#00d4ff] shadow-[0_0_8px_rgba(0,212,255,0.6)]" />
-              <span className="text-white/60">Internet</span>
-            </div>
-            <div className="flex items-center gap-2.5 text-[10px]">
-              <div className="w-2.5 h-2.5 rounded-full bg-[#f472b6] shadow-[0_0_8px_rgba(244,114,182,0.6)]" />
-              <span className="text-white/60">Load Balancer</span>
+              <span className="text-white/60">Cluster</span>
             </div>
             <div className="flex items-center gap-2.5 text-[10px]">
               <div className="w-2.5 h-2.5 rounded-full bg-[#a78bfa] shadow-[0_0_8px_rgba(167,139,250,0.6)]" />
-              <span className="text-white/60">Ingress</span>
+              <span className="text-white/60">Node</span>
             </div>
             <div className="flex items-center gap-2.5 text-[10px]">
               <div className="w-2.5 h-2.5 rounded-full bg-[#fb923c] shadow-[0_0_8px_rgba(251,146,60,0.6)]" />
@@ -340,34 +383,6 @@ export default function Topology() {
           </div>
         </div>
       </div>
-
-      <AnimatePresence>
-        {hoveredEdge && (
-          <motion.div
-            key={`edge-${hoveredEdge.from}-${hoveredEdge.to}`}
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 8 }}
-            transition={{ duration: 0.2 }}
-            className="absolute bottom-20 left-6 pointer-events-none min-w-[220px]"
-          >
-            <div className="bg-[rgba(8,8,25,0.9)] border border-white/[0.08] rounded-xl py-3.5 px-[18px] text-white/70 text-[11px] leading-[1.9] backdrop-blur-xl">
-              <div className="font-medium text-[13px] text-white/90 mb-2">
-                Connection
-              </div>
-              <div>
-                from: <span className="text-white/90">{hoveredEdge.from}</span>
-              </div>
-              <div>
-                to: <span className="text-white/90">{hoveredEdge.to}</span>
-              </div>
-              <div>
-                type: <span className="text-white/90 capitalize">{hoveredEdge.type}</span>
-              </div>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
 
       <AnimatePresence>
         {hovered && (
@@ -408,13 +423,35 @@ export default function Topology() {
                   </span>
                 </div>
               )}
-              {hovered.metadata?.connections !== undefined && (
-                <div>
-                  connections:{" "}
-                  <span className="opacity-80">
-                    {hovered.metadata.connections}
-                  </span>
-                </div>
+              {hovered.type === "node" && hovered.metadata && (
+                <>
+                  {hovered.metadata.cpu && (
+                    <div>
+                      cpu:{" "}
+                      <span className="opacity-80">{hovered.metadata.cpu}</span>
+                    </div>
+                  )}
+                  {hovered.metadata.memory && (
+                    <div>
+                      memory:{" "}
+                      <span className="opacity-80">
+                        {hovered.metadata.memory}
+                      </span>
+                    </div>
+                  )}
+                </>
+              )}
+              {hovered.type === "deployment" && hovered.metadata && (
+                <>
+                  {hovered.metadata.desired !== undefined && (
+                    <div>
+                      replicas:{" "}
+                      <span className="opacity-80">
+                        {hovered.metadata.ready}/{hovered.metadata.desired}
+                      </span>
+                    </div>
+                  )}
+                </>
               )}
             </div>
           </motion.div>
@@ -428,7 +465,7 @@ export default function Topology() {
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: -12 }}
             transition={{ duration: 0.2 }}
-            className="absolute top-[260px] left-6 pointer-events-auto min-w-[260px] max-w-[320px]"
+            className="absolute top-[400px] left-6 pointer-events-auto min-w-[260px] max-w-[320px]"
           >
             <div
               className="bg-[rgba(8,8,25,0.92)] rounded-xl py-4 px-5 text-white/75 text-[11px] leading-[1.8] backdrop-blur-xl border"
@@ -487,16 +524,31 @@ export default function Topology() {
                     </span>
                   </div>
                 )}
-
-                {selected.metadata?.connections !== undefined && (
-                  <div>
-                    connections:{" "}
-                    <span className="text-white/90">
-                      {selected.metadata.connections}
-                    </span>
-                  </div>
-                )}
               </div>
+
+              {selected.type === "node" && selected.metadata && (
+                <div className="border-t border-white/[0.06] pt-2 mt-2 space-y-1">
+                  <div className="text-[10px] font-semibold opacity-60 mb-1.5">
+                    CAPACITY
+                  </div>
+                  {selected.metadata.cpu && (
+                    <div>
+                      cpu:{" "}
+                      <span className="text-white/90">
+                        {selected.metadata.cpu}
+                      </span>
+                    </div>
+                  )}
+                  {selected.metadata.memory && (
+                    <div>
+                      memory:{" "}
+                      <span className="text-white/90">
+                        {selected.metadata.memory}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              )}
 
               {selected.type === "deployment" && selected.metadata && (
                 <div className="border-t border-white/[0.06] pt-2 mt-2 space-y-1">
@@ -546,14 +598,21 @@ export default function Topology() {
                   {selected.metadata.nodeId && (
                     <div>
                       node:{" "}
-                      <span className="text-white/60 text-[10px] font-mono">
+                      <span className="text-white/60 text-[10px] font-mono break-all">
                         {selected.metadata.nodeId}
+                      </span>
+                    </div>
+                  )}
+                  {selected.metadata.controllerId && (
+                    <div>
+                      controller:{" "}
+                      <span className="text-white/60 text-[10px] font-mono break-all">
+                        {selected.metadata.controllerId}
                       </span>
                     </div>
                   )}
                 </div>
               )}
-
             </div>
           </motion.div>
         )}

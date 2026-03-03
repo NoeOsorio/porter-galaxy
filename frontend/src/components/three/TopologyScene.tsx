@@ -275,6 +275,9 @@ export default function TopologyScene({
 
           if (!fromNode || !toNode) return null;
 
+          const edgeKey = `${edge.from}-${edge.to}`;
+          const isInPath = flowPath.some(e => `${e.from}-${e.to}` === edgeKey);
+
           const start = new THREE.Vector3(fromNode.x, fromNode.y, fromNode.z);
           const end = new THREE.Vector3(toNode.x, toNode.y, toNode.z);
           const direction = new THREE.Vector3().subVectors(end, start);
@@ -288,6 +291,13 @@ export default function TopologyScene({
             new THREE.Vector3(0, 1, 0),
             direction.normalize(),
           );
+
+          const baseWidth = isInPath 
+            ? (edge.type === "internet" ? 2.5 : edge.type === "lb" ? 2.0 : edge.type === "ingress" ? 1.5 : 1.2)
+            : (edge.type === "internet" ? 1.5 : edge.type === "lb" ? 1.2 : edge.type === "ingress" ? 1.0 : 0.6);
+          const topWidth = baseWidth * 0.3;
+          const edgeOpacity = isInPath ? 0.7 : (edge.active ? 0.5 : 0.2);
+          const edgeColor = isInPath ? "#00d4ff" : edge.color;
 
           return (
             <mesh
@@ -306,11 +316,11 @@ export default function TopologyScene({
                 gl.domElement.style.cursor = "default";
               }}
             >
-              <cylinderGeometry args={[0.5, 0.5, length, 8]} />
+              <cylinderGeometry args={[topWidth, baseWidth, length, 8]} />
               <meshBasicMaterial
-                color={edge.color}
+                color={edgeColor}
                 transparent
-                opacity={edge.active ? 0.5 : 0.2}
+                opacity={edgeOpacity}
                 toneMapped={false}
                 depthWrite={false}
                 depthTest={true}

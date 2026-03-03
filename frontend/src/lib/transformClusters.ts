@@ -29,7 +29,7 @@ export function transformClusters(
   const allEdges: ClusterGalaxyEdge[] = [];
 
   const clusterCount = apiData.clusters.length;
-  const clusterRadius = 1200;
+  const clusterRadius = 600;
   const clusterAngleStep = (Math.PI * 2) / clusterCount;
 
   apiData.clusters.forEach((apiCluster, clusterIndex) => {

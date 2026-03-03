@@ -115,9 +115,10 @@ export function transformClusters(
 
       const deploymentsOnNode = new Map<string, typeof apiCluster.pods>();
       podsOnThisNode.forEach((pod) => {
-        const depKey = pod.controllerId
-          ? `${apiCluster.id}::deployment::${pod.namespace}/${pod.controllerId}`
-          : `${apiCluster.id}::deployment::${pod.namespace}/standalone`;
+        if (!pod.controllerId) {
+          return;
+        }
+        const depKey = `${apiCluster.id}::deployment::${pod.namespace}/${pod.controllerId}`;
         if (!deploymentsOnNode.has(depKey)) {
           deploymentsOnNode.set(depKey, []);
         }

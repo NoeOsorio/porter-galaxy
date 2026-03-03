@@ -111,16 +111,6 @@ export default function Topology() {
         <div className="opacity-40 text-[10px]">
           network flow visualization · drag to rotate · scroll to zoom
         </div>
-        {topologyGraph && (
-          <div className="mt-3 text-[10px] opacity-60">
-            <div className="font-semibold opacity-80 mb-1">NETWORK MAP</div>
-            <div>Nodes: {topologyGraph.nodes.length}</div>
-            <div>Connections: {topologyGraph.edges.length}</div>
-            <div>
-              Active: {topologyGraph.edges.filter((e) => e.active).length}
-            </div>
-          </div>
-        )}
       </div>
 
       <div className="absolute top-20 right-6 pointer-events-none">
@@ -334,15 +324,6 @@ export default function Topology() {
                 </div>
               )}
 
-              <div className="border-t border-white/[0.06] pt-2 mt-2 space-y-1">
-                <div className="text-[10px] font-semibold opacity-60 mb-1.5">
-                  POSITION
-                </div>
-                <div className="text-[10px] font-mono text-white/50">
-                  x: {selected.x.toFixed(1)} · y: {selected.y.toFixed(1)} · z:{" "}
-                  {selected.z.toFixed(1)}
-                </div>
-              </div>
             </div>
           </motion.div>
         )}

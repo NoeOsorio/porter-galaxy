@@ -15,14 +15,12 @@ const CLUSTER_COLORS = [
   { color: "#fbbf24", glow: "#f59e0b" },
 ];
 
-const NODE_COLORS = [
-  { color: "#45caff", glow: "#0088dd" },
-  { color: "#ff6b9d", glow: "#dd2266" },
-  { color: "#ffd666", glow: "#cc9900" },
-  { color: "#5bffb0", glow: "#00cc66" },
-  { color: "#7c6bff", glow: "#4422ee" },
-  { color: "#ff8c42", glow: "#ff5500" },
-];
+const TYPE_COLORS = {
+  cluster: { color: "#00d4ff", glow: "#0088dd" },
+  node: { color: "#45caff", glow: "#0088dd" },
+  deployment: { color: "#fb923c", glow: "#ea580c" },
+  pod: { color: "#5bffb0", glow: "#00cc66" },
+};
 
 export function transformClusters(
   apiData: ApiClustersResponse
@@ -64,21 +62,22 @@ export function transformClusters(
 
     apiCluster.nodes.forEach((apiNode, nodeIndex) => {
       const nodeAngle = nodeIndex * nodeAngleStep;
-      const nodeColor = NODE_COLORS[nodeIndex % NODE_COLORS.length]!;
 
       const nodeX = clusterCenterX + Math.cos(nodeAngle) * nodeRadius;
       const nodeY = clusterCenterY + Math.sin(nodeAngle) * nodeRadius * 0.3;
       const nodeZ = clusterCenterZ + Math.sin(nodeAngle) * nodeRadius;
 
+      const nodeFullId = `${apiCluster.id}::node::${apiNode.id}`;
+
       const k8sNode: ClusterGalaxyNode = {
-        id: apiNode.id,
+        id: nodeFullId,
         type: "node",
         name: apiNode.id,
         x: nodeX,
         y: nodeY,
         z: nodeZ,
-        color: nodeColor.color,
-        glow: nodeColor.glow,
+        color: TYPE_COLORS.node.color,
+        glow: TYPE_COLORS.node.glow,
         size: 25,
         status: apiNode.status,
         metadata: {
@@ -91,9 +90,9 @@ export function transformClusters(
 
       allEdges.push({
         from: apiCluster.id,
-        to: apiNode.id,
+        to: nodeFullId,
         type: "cluster-node",
-        color: clusterColor.color,
+        color: TYPE_COLORS.node.color,
       });
 
       const podsOnThisNode = apiCluster.pods.filter(
@@ -102,14 +101,14 @@ export function transformClusters(
 
       const deploymentMap = new Map<string, typeof apiCluster.deployments[0]>();
       apiCluster.deployments.forEach((dep) => {
-        deploymentMap.set(`${dep.namespace}/${dep.id}`, dep);
+        deploymentMap.set(`${apiCluster.id}::deployment::${dep.namespace}/${dep.id}`, dep);
       });
 
       const deploymentsOnNode = new Map<string, typeof apiCluster.pods>();
       podsOnThisNode.forEach((pod) => {
         const depKey = pod.controllerId
-          ? `${pod.namespace}/${pod.controllerId}`
-          : `${pod.namespace}/standalone`;
+          ? `${apiCluster.id}::deployment::${pod.namespace}/${pod.controllerId}`
+          : `${apiCluster.id}::deployment::${pod.namespace}/standalone`;
         if (!deploymentsOnNode.has(depKey)) {
           deploymentsOnNode.set(depKey, []);
         }
@@ -130,7 +129,9 @@ export function transformClusters(
         const deploymentZ =
           nodeZ + Math.sin(deploymentAngle) * deploymentRadius;
 
-        const [namespace, deploymentId] = depKey.split("/");
+        const depKeyParts = depKey.split("::");
+        const namespaceAndId = depKeyParts[2] || depKey;
+        const [namespace, deploymentId] = namespaceAndId.split("/");
         const deploymentData = deploymentMap.get(depKey);
 
         const deployment: ClusterGalaxyNode = {
@@ -141,8 +142,8 @@ export function transformClusters(
           x: deploymentX,
           y: deploymentY,
           z: deploymentZ,
-          color: nodeColor.color,
-          glow: nodeColor.glow,
+          color: TYPE_COLORS.deployment.color,
+          glow: TYPE_COLORS.deployment.glow,
           size: 15,
           status: deploymentData
             ? `${deploymentData.ready}/${deploymentData.desired}`
@@ -158,10 +159,10 @@ export function transformClusters(
         allNodes.push(deployment);
 
         allEdges.push({
-          from: apiNode.id,
+          from: nodeFullId,
           to: depKey,
           type: "node-deployment",
-          color: nodeColor.color,
+          color: TYPE_COLORS.deployment.color,
         });
 
         const podCount = pods.length || 1;
@@ -174,16 +175,18 @@ export function transformClusters(
           const podY = deploymentY + Math.sin(podAngle) * podRadius * 0.3;
           const podZ = deploymentZ + Math.sin(podAngle) * podRadius;
 
+          const podFullId = `${apiCluster.id}::pod::${apiPod.id}`;
+
           const pod: ClusterGalaxyNode = {
-            id: apiPod.id,
+            id: podFullId,
             type: "pod",
             name: apiPod.id.split("-").slice(-2).join("-"),
             namespace: apiPod.namespace,
             x: podX,
             y: podY,
             z: podZ,
-            color: nodeColor.color,
-            glow: nodeColor.glow,
+            color: TYPE_COLORS.pod.color,
+            glow: TYPE_COLORS.pod.glow,
             size: 8,
             status: apiPod.status,
             metadata: {
@@ -197,9 +200,9 @@ export function transformClusters(
 
           allEdges.push({
             from: depKey,
-            to: apiPod.id,
+            to: podFullId,
             type: "deployment-pod",
-            color: nodeColor.color,
+            color: TYPE_COLORS.pod.color,
           });
         });
 

@@ -79,10 +79,3 @@ export interface K8sGraph {
   edges: K8sEdge[];
   namespaces: NamespaceColor[];
 }
-
-export type ProjectedK8sNode = K8sNode & {
-  sx: number;
-  sy: number;
-  scale: number;
-  depth: number;
-};

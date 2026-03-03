@@ -1,8 +1,8 @@
 import { motion } from "framer-motion";
-import type { ProjectedNode, ClusterColor } from "../types/graph";
+import type { Node, ClusterColor } from "../types/graph";
 
 interface NodeDetailProps {
-  node: ProjectedNode;
+  node: Node;
   clusterColors: ClusterColor[];
 }
 

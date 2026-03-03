@@ -11,13 +11,6 @@ export interface Node {
   label: string;
 }
 
-export interface ProjectedNode extends Node {
-  sx: number;
-  sy: number;
-  scale: number;
-  depth: number;
-}
-
 export interface Edge {
   source: number;
   target: number;

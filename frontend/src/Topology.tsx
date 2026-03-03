@@ -36,11 +36,34 @@ export default function Topology() {
   const { data, isLoading, isError, error } = useClustersSSE();
   const [hovered, setHovered] = useState<TopologyNode | null>(null);
   const [selected, setSelected] = useState<TopologyNode | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [filterType, setFilterType] = useState<string>("all");
+  const [hoveredEdge, setHoveredEdge] = useState<{ from: string; to: string; type: string } | null>(null);
 
   const topologyGraph = useMemo(() => {
     if (!data?.clusters[0]) return null;
     return transformTopology(data.clusters[0]);
   }, [data]);
+
+  const filteredNodes = useMemo(() => {
+    if (!topologyGraph) return new Set<string>();
+    
+    const matchingNodes = new Set<string>();
+    
+    topologyGraph.nodes.forEach(node => {
+      const matchesSearch = searchQuery === "" || 
+        node.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        node.id.toLowerCase().includes(searchQuery.toLowerCase());
+      
+      const matchesFilter = filterType === "all" || node.type === filterType;
+      
+      if (matchesSearch && matchesFilter) {
+        matchingNodes.add(node.id);
+      }
+    });
+    
+    return matchingNodes;
+  }, [topologyGraph, searchQuery, filterType]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -153,6 +176,8 @@ export default function Topology() {
             onClick={setSelected}
             selectedNode={selected}
             onDoubleClick={handleDoubleClick}
+            filteredNodes={filteredNodes}
+            onEdgeHover={setHoveredEdge}
           />
           <OrbitControls
             ref={controlsRef}
@@ -178,14 +203,90 @@ export default function Topology() {
         </Canvas>
       )}
 
-      <div className="absolute top-20 left-6 text-white/70 text-[11px] leading-[1.8] pointer-events-none">
-        <div className="flex items-center gap-2 mb-1.5">
-          <div className="text-lg font-semibold text-white/90 tracking-[4px]">
-            TOPOLOGY
+      <div className="absolute top-20 left-6 flex flex-col gap-3 pointer-events-auto">
+        <div className="text-white/70 text-[11px] leading-[1.8] pointer-events-none">
+          <div className="flex items-center gap-2 mb-1.5">
+            <div className="text-lg font-semibold text-white/90 tracking-[4px]">
+              TOPOLOGY
+            </div>
+          </div>
+          <div className="opacity-40 text-[10px]">
+            network flow visualization · drag to rotate · scroll to zoom
           </div>
         </div>
-        <div className="opacity-40 text-[10px]">
-          network flow visualization · drag to rotate · scroll to zoom
+
+        <div className="bg-[rgba(8,8,25,0.8)] border border-white/[0.08] rounded-xl p-3 backdrop-blur-xl">
+          <input
+            type="text"
+            placeholder="Search nodes..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white/90 text-[11px] placeholder-white/40 focus:outline-none focus:border-white/20 focus:bg-white/10 transition-all"
+          />
+          
+          <div className="flex gap-1.5 mt-2">
+            <button
+              type="button"
+              onClick={() => setFilterType("all")}
+              className={`px-2.5 py-1 rounded text-[9px] font-medium transition-all ${
+                filterType === "all"
+                  ? "bg-white/20 text-white/90 border border-white/20"
+                  : "bg-white/5 text-white/50 border border-white/10 hover:bg-white/10"
+              }`}
+            >
+              All
+            </button>
+            <button
+              type="button"
+              onClick={() => setFilterType("internet")}
+              className={`px-2.5 py-1 rounded text-[9px] font-medium transition-all ${
+                filterType === "internet"
+                  ? "bg-[#00d4ff]/20 text-[#00d4ff] border border-[#00d4ff]/30"
+                  : "bg-white/5 text-white/50 border border-white/10 hover:bg-white/10"
+              }`}
+            >
+              Internet
+            </button>
+            <button
+              type="button"
+              onClick={() => setFilterType("loadbalancer")}
+              className={`px-2.5 py-1 rounded text-[9px] font-medium transition-all ${
+                filterType === "loadbalancer"
+                  ? "bg-[#ff4d9f]/20 text-[#ff4d9f] border border-[#ff4d9f]/30"
+                  : "bg-white/5 text-white/50 border border-white/10 hover:bg-white/10"
+              }`}
+            >
+              LB
+            </button>
+            <button
+              type="button"
+              onClick={() => setFilterType("deployment")}
+              className={`px-2.5 py-1 rounded text-[9px] font-medium transition-all ${
+                filterType === "deployment"
+                  ? "bg-[#ffd666]/20 text-[#ffd666] border border-[#ffd666]/30"
+                  : "bg-white/5 text-white/50 border border-white/10 hover:bg-white/10"
+              }`}
+            >
+              Deploy
+            </button>
+            <button
+              type="button"
+              onClick={() => setFilterType("pod")}
+              className={`px-2.5 py-1 rounded text-[9px] font-medium transition-all ${
+                filterType === "pod"
+                  ? "bg-[#5bffb0]/20 text-[#5bffb0] border border-[#5bffb0]/30"
+                  : "bg-white/5 text-white/50 border border-white/10 hover:bg-white/10"
+              }`}
+            >
+              Pod
+            </button>
+          </div>
+          
+          {(searchQuery || filterType !== "all") && (
+            <div className="mt-2 text-[9px] text-white/50">
+              {filteredNodes.size} {filteredNodes.size === 1 ? 'node' : 'nodes'} found
+            </div>
+          )}
         </div>
       </div>
 
@@ -222,6 +323,34 @@ export default function Topology() {
           </div>
         </div>
       </div>
+
+      <AnimatePresence>
+        {hoveredEdge && (
+          <motion.div
+            key={`edge-${hoveredEdge.from}-${hoveredEdge.to}`}
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 8 }}
+            transition={{ duration: 0.2 }}
+            className="absolute bottom-20 left-6 pointer-events-none min-w-[220px]"
+          >
+            <div className="bg-[rgba(8,8,25,0.9)] border border-white/[0.08] rounded-xl py-3.5 px-[18px] text-white/70 text-[11px] leading-[1.9] backdrop-blur-xl">
+              <div className="font-medium text-[13px] text-white/90 mb-2">
+                Connection
+              </div>
+              <div>
+                from: <span className="text-white/90">{hoveredEdge.from}</span>
+              </div>
+              <div>
+                to: <span className="text-white/90">{hoveredEdge.to}</span>
+              </div>
+              <div>
+                type: <span className="text-white/90 capitalize">{hoveredEdge.type}</span>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <AnimatePresence>
         {hovered && (

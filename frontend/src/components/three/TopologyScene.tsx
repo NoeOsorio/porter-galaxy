@@ -9,6 +9,8 @@ interface TopologySceneProps {
   onClick: (node: TopologyNode | null) => void;
   selectedNode: TopologyNode | null;
   onDoubleClick: (node: TopologyNode) => void;
+  filteredNodes: Set<string>;
+  onEdgeHover: (edge: { from: string; to: string; type: string } | null) => void;
 }
 
 interface FlowParticle {
@@ -60,6 +62,8 @@ export default function TopologyScene({
   onClick,
   selectedNode,
   onDoubleClick,
+  filteredNodes,
+  onEdgeHover,
 }: TopologySceneProps) {
   const { gl, camera } = useThree();
   const nodesRef = useRef<THREE.Group>(null);
@@ -196,8 +200,10 @@ export default function TopologyScene({
           <group key={type}>
             {nodes.map((node) => {
               const isInPath = nodesInPath.has(node.id);
+              const isFiltered = filteredNodes.size > 0 && !filteredNodes.has(node.id);
               const glowColor = isInPath ? "#00d4ff" : node.glow;
               const glowOpacity = isInPath ? 0.4 : 0.15;
+              const nodeOpacity = isFiltered ? 0.2 : 1;
               
               return (
                 <group key={node.id} position={[node.x, node.y, node.z]}>
@@ -221,14 +227,19 @@ export default function TopologyScene({
                     }}
                   >
                     <sphereGeometry args={[node.size, 32, 32]} />
-                    <meshBasicMaterial color={node.color} toneMapped={false} />
+                    <meshBasicMaterial 
+                      color={node.color} 
+                      toneMapped={false}
+                      transparent
+                      opacity={nodeOpacity}
+                    />
                   </mesh>
                   <mesh>
                     <sphereGeometry args={[node.size * 1.3, 32, 32]} />
                     <meshBasicMaterial
                       color={glowColor}
                       transparent
-                      opacity={glowOpacity}
+                      opacity={glowOpacity * nodeOpacity}
                       toneMapped={false}
                     />
                   </mesh>
@@ -238,7 +249,7 @@ export default function TopologyScene({
                       <meshBasicMaterial
                         color="#00d4ff"
                         transparent
-                        opacity={0.15}
+                        opacity={0.15 * nodeOpacity}
                         toneMapped={false}
                       />
                     </mesh>
@@ -276,6 +287,16 @@ export default function TopologyScene({
               key={`${edge.from}-${edge.to}-${i}`}
               position={midpoint}
               quaternion={quaternion}
+              onPointerOver={(e) => {
+                e.stopPropagation();
+                onEdgeHover({ from: edge.from, to: edge.to, type: edge.type });
+                gl.domElement.style.cursor = "pointer";
+              }}
+              onPointerOut={(e) => {
+                e.stopPropagation();
+                onEdgeHover(null);
+                gl.domElement.style.cursor = "default";
+              }}
             >
               <cylinderGeometry args={[0.5, 0.5, length, 8]} />
               <meshBasicMaterial

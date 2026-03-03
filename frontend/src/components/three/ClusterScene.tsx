@@ -2,97 +2,89 @@ import { useRef, useMemo, useCallback, useEffect } from "react";
 import * as THREE from "three";
 import { useFrame, useThree } from "@react-three/fiber";
 import type {
-  ClusterEntity,
-  ClusterHierarchyEntity,
-  DrillLevel,
-} from "../../types/cluster";
+  K8sMoleculeNode,
+  K8sMoleculeClusterNode,
+  K8sMoleculeDeploymentNode,
+} from "../../types/k8sMolecule";
 
-const LEVEL_CAMERA_DIST: Record<DrillLevel, number> = {
-  cluster: 250,
-  node: 160,
-  deployment: 50,
-  pod: 18,
-};
+type DrillLevel = "cluster" | "node" | "deployment" | "pod";
 
-function findEntity(
-  cluster: ClusterEntity,
-  id: string
-): ClusterHierarchyEntity | null {
-  if (cluster.id === id) return cluster;
-  for (const node of cluster.children) {
-    if (node.id === id) return node;
-    for (const dep of node.children) {
-      if (dep.id === id) return dep;
-      for (const pod of dep.children) {
-        if (pod.id === id) return pod;
-      }
-    }
-  }
-  return null;
+interface K8sMoleculeClusterEntity {
+  id: string;
+  kind: "Cluster";
+  name: string;
+  x: number;
+  y: number;
+  color: string;
+  glow: string;
+  size: number;
+  nodes: K8sMoleculeClusterNode[];
+}
+
+interface ClusterData {
+  cluster: K8sMoleculeClusterEntity;
+  nodes: K8sMoleculeClusterNode[];
+  deployments: K8sMoleculeDeploymentNode[];
+  pods: any[];
 }
 
 function getFocusCenter(
-  cluster: ClusterEntity,
+  clusterData: ClusterData,
   focusPath: string[]
 ): THREE.Vector3 {
   if (focusPath.length === 0) return new THREE.Vector3(0, 0, 0);
-  const last = focusPath[focusPath.length - 1]!;
-  const entity = findEntity(cluster, last);
-  if (!entity) return new THREE.Vector3(0, 0, 0);
-  return new THREE.Vector3(entity.x, entity.y, entity.z);
+  
+  if (focusPath.length === 1) {
+    const node = clusterData.nodes.find((n) => n.id === focusPath[0]);
+    if (node) return new THREE.Vector3(node.x, node.y, 0);
+  }
+  
+  if (focusPath.length === 2) {
+    const dep = clusterData.deployments.find((d) => d.id === focusPath[1]);
+    if (dep) return new THREE.Vector3(dep.x, dep.y, 0);
+  }
+  
+  return new THREE.Vector3(0, 0, 0);
 }
 
 function getCurrentEntities(
-  cluster: ClusterEntity,
+  clusterData: ClusterData,
   level: DrillLevel,
   focusPath: string[]
-): ClusterHierarchyEntity[] {
-  if (level === "cluster") return [cluster];
-  if (level === "node") return cluster.children;
-  if (level === "deployment" && focusPath.length >= 2) {
-    const node = findEntity(cluster, focusPath[1]!);
-    if (!node || !("children" in node)) return [];
-    return (node as { children: ClusterHierarchyEntity[] }).children;
+): K8sMoleculeNode[] {
+  if (level === "cluster" || level === "node") {
+    return clusterData.nodes;
   }
-  if (level === "pod" && focusPath.length >= 3) {
-    const node = findEntity(cluster, focusPath[1]!);
-    if (!node || !("children" in node)) return [];
-    const deps = (node as { children: { id: string; children?: ClusterHierarchyEntity[] }[] }).children;
-    const dep = deps.find((d) => d.id === focusPath[2]);
-    return dep && dep.children ? dep.children : [];
+  
+  if (level === "deployment" && focusPath.length >= 1) {
+    const node = clusterData.nodes.find((n) => n.id === focusPath[0]);
+    if (node) return node.deployments;
+    return [];
   }
+  
+  if (level === "pod" && focusPath.length >= 2) {
+    const dep = clusterData.deployments.find((d) => d.id === focusPath[1]);
+    if (dep) return dep.pods;
+    return [];
+  }
+  
   return [];
 }
 
-function getParentSphere(
-  cluster: ClusterEntity,
-  level: DrillLevel,
-  focusPath: string[]
-): { x: number; y: number; z: number; radius: number } | null {
-  if (level === "cluster") return null;
-  if (level === "node") return { x: 0, y: 0, z: 0, radius: cluster.radius };
-  if (level === "deployment" && focusPath.length >= 2) {
-    const node = findEntity(cluster, focusPath[1]!);
-    return node ? { x: node.x, y: node.y, z: node.z, radius: node.radius } : null;
+function hasChildren(e: K8sMoleculeNode): boolean {
+  if (e.kind === "Node") {
+    return (e as K8sMoleculeClusterNode).deployments.length > 0;
   }
-  if (level === "pod" && focusPath.length >= 3) {
-    const node = findEntity(cluster, focusPath[1]!);
-    if (!node || !("children" in node)) return null;
-    const deps = (node as { children: { id: string; x: number; y: number; z: number; radius: number }[] }).children;
-    const dep = deps.find((d) => d.id === focusPath[2]);
-    return dep ? { x: dep.x, y: dep.y, z: dep.z, radius: dep.radius } : null;
+  if (e.kind === "Deployment") {
+    return (e as K8sMoleculeDeploymentNode).pods.length > 0;
   }
-  return null;
-}
-
-function hasChildren(e: ClusterHierarchyEntity): boolean {
-  return "children" in e && (e as { children: unknown[] }).children.length > 0;
+  return false;
 }
 
 function groupByColor(
-  entities: ClusterHierarchyEntity[]
-): [string, ClusterHierarchyEntity[]][] {
-  const map = new Map<string, ClusterHierarchyEntity[]>();
+  entities: K8sMoleculeNode[]
+): [string, K8sMoleculeNode[]][] {
+  const map = new Map<string, K8sMoleculeNode[]>();
   for (const e of entities) {
     const list = map.get(e.color) ?? [];
     list.push(e);
@@ -102,41 +94,36 @@ function groupByColor(
 }
 
 interface ClusterSceneProps {
-  hierarchy: ClusterEntity;
+  clusterData: ClusterData;
   level: DrillLevel;
   focusPath: string[];
-  onDrillDown: (entity: ClusterHierarchyEntity) => void;
-  onHover: (entity: ClusterHierarchyEntity | null) => void;
-  onClick: (entity: ClusterHierarchyEntity) => void;
+  onDrillDown: (entity: K8sMoleculeNode) => void;
+  onHover: (entity: K8sMoleculeNode | null) => void;
+  onClick: (entity: K8sMoleculeNode) => void;
+  onCameraDistanceChange: (distance: number) => void;
   controlsRef: React.RefObject<{ target: THREE.Vector3 } | null>;
 }
 
 export default function ClusterScene({
-  hierarchy,
+  clusterData,
   level,
   focusPath,
   onDrillDown,
   onHover,
   onClick,
+  onCameraDistanceChange,
   controlsRef,
 }: ClusterSceneProps) {
   const meshRefs = useRef<(THREE.InstancedMesh | null)[]>([]);
   const matrix = useMemo(() => new THREE.Matrix4(), []);
   const { camera } = useThree();
 
-  const levelRef = useRef(level);
-  levelRef.current = level;
   const focusPathRef = useRef(focusPath);
   focusPathRef.current = focusPath;
 
   const entities = useMemo(
-    () => getCurrentEntities(hierarchy, level, focusPath),
-    [hierarchy, level, focusPath]
-  );
-
-  const parentSphere = useMemo(
-    () => getParentSphere(hierarchy, level, focusPath),
-    [hierarchy, level, focusPath]
+    () => getCurrentEntities(clusterData, level, focusPath),
+    [clusterData, level, focusPath]
   );
 
   const colorGroups = useMemo(() => groupByColor(entities), [entities]);
@@ -146,26 +133,17 @@ export default function ClusterScene({
   }, [colorGroups.length]);
 
   const targetCenter = useMemo(() => new THREE.Vector3(), []);
-  const desiredCamPos = useMemo(() => new THREE.Vector3(), []);
 
   useFrame(() => {
-    const center = getFocusCenter(hierarchy, focusPathRef.current);
+    const center = getFocusCenter(clusterData, focusPathRef.current);
     targetCenter.copy(center);
 
     if (controlsRef.current) {
       controlsRef.current.target.lerp(targetCenter, 0.06);
     }
 
-    const dist = LEVEL_CAMERA_DIST[levelRef.current];
-    const dir = camera.position.clone().sub(targetCenter);
-    const currentDist = dir.length();
-    if (currentDist > 0.001) {
-      dir.normalize();
-    } else {
-      dir.set(0, 0, 1);
-    }
-    desiredCamPos.copy(targetCenter).add(dir.multiplyScalar(dist));
-    camera.position.lerp(desiredCamPos, 0.04);
+    const currentDist = camera.position.distanceTo(targetCenter);
+    onCameraDistanceChange(currentDist);
 
     for (let i = 0; i < colorGroups.length; i++) {
       const mesh = meshRefs.current[i];
@@ -173,10 +151,11 @@ export default function ClusterScene({
       if (!mesh) continue;
       for (let j = 0; j < list.length; j++) {
         const e = list[j]!;
+        const scale = e.size || 1;
         matrix.compose(
-          new THREE.Vector3(e.x, e.y, e.z),
+          new THREE.Vector3(e.x, e.y, 0),
           new THREE.Quaternion(),
-          new THREE.Vector3(e.radius, e.radius, e.radius)
+          new THREE.Vector3(scale, scale, scale)
         );
         mesh.setMatrixAt(j, matrix);
       }
@@ -204,21 +183,6 @@ export default function ClusterScene({
 
   return (
     <group>
-      {parentSphere && (
-        <mesh
-          position={[parentSphere.x, parentSphere.y, parentSphere.z]}
-          scale={parentSphere.radius}
-        >
-          <sphereGeometry args={[1, 32, 32]} />
-          <meshBasicMaterial
-            wireframe
-            color="#ffffff"
-            transparent
-            opacity={0.06}
-            depthWrite={false}
-          />
-        </mesh>
-      )}
       {colorGroups.map(([color, list], i) => (
         <instancedMesh
           key={`${level}-${color}-${i}`}

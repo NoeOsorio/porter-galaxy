@@ -3,8 +3,9 @@ import GalaxyGraph from "./GalaxyGraph";
 import K8sGalaxy from "./K8sGalaxy";
 import ClusterExplorer from "./ClusterExplorer";
 import K8sMolecule from "./K8sMolecule";
+import Topology from "./Topology";
 
-type View = "galaxy" | "k8s" | "cluster" | "molecule";
+type View = "galaxy" | "k8s" | "cluster" | "molecule" | "topology";
 
 export default function App() {
   const [view, setView] = useState<View>("molecule");
@@ -48,11 +49,21 @@ export default function App() {
         >
           K8s Molecule
         </button>
+        <button
+          type="button"
+          onClick={() => setView("topology")}
+          className={`px-4 py-2 rounded-full transition-colors ${
+            view === "topology" ? "bg-white/15 text-white" : "text-white/60 hover:text-white/80"
+          }`}
+        >
+          Topology
+        </button>
       </div>
       {view === "galaxy" && <GalaxyGraph />}
       {view === "k8s" && <K8sGalaxy />}
       {view === "cluster" && <ClusterExplorer />}
       {view === "molecule" && <K8sMolecule />}
+      {view === "topology" && <Topology />}
     </>
   );
 }

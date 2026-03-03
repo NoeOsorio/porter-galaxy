@@ -16,6 +16,8 @@ import type {
   K8sMoleculePodNode,
 } from "../../types/k8sMolecule";
 import { generateK8sMoleculeGraph, getAllNodesFlat } from "../../lib/k8sMoleculeGraph";
+import { transformApiToMoleculeGraph } from "../../lib/transformApiToMolecule";
+import type { ApiCluster } from "../../types/api";
 
 interface ColorGroup {
   color: string;
@@ -31,11 +33,16 @@ interface K8sMoleculeSceneProps {
   onHover: (node: K8sMoleculeNode | null) => void;
   onSelect: (node: K8sMoleculeNode | null) => void;
   nodeSpacing: number;
+  clusterData?: ApiCluster;
 }
 
 const K8sMoleculeScene = forwardRef<K8sMoleculeSceneRef, K8sMoleculeSceneProps>(
-  function K8sMoleculeScene({ onHover, onSelect, nodeSpacing }, ref) {
-    const graphRef = useRef(generateK8sMoleculeGraph());
+  function K8sMoleculeScene({ onHover, onSelect, nodeSpacing, clusterData }, ref) {
+    const graphRef = useRef(
+      clusterData 
+        ? transformApiToMoleculeGraph(clusterData)
+        : generateK8sMoleculeGraph()
+    );
     const flatNodesRef = useRef(getAllNodesFlat(graphRef.current));
     const groupsRef = useRef<ColorGroup[]>([]);
     const meshRefs = useRef<(THREE.InstancedMesh | null)[]>([]);
@@ -48,18 +55,6 @@ const K8sMoleculeScene = forwardRef<K8sMoleculeSceneRef, K8sMoleculeSceneProps>(
     const dragPlaneRef = useRef(new THREE.Plane(new THREE.Vector3(0, 0, 1), 0));
     const dragOffsetRef = useRef(new THREE.Vector3());
     const lastDragPosRef = useRef<{ x: number; y: number } | null>(null);
-
-    useImperativeHandle(
-      ref,
-      () => ({
-        resetPositions: () => {
-          graphRef.current = generateK8sMoleculeGraph();
-          flatNodesRef.current = getAllNodesFlat(graphRef.current);
-          buildGroups();
-        },
-      }),
-      []
-    );
 
     const buildGroups = useCallback(() => {
       const byColor = new Map<string, K8sMoleculeNode[]>();
@@ -82,6 +77,28 @@ const K8sMoleculeScene = forwardRef<K8sMoleculeSceneRef, K8sMoleculeSceneProps>(
       groupsRef.current = groups;
       meshRefs.current = new Array(groups.length).fill(null);
     }, []);
+
+    useImperativeHandle(
+      ref,
+      () => ({
+        resetPositions: () => {
+          graphRef.current = clusterData 
+            ? transformApiToMoleculeGraph(clusterData)
+            : generateK8sMoleculeGraph();
+          flatNodesRef.current = getAllNodesFlat(graphRef.current);
+          buildGroups();
+        },
+      }),
+      [clusterData, buildGroups]
+    );
+
+    useEffect(() => {
+      if (clusterData) {
+        graphRef.current = transformApiToMoleculeGraph(clusterData);
+        flatNodesRef.current = getAllNodesFlat(graphRef.current);
+        buildGroups();
+      }
+    }, [clusterData, buildGroups]);
 
     useEffect(() => {
       buildGroups();

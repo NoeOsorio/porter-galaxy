@@ -120,11 +120,13 @@ export function getAllNodesFlat(graph: K8sMoleculeGraph) {
   const flat: (K8sMoleculeClusterNode | K8sMoleculeDeploymentNode | K8sMoleculePodNode)[] = [];
   
   for (const node of graph.nodes) {
-    flat.push(node);
-    for (const deploy of node.deployments) {
-      flat.push(deploy);
-      for (const pod of deploy.pods) {
-        flat.push(pod);
+    if (node.kind === "Node") {
+      flat.push(node);
+      for (const deploy of node.deployments) {
+        flat.push(deploy);
+        for (const pod of deploy.pods) {
+          flat.push(pod);
+        }
       }
     }
   }

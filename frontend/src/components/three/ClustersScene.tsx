@@ -13,6 +13,7 @@ interface ClustersSceneProps {
   selectedNode: ClusterGalaxyNode | null;
   onDoubleClick: (node: ClusterGalaxyNode) => void;
   filteredNodes: Set<string>;
+  errorPods: ClusterGalaxyNode[];
 }
 
 function findFamilyNodes(
@@ -48,6 +49,72 @@ function findFamilyNodes(
   return { nodes: familyNodes, edges: familyEdges };
 }
 
+interface ErrorPodMeshProps {
+  node: ClusterGalaxyNode;
+  isErrorPod: boolean;
+  nodeOpacity: number;
+  onHover: (node: ClusterGalaxyNode | null) => void;
+  onClick: (node: ClusterGalaxyNode | null) => void;
+  onDoubleClick: (node: ClusterGalaxyNode) => void;
+  gl: THREE.WebGLRenderer;
+  handlePointerOut: () => void;
+}
+
+function ErrorPodMesh({
+  node,
+  isErrorPod,
+  nodeOpacity,
+  onHover,
+  onClick,
+  onDoubleClick,
+  gl,
+  handlePointerOut,
+}: ErrorPodMeshProps) {
+  const meshRef = useRef<THREE.Mesh>(null);
+
+  useFrame(({ clock }) => {
+    if (isErrorPod && meshRef.current?.material) {
+      const material = meshRef.current.material as THREE.MeshBasicMaterial;
+      const blinkValue = 0.4 + Math.sin(clock.elapsedTime * 4) * 0.6;
+      material.opacity = blinkValue * nodeOpacity;
+    }
+  });
+
+  return (
+    <mesh
+      ref={meshRef}
+      frustumCulled={false}
+      onPointerOver={(e) => {
+        e.stopPropagation();
+        onHover(node);
+        gl.domElement.style.cursor = "pointer";
+      }}
+      onPointerOut={(e) => {
+        e.stopPropagation();
+        handlePointerOut();
+      }}
+      onClick={(e) => {
+        e.stopPropagation();
+        onClick(node);
+      }}
+      onDoubleClick={(e) => {
+        e.stopPropagation();
+        onDoubleClick(node);
+      }}
+    >
+      <sphereGeometry args={[node.size, 32, 32]} />
+      <meshBasicMaterial
+        color={node.color}
+        toneMapped={false}
+        transparent
+        opacity={nodeOpacity}
+        depthWrite={true}
+        depthTest={true}
+      />
+    </mesh>
+  );
+}
+
 export default function ClustersScene({
   graph,
   onHover,
@@ -55,10 +122,15 @@ export default function ClustersScene({
   selectedNode,
   onDoubleClick,
   filteredNodes,
+  errorPods,
 }: ClustersSceneProps) {
   const { gl } = useThree();
   const nodesRef = useRef<THREE.Group>(null);
   const edgesRef = useRef<THREE.Group>(null);
+
+  const errorPodIds = useMemo(() => {
+    return new Set(errorPods.map(pod => pod.id));
+  }, [errorPods]);
 
   const handlePointerOut = useCallback(() => {
     onHover(null);
@@ -112,6 +184,7 @@ export default function ClustersScene({
               const isInFamily = familyPath.nodes.has(node.id);
               const isFiltered =
                 filteredNodes.size > 0 && !filteredNodes.has(node.id);
+              const isErrorPod = errorPodIds.has(node.id);
               const glowColor = isInFamily ? "#00d4ff" : node.glow;
               const glowOpacity = isInFamily ? 0.5 : 0.2;
               const nodeOpacity = isFiltered ? 0.2 : (selectedNode && !isInFamily ? 0.3 : 1);
@@ -122,36 +195,16 @@ export default function ClustersScene({
                   position={[node.x, node.y, node.z]}
                   userData={{ nodeId: node.id }}
                 >
-                  <mesh
-                    frustumCulled={false}
-                    onPointerOver={(e) => {
-                      e.stopPropagation();
-                      onHover(node);
-                      gl.domElement.style.cursor = "pointer";
-                    }}
-                    onPointerOut={(e) => {
-                      e.stopPropagation();
-                      handlePointerOut();
-                    }}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onClick(node);
-                    }}
-                    onDoubleClick={(e) => {
-                      e.stopPropagation();
-                      onDoubleClick(node);
-                    }}
-                  >
-                    <sphereGeometry args={[node.size, 32, 32]} />
-                    <meshBasicMaterial
-                      color={node.color}
-                      toneMapped={false}
-                      transparent
-                      opacity={nodeOpacity}
-                      depthWrite={true}
-                      depthTest={true}
-                    />
-                  </mesh>
+                  <ErrorPodMesh
+                    node={node}
+                    isErrorPod={isErrorPod}
+                    nodeOpacity={nodeOpacity}
+                    onHover={onHover}
+                    onClick={onClick}
+                    onDoubleClick={onDoubleClick}
+                    gl={gl}
+                    handlePointerOut={handlePointerOut}
+                  />
                   <mesh frustumCulled={false}>
                     <sphereGeometry args={[node.size * 1.4, 32, 32]} />
                     <meshBasicMaterial

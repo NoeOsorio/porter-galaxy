@@ -66,6 +66,13 @@ export default function Clusters() {
     return matchingNodes;
   }, [clustersGraph, searchQuery, filterType]);
 
+  const errorPods = useMemo(() => {
+    if (!clustersGraph) return [];
+    return clustersGraph.nodes.filter(
+      node => node.type === "pod" && node.color === "#ff3333"
+    );
+  }, [clustersGraph]);
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape" && selected) {
@@ -141,6 +148,16 @@ export default function Clusters() {
     setSelected(null);
   };
 
+  const handleAlarmClick = () => {
+    if (errorPods.length > 0) {
+      const firstErrorPod = errorPods[0];
+      if (firstErrorPod) {
+        setSelected(firstErrorPod);
+        handleDoubleClick(firstErrorPod);
+      }
+    }
+  };
+
   const clusterStats = useMemo(() => {
     if (!data?.clusters) return null;
 
@@ -200,6 +217,7 @@ export default function Clusters() {
             selectedNode={selected}
             onDoubleClick={handleDoubleClick}
             filteredNodes={filteredNodes}
+            errorPods={errorPods}
           />
           <OrbitControls
             ref={controlsRef}
@@ -351,6 +369,28 @@ export default function Clusters() {
       </div>
 
       <div className="absolute top-20 right-6 flex flex-col gap-3 pointer-events-auto">
+        {errorPods.length > 0 && (
+          <motion.button
+            type="button"
+            onClick={handleAlarmClick}
+            className="bg-[rgba(139,0,0,0.8)] border border-red-500/30 rounded-xl py-2.5 px-4 backdrop-blur-xl text-red-400 text-[10px] font-semibold hover:bg-[rgba(139,0,0,0.95)] hover:text-red-300 transition-all duration-200 hover:border-red-500/50 flex items-center gap-2"
+            animate={{
+              boxShadow: [
+                "0 0 10px rgba(255,51,51,0.3)",
+                "0 0 20px rgba(255,51,51,0.6)",
+                "0 0 10px rgba(255,51,51,0.3)",
+              ],
+            }}
+            transition={{
+              duration: 1.5,
+              repeat: Infinity,
+              ease: "easeInOut",
+            }}
+          >
+            <span className="text-base">🚨</span>
+            <span>{errorPods.length} ERROR{errorPods.length > 1 ? 'S' : ''}</span>
+          </motion.button>
+        )}
         <button
           type="button"
           onClick={handleResetView}

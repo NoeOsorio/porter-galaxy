@@ -5,7 +5,7 @@ import { OrbitControls, Stars } from "@react-three/drei";
 import { EffectComposer, Bloom } from "@react-three/postprocessing";
 import type { K8sMoleculeNode } from "./types/k8sMolecule";
 import K8sMoleculeScene from "./components/three/K8sMoleculeScene";
-import { useClusters } from "./hooks/useClusters";
+import { useClustersSSE } from "./hooks/useClustersSSE";
 
 const KIND_ICONS: Record<string, string> = {
   Node: "◉",
@@ -24,7 +24,7 @@ export default function K8sMolecule() {
   const [selected, setSelected] = useState<K8sMoleculeNode | null>(null);
   const [nodeSpacing, setNodeSpacing] = useState(1.0);
   const sceneRef = useRef<{ resetPositions: () => void }>(null);
-  const { data, isLoading, isError, error } = useClusters();
+  const { data, isLoading, isError, error, isConnected } = useClustersSSE();
 
   const handleReset = useCallback(() => {
     sceneRef.current?.resetPositions();
@@ -88,10 +88,10 @@ export default function K8sMolecule() {
           <div className="text-lg font-semibold text-white/90 tracking-[4px]">
             K8S MOLECULE
           </div>
-          {!isLoading && !isError && (
+          {isConnected && !isError && (
             <div className="flex items-center gap-1.5 text-[9px] opacity-60">
               <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
-              LIVE
+              LIVE SSE
             </div>
           )}
           {isError && (

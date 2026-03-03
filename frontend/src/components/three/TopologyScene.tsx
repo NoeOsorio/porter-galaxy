@@ -8,6 +8,7 @@ interface TopologySceneProps {
   onHover: (node: TopologyNode | null) => void;
   onClick: (node: TopologyNode | null) => void;
   selectedNode: TopologyNode | null;
+  onDoubleClick: (node: TopologyNode) => void;
 }
 
 interface FlowParticle {
@@ -58,12 +59,16 @@ export default function TopologyScene({
   onHover,
   onClick,
   selectedNode,
+  onDoubleClick,
 }: TopologySceneProps) {
-  const { gl } = useThree();
+  const { gl, camera } = useThree();
   const nodesRef = useRef<THREE.Group>(null);
   const edgesRef = useRef<THREE.Group>(null);
   const flowParticlesRef = useRef<FlowParticle[]>([]);
   const [flowPath, setFlowPath] = useState<TopologyEdge[]>([]);
+  const cameraTargetRef = useRef<THREE.Vector3 | null>(null);
+  const cameraStartRef = useRef<THREE.Vector3 | null>(null);
+  const transitionProgressRef = useRef<number>(0);
 
   useEffect(() => {
     if (selectedNode) {
@@ -157,6 +162,20 @@ export default function TopologyScene({
         }
       });
     }
+
+    if (cameraTargetRef.current && cameraStartRef.current) {
+      transitionProgressRef.current += delta * 2;
+      
+      if (transitionProgressRef.current >= 1) {
+        transitionProgressRef.current = 1;
+        camera.position.copy(cameraTargetRef.current);
+        cameraTargetRef.current = null;
+        cameraStartRef.current = null;
+      } else {
+        const t = THREE.MathUtils.smoothstep(transitionProgressRef.current, 0, 1);
+        camera.position.lerpVectors(cameraStartRef.current, cameraTargetRef.current, t);
+      }
+    }
   });
 
   return (
@@ -195,6 +214,10 @@ export default function TopologyScene({
                     onClick={(e) => {
                       e.stopPropagation();
                       onClick(node);
+                    }}
+                    onDoubleClick={(e) => {
+                      e.stopPropagation();
+                      onDoubleClick(node);
                     }}
                   >
                     <sphereGeometry args={[node.size, 32, 32]} />

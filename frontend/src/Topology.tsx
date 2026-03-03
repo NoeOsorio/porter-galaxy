@@ -4,6 +4,7 @@ import { Canvas } from "@react-three/fiber";
 import { OrbitControls } from "@react-three/drei";
 import { EffectComposer, Bloom } from "@react-three/postprocessing";
 import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
+import * as THREE from "three";
 import { useClustersSSE } from "./hooks/useClustersSSE";
 import { transformTopology } from "./lib/transformTopology";
 import TopologyScene from "./components/three/TopologyScene";
@@ -52,6 +53,69 @@ export default function Topology() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [selected]);
 
+  const handleDoubleClick = (node: TopologyNode) => {
+    if (controlsRef.current) {
+      const controls = controlsRef.current;
+      const distance = 200;
+      const direction = new THREE.Vector3(1, 0.5, 1).normalize();
+      const newPosition = new THREE.Vector3(
+        node.x + direction.x * distance,
+        node.y + direction.y * distance,
+        node.z + direction.z * distance
+      );
+      
+      controls.target.set(node.x, node.y, node.z);
+      
+      const camera = controls.object;
+      const startPosition = camera.position.clone();
+      const duration = 1000;
+      const startTime = Date.now();
+      
+      const animate = () => {
+        const elapsed = Date.now() - startTime;
+        const progress = Math.min(elapsed / duration, 1);
+        const eased = THREE.MathUtils.smoothstep(progress, 0, 1);
+        
+        camera.position.lerpVectors(startPosition, newPosition, eased);
+        
+        if (progress < 1) {
+          requestAnimationFrame(animate);
+        }
+      };
+      
+      animate();
+    }
+  };
+
+  const handleResetView = () => {
+    if (controlsRef.current) {
+      const controls = controlsRef.current;
+      const camera = controls.object;
+      const startPosition = camera.position.clone();
+      const startTarget = controls.target.clone();
+      const defaultPosition = new THREE.Vector3(250, 50, 350);
+      const defaultTarget = new THREE.Vector3(0, 0, -100);
+      const duration = 1000;
+      const startTime = Date.now();
+      
+      const animate = () => {
+        const elapsed = Date.now() - startTime;
+        const progress = Math.min(elapsed / duration, 1);
+        const eased = THREE.MathUtils.smoothstep(progress, 0, 1);
+        
+        camera.position.lerpVectors(startPosition, defaultPosition, eased);
+        controls.target.lerpVectors(startTarget, defaultTarget, eased);
+        
+        if (progress < 1) {
+          requestAnimationFrame(animate);
+        }
+      };
+      
+      animate();
+    }
+    setSelected(null);
+  };
+
   return (
     <div
       className="w-full h-screen bg-[#05050f] relative overflow-hidden font-['JetBrains_Mono','SF_Mono',monospace]"
@@ -88,6 +152,7 @@ export default function Topology() {
             onHover={setHovered}
             onClick={setSelected}
             selectedNode={selected}
+            onDoubleClick={handleDoubleClick}
           />
           <OrbitControls
             ref={controlsRef}
@@ -124,8 +189,16 @@ export default function Topology() {
         </div>
       </div>
 
-      <div className="absolute top-20 right-6 pointer-events-none">
-        <div className="bg-[rgba(8,8,25,0.8)] border border-white/[0.08] rounded-xl py-3 px-4 backdrop-blur-xl">
+      <div className="absolute top-20 right-6 flex flex-col gap-3 pointer-events-auto">
+        <button
+          type="button"
+          onClick={handleResetView}
+          className="bg-[rgba(8,8,25,0.8)] border border-white/[0.08] rounded-xl py-2.5 px-4 backdrop-blur-xl text-white/70 text-[10px] font-semibold hover:bg-[rgba(8,8,25,0.95)] hover:text-white/90 transition-all duration-200 hover:border-white/[0.15]"
+        >
+          RESET VIEW
+        </button>
+        
+        <div className="bg-[rgba(8,8,25,0.8)] border border-white/[0.08] rounded-xl py-3 px-4 backdrop-blur-xl pointer-events-none">
           <div className="text-white/70 text-[10px] mb-2 font-semibold opacity-80">
             LEGEND
           </div>

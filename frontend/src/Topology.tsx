@@ -429,7 +429,7 @@ export default function Topology() {
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: -12 }}
             transition={{ duration: 0.2 }}
-            className="absolute top-[180px] left-6 pointer-events-auto min-w-[260px] max-w-[320px]"
+            className="absolute top-[260px] left-6 pointer-events-auto min-w-[260px] max-w-[320px]"
           >
             <div
               className="bg-[rgba(8,8,25,0.92)] rounded-xl py-4 px-5 text-white/75 text-[11px] leading-[1.8] backdrop-blur-xl border"

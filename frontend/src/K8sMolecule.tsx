@@ -5,6 +5,7 @@ import { OrbitControls, Stars } from "@react-three/drei";
 import { EffectComposer, Bloom } from "@react-three/postprocessing";
 import type { K8sMoleculeNode } from "./types/k8sMolecule";
 import K8sMoleculeScene from "./components/three/K8sMoleculeScene";
+import { useClusters } from "./hooks/useClusters";
 
 const KIND_ICONS: Record<string, string> = {
   Node: "◉",
@@ -23,6 +24,7 @@ export default function K8sMolecule() {
   const [selected, setSelected] = useState<K8sMoleculeNode | null>(null);
   const [nodeSpacing, setNodeSpacing] = useState(1.0);
   const sceneRef = useRef<{ resetPositions: () => void }>(null);
+  const { data, isLoading, isError, error } = useClusters();
 
   const handleReset = useCallback(() => {
     sceneRef.current?.resetPositions();
@@ -33,45 +35,85 @@ export default function K8sMolecule() {
       className="w-full h-screen bg-[#05050f] relative overflow-hidden font-['JetBrains_Mono','SF_Mono',monospace]"
       style={{ touchAction: "none" }}
     >
-      <Canvas
-        camera={{ position: [0, 0, 500], fov: 60 }}
-        gl={{ antialias: true }}
-      >
-        <color attach="background" args={["#05050f"]} />
-        <fog attach="fog" args={["#05050f", 400, 1100]} />
-        <K8sMoleculeScene
-          ref={sceneRef}
-          onHover={setHovered}
-          onSelect={setSelected}
-          nodeSpacing={nodeSpacing}
-        />
-        <OrbitControls
-          enableRotate={false}
-          enablePan={false}
-          enableZoom={true}
-          zoomSpeed={0.5}
-          minDistance={50}
-          maxDistance={1500}
-        />
-        <Stars radius={500} depth={150} count={2000} factor={2} />
-        <EffectComposer>
-          <Bloom
-            luminanceThreshold={0.4}
-            intensity={1.2}
-            radius={0.6}
-            mipmapBlur
+      {isLoading && (
+        <div className="absolute inset-0 flex items-center justify-center">
+          <div className="text-white/70 text-sm">Loading cluster data...</div>
+        </div>
+      )}
+      
+      {isError && (
+        <div className="absolute inset-0 flex items-center justify-center">
+          <div className="text-red-400 text-sm">
+            Error loading clusters: {error?.message || "Unknown error"}
+          </div>
+        </div>
+      )}
+      
+      {data && (
+        <Canvas
+          camera={{ position: [0, 0, 500], fov: 60 }}
+          gl={{ antialias: true }}
+        >
+          <color attach="background" args={["#05050f"]} />
+          <fog attach="fog" args={["#05050f", 400, 1100]} />
+          <K8sMoleculeScene
+            ref={sceneRef}
+            onHover={setHovered}
+            onSelect={setSelected}
+            nodeSpacing={nodeSpacing}
+            clusterData={data.clusters[0]}
           />
-        </EffectComposer>
-      </Canvas>
+          <OrbitControls
+            enableRotate={false}
+            enablePan={false}
+            enableZoom={true}
+            zoomSpeed={0.5}
+            minDistance={50}
+            maxDistance={1500}
+          />
+          <Stars radius={500} depth={150} count={2000} factor={2} />
+          <EffectComposer>
+            <Bloom
+              luminanceThreshold={0.4}
+              intensity={1.2}
+              radius={0.6}
+              mipmapBlur
+            />
+          </EffectComposer>
+        </Canvas>
+      )}
 
       <div className="absolute top-5 left-6 text-white/70 text-[11px] leading-[1.8] pointer-events-none">
-        <div className="text-lg font-semibold text-white/90 tracking-[4px] mb-1.5">
-          K8S MOLECULE
+        <div className="flex items-center gap-2 mb-1.5">
+          <div className="text-lg font-semibold text-white/90 tracking-[4px]">
+            K8S MOLECULE
+          </div>
+          {!isLoading && !isError && (
+            <div className="flex items-center gap-1.5 text-[9px] opacity-60">
+              <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
+              LIVE
+            </div>
+          )}
+          {isError && (
+            <div className="flex items-center gap-1.5 text-[9px] text-red-400">
+              <span className="w-1.5 h-1.5 rounded-full bg-red-400" />
+              OFFLINE
+            </div>
+          )}
         </div>
         <div className="opacity-40 text-[10px]">
           drag nodes to move · shift+drag for node only · scroll to zoom camera
           · slider for node spacing
         </div>
+        {data && (
+          <div className="mt-3 text-[10px] opacity-60">
+            <div className="font-semibold opacity-80 mb-1">CLUSTER INFO</div>
+            <div>ID: {data.clusters[0]?.id || "Unknown"}</div>
+            <div>Nodes: {data.clusters[0]?.nodes.length || 0}</div>
+            <div>Pods: {data.clusters[0]?.pods.length || 0}</div>
+            <div>Deployments: {data.clusters[0]?.deployments.length || 0}</div>
+          </div>
+        )}
       </div>
 
       <div className="absolute top-5 right-6 flex flex-col gap-2 pointer-events-auto">

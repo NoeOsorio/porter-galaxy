@@ -112,7 +112,8 @@ func loadClusters(ctx context.Context, notify func(), logger *slog.Logger) ([]*c
 		if err != nil {
 			return nil, nil, err
 		}
-		reg := registry.NewClient(url, os.Getenv("REGISTRY_TOKEN"), projectID)
+		skipTLS := os.Getenv("REGISTRY_TLS_SKIP_VERIFY") == "true"
+		reg := registry.NewClient(url, os.Getenv("REGISTRY_TOKEN"), projectID, skipTLS)
 		return loadFromRegistry(ctx, reg, notify, logger)
 	}
 	return loadFromKubeconfig(notify, logger)

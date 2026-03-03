@@ -2,6 +2,7 @@ package registry
 
 import (
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -17,12 +18,18 @@ type Client struct {
 	http      *http.Client
 }
 
-func NewClient(baseURL, token string, projectID int) *Client {
+func NewClient(baseURL, token string, projectID int, skipTLSVerify bool) *Client {
+	transport := http.DefaultTransport
+	if skipTLSVerify {
+		transport = &http.Transport{
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true}, //nolint:gosec
+		}
+	}
 	return &Client{
 		baseURL:   baseURL,
 		token:     token,
 		projectID: projectID,
-		http:      &http.Client{Timeout: 15 * time.Second},
+		http:      &http.Client{Timeout: 15 * time.Second, Transport: transport},
 	}
 }
 

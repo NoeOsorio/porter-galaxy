@@ -1,7 +1,9 @@
 package cluster
 
 import (
+	"cmp"
 	"fmt"
+	"slices"
 
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
@@ -98,6 +100,7 @@ func (b *Builder) buildNodes() []NodeInfo {
 			Conditions: pressures,
 		})
 	}
+	slices.SortFunc(out, func(a, b NodeInfo) int { return cmp.Compare(a.ID, b.ID) })
 	return out
 }
 
@@ -122,6 +125,9 @@ func (b *Builder) buildPods() []PodInfo {
 			Version:   version,
 		})
 	}
+	slices.SortFunc(out, func(a, b PodInfo) int {
+		return cmp.Compare(a.Namespace+"/"+a.ID, b.Namespace+"/"+b.ID)
+	})
 	return out
 }
 
@@ -236,6 +242,12 @@ func (b *Builder) buildTopology() []Link {
 		}
 	}
 
+	slices.SortFunc(links, func(a, b Link) int {
+		if a.From != b.From {
+			return cmp.Compare(a.From, b.From)
+		}
+		return cmp.Compare(a.To, b.To)
+	})
 	return links
 }
 

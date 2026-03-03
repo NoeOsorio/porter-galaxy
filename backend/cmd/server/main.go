@@ -61,7 +61,7 @@ func main() {
 	defer cancel()
 
 	// ── Start hub ─────────────────────────────────────────────────────────────
-	go hub.Run(ctx, notifyCh, multiBuilder, 50*time.Millisecond)
+	go hub.Run(ctx, notifyCh, multiBuilder, 500*time.Millisecond)
 
 	// ── Start one informer manager per cluster ────────────────────────────────
 	for _, mgr := range managers {

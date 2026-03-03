@@ -9,7 +9,6 @@ import type {
   K8sMoleculeNode,
   K8sMoleculeClusterNode,
   K8sMoleculeDeploymentNode,
-  K8sMoleculePodNode,
 } from "./types/k8sMolecule";
 import { useClustersSSE } from "./hooks/useClustersSSE";
 import { transformClusterData } from "./lib/transformClusterData";
@@ -96,7 +95,7 @@ export default function ClusterExplorer() {
       { level: "cluster", label: "Cluster" },
     ];
     if (level === "cluster" || !transformedData) return segments;
-    
+
     if (focusPath.length >= 1) {
       const nodeId = focusPath[0]!;
       const node = transformedData.nodes.find((n) => n.id === nodeId);
@@ -120,7 +119,7 @@ export default function ClusterExplorer() {
           <div className="text-white/70 text-sm">Loading cluster data...</div>
         </div>
       )}
-      
+
       {isError && (
         <div className="absolute inset-0 flex items-center justify-center">
           <div className="text-red-400 text-sm">
@@ -128,7 +127,7 @@ export default function ClusterExplorer() {
           </div>
         </div>
       )}
-      
+
       {transformedData && (
         <Canvas
           camera={{ position: [0, 0, 500], fov: 60 }}
@@ -217,9 +216,7 @@ export default function ClusterExplorer() {
               >
                 {hovered.name}
               </div>
-              <div className="opacity-40 text-[9px] mt-0.5">
-                {hovered.kind}
-              </div>
+              <div className="opacity-40 text-[9px] mt-0.5">{hovered.kind}</div>
               {"replicas" in hovered && hovered.replicas !== undefined && (
                 <div className="mt-1">replicas: {hovered.replicas}</div>
               )}
@@ -256,8 +253,7 @@ export default function ClusterExplorer() {
             <div
               className="bg-[rgba(8,8,25,0.92)] rounded-xl py-4 px-5 text-white/75 text-[11px] leading-8 backdrop-blur-xl border"
               style={{
-                borderColor:
-                  (selected.color || "rgba(255,255,255,0.1)") + "33",
+                borderColor: (selected.color || "rgba(255,255,255,0.1)") + "33",
               }}
             >
               <div className="flex justify-between items-start">
@@ -278,15 +274,11 @@ export default function ClusterExplorer() {
               </div>
               <div className="border-t border-white/[0.06] pt-2">
                 <div>
-                  kind:{" "}
-                  <span className="text-white/90">
-                    {selected.kind}
-                  </span>
+                  kind: <span className="text-white/90">{selected.kind}</span>
                 </div>
-                {"replicas" in selected &&
-                  selected.replicas !== undefined && (
-                    <div>replicas: {selected.replicas}</div>
-                  )}
+                {"replicas" in selected && selected.replicas !== undefined && (
+                  <div>replicas: {selected.replicas}</div>
+                )}
                 {"status" in selected && selected.status && (
                   <div>status: {selected.status}</div>
                 )}

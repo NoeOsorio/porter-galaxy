@@ -208,6 +208,7 @@ export default function TopologyScene({
               return (
                 <group key={node.id} position={[node.x, node.y, node.z]}>
                   <mesh
+                    frustumCulled={false}
                     onPointerOver={(e) => {
                       e.stopPropagation();
                       onHover(node);
@@ -232,25 +233,31 @@ export default function TopologyScene({
                       toneMapped={false}
                       transparent
                       opacity={nodeOpacity}
+                      depthWrite={true}
+                      depthTest={true}
                     />
                   </mesh>
-                  <mesh>
+                  <mesh frustumCulled={false}>
                     <sphereGeometry args={[node.size * 1.3, 32, 32]} />
                     <meshBasicMaterial
                       color={glowColor}
                       transparent
                       opacity={glowOpacity * nodeOpacity}
                       toneMapped={false}
+                      depthWrite={false}
+                      depthTest={true}
                     />
                   </mesh>
                   {isInPath && (
-                    <mesh>
+                    <mesh frustumCulled={false}>
                       <sphereGeometry args={[node.size * 1.6, 32, 32]} />
                       <meshBasicMaterial
                         color="#00d4ff"
                         transparent
                         opacity={0.15 * nodeOpacity}
                         toneMapped={false}
+                        depthWrite={false}
+                        depthTest={true}
                       />
                     </mesh>
                   )}
@@ -287,6 +294,7 @@ export default function TopologyScene({
               key={`${edge.from}-${edge.to}-${i}`}
               position={midpoint}
               quaternion={quaternion}
+              frustumCulled={false}
               onPointerOver={(e) => {
                 e.stopPropagation();
                 onEdgeHover({ from: edge.from, to: edge.to, type: edge.type });
@@ -304,6 +312,8 @@ export default function TopologyScene({
                 transparent
                 opacity={edge.active ? 0.5 : 0.2}
                 toneMapped={false}
+                depthWrite={false}
+                depthTest={true}
               />
             </mesh>
           );
@@ -328,29 +338,35 @@ export default function TopologyScene({
 
       {flowPath.length > 0 && flowParticlesRef.current.map((particle, i) => (
         <group key={`particle-${i}`} position={particle.position}>
-          <mesh>
+          <mesh frustumCulled={false}>
             <sphereGeometry args={[6, 16, 16]} />
             <meshBasicMaterial
               color="#ffffff"
               toneMapped={false}
+              depthWrite={true}
+              depthTest={true}
             />
           </mesh>
-          <mesh>
+          <mesh frustumCulled={false}>
             <sphereGeometry args={[10, 16, 16]} />
             <meshBasicMaterial
               color="#00d4ff"
               transparent
               opacity={0.6}
               toneMapped={false}
+              depthWrite={false}
+              depthTest={true}
             />
           </mesh>
-          <mesh>
+          <mesh frustumCulled={false}>
             <sphereGeometry args={[14, 16, 16]} />
             <meshBasicMaterial
               color="#00d4ff"
               transparent
               opacity={0.3}
               toneMapped={false}
+              depthWrite={false}
+              depthTest={true}
             />
           </mesh>
           <pointLight
@@ -386,6 +402,7 @@ export default function TopologyScene({
             key={`flow-edge-${edge.from}-${edge.to}-${i}`}
             position={midpoint}
             quaternion={quaternion}
+            frustumCulled={false}
           >
             <cylinderGeometry args={[1.2, 1.2, length, 8]} />
             <meshBasicMaterial
@@ -393,6 +410,8 @@ export default function TopologyScene({
               transparent
               opacity={0.6}
               toneMapped={false}
+              depthWrite={false}
+              depthTest={true}
             />
           </mesh>
         );

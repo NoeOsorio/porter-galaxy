@@ -3,7 +3,7 @@ import type { TopologyNode, TopologyEdge, TopologyGraph } from "../types/topolog
 
 const COLORS = {
   internet: { color: "#00d4ff", glow: "#0088dd" },
-  loadbalancer: { color: "#c084fc", glow: "#9333ea" },
+  loadbalancer: { color: "#f472b6", glow: "#ec4899" },
   ingress: { color: "#a78bfa", glow: "#7c3aed" },
   deployment: { color: "#fb923c", glow: "#ea580c" },
   pod: { color: "#5bffb0", glow: "#00cc66" },
@@ -11,55 +11,10 @@ const COLORS = {
 
 const EDGE_COLORS = {
   internet: "#00d4ff",
-  lb: "#c084fc",
+  lb: "#f472b6",
   ingress: "#a78bfa",
   service: "#5bffb0",
 };
-
-function arrangeNodesInCircle(
-  count: number,
-  radius: number,
-  centerY: number,
-  centerZ: number,
-  yVariation: number = 0
-): Array<{ x: number; y: number; z: number }> {
-  const positions: Array<{ x: number; y: number; z: number }> = [];
-  
-  for (let i = 0; i < count; i++) {
-    const angle = (i / count) * Math.PI * 2;
-    const x = Math.cos(angle) * radius;
-    const z = centerZ + Math.sin(angle) * radius;
-    const y = centerY + (yVariation > 0 ? (Math.random() - 0.5) * yVariation : 0);
-    
-    positions.push({ x, y, z });
-  }
-  
-  return positions;
-}
-
-function arrangeNodesInSphere(
-  count: number,
-  radius: number,
-  centerX: number,
-  centerY: number,
-  centerZ: number
-): Array<{ x: number; y: number; z: number }> {
-  const positions: Array<{ x: number; y: number; z: number }> = [];
-  const goldenRatio = (1 + Math.sqrt(5)) / 2;
-  
-  for (let i = 0; i < count; i++) {
-    const theta = 2 * Math.PI * i / goldenRatio;
-    const phi = Math.acos(1 - 2 * (i + 0.5) / count);
-    
-    const x = centerX + radius * Math.sin(phi) * Math.cos(theta);
-    const y = centerY + radius * Math.sin(phi) * Math.sin(theta);
-    const z = centerZ + radius * Math.cos(phi);
-    
-    positions.push({ x, y, z });
-  }
-  
-  return positions;
-}
 
 export function transformTopology(apiCluster: ApiCluster): TopologyGraph {
   const nodes: TopologyNode[] = [];
@@ -107,10 +62,32 @@ export function transformTopology(apiCluster: ApiCluster): TopologyGraph {
     }
   });
 
+  const lbToIngressMap = new Map<string, string[]>();
+  const ingressToDeploymentMap = new Map<string, string[]>();
+  const deploymentToPodsMap = new Map<string, string[]>();
+
+  apiCluster.topology.forEach((topo) => {
+    if (topo.type === "lb" && topo.to.startsWith("ingress/")) {
+      const list = lbToIngressMap.get(topo.from) || [];
+      list.push(topo.to);
+      lbToIngressMap.set(topo.from, list);
+    }
+    if (topo.type === "ingress") {
+      const list = ingressToDeploymentMap.get(topo.from) || [];
+      list.push(topo.to);
+      ingressToDeploymentMap.set(topo.from, list);
+    }
+    if (topo.type === "service") {
+      const list = deploymentToPodsMap.get(topo.from) || [];
+      list.push(topo.to);
+      deploymentToPodsMap.set(topo.from, list);
+    }
+  });
+
   if (internetNodes.size > 0) {
     const internet = Array.from(internetNodes)[0]!;
     const x = 0;
-    const y = 80;
+    const y = 200;
     const z = 0;
     nodePositions.set(internet, { x, y, z });
     const outgoingConnections = connectionCounts.get(internet) || 0;
@@ -132,11 +109,16 @@ export function transformTopology(apiCluster: ApiCluster): TopologyGraph {
 
   if (lbNodes.size > 0) {
     const lbs = Array.from(lbNodes);
-    const lbPositions = arrangeNodesInCircle(lbs.length, 80, 30, -60, 30);
+    const radius = 100;
+    const angleStep = (Math.PI * 2) / lbs.length;
     
     lbs.forEach((lb, i) => {
-      const pos = lbPositions[i]!;
-      nodePositions.set(lb, pos);
+      const angle = i * angleStep;
+      const x = Math.cos(angle) * radius;
+      const z = -100 + Math.sin(angle) * radius;
+      const y = 120;
+      
+      nodePositions.set(lb, { x, y, z });
       
       const lbName = lb.includes("elb") 
         ? lb.split("-").slice(-1)[0]?.substring(0, 8) || "LB"
@@ -150,9 +132,9 @@ export function transformTopology(apiCluster: ApiCluster): TopologyGraph {
         id: lb,
         type: "loadbalancer",
         name: lbName,
-        x: pos.x,
-        y: pos.y,
-        z: pos.z,
+        x,
+        y,
+        z,
         color: COLORS.loadbalancer.color,
         glow: COLORS.loadbalancer.glow,
         size: 20,
@@ -165,11 +147,16 @@ export function transformTopology(apiCluster: ApiCluster): TopologyGraph {
 
   if (ingressNodes.size > 0) {
     const ingresses = Array.from(ingressNodes);
-    const ingressPositions = arrangeNodesInCircle(ingresses.length, 100, 0, -100, 35);
+    const radius = 140;
+    const angleStep = (Math.PI * 2) / ingresses.length;
     
     ingresses.forEach((ingressKey, i) => {
-      const pos = ingressPositions[i]!;
-      nodePositions.set(ingressKey, pos);
+      const angle = i * angleStep + Math.PI / ingresses.length;
+      const x = Math.cos(angle) * radius;
+      const z = -180 + Math.sin(angle) * radius;
+      const y = 40;
+      
+      nodePositions.set(ingressKey, { x, y, z });
       
       const parts = ingressKey.split("/");
       const namespace = parts[1];
@@ -182,9 +169,9 @@ export function transformTopology(apiCluster: ApiCluster): TopologyGraph {
         type: "ingress",
         name: ingressName,
         namespace,
-        x: pos.x,
-        y: pos.y,
-        z: pos.z,
+        x,
+        y,
+        z,
         color: COLORS.ingress.color,
         glow: COLORS.ingress.glow,
         size: 18,
@@ -197,7 +184,8 @@ export function transformTopology(apiCluster: ApiCluster): TopologyGraph {
 
   if (deploymentNodes.size > 0) {
     const deployments = Array.from(deploymentNodes);
-    const depPositions = arrangeNodesInCircle(deployments.length, 120, -30, -150, 40);
+    const radius = 180;
+    const angleStep = (Math.PI * 2) / deployments.length;
     
     deployments.forEach((depKey, i) => {
       const [namespace, deploymentId] = depKey.split("/");
@@ -205,8 +193,12 @@ export function transformTopology(apiCluster: ApiCluster): TopologyGraph {
         (d) => d.id === deploymentId && d.namespace === namespace
       );
       
-      const pos = depPositions[i]!;
-      nodePositions.set(depKey, pos);
+      const angle = i * angleStep;
+      const x = Math.cos(angle) * radius;
+      const z = -260 + Math.sin(angle) * radius;
+      const y = -40;
+      
+      nodePositions.set(depKey, { x, y, z });
       
       const outgoingConnections = connectionCounts.get(depKey) || 0;
       
@@ -215,9 +207,9 @@ export function transformTopology(apiCluster: ApiCluster): TopologyGraph {
         type: "deployment",
         name: deploymentId || depKey,
         namespace,
-        x: pos.x,
-        y: pos.y,
-        z: pos.z,
+        x,
+        y,
+        z,
         color: COLORS.deployment.color,
         glow: COLORS.deployment.glow,
         size: 16,
@@ -234,13 +226,36 @@ export function transformTopology(apiCluster: ApiCluster): TopologyGraph {
 
   if (podNodes.size > 0) {
     const pods = Array.from(podNodes);
-    const podPositions = arrangeNodesInSphere(pods.length, 130, 0, -100, -280);
+    
+    const podsByDeployment = new Map<string, string[]>();
+    pods.forEach((podId) => {
+      const pod = apiCluster.pods.find((p) => p.id === podId);
+      if (pod) {
+        const parentDeployments = Array.from(deploymentNodes).filter((depKey) => {
+          const [namespace] = depKey.split("/");
+          return namespace === pod.namespace;
+        });
+        
+        parentDeployments.forEach((depKey) => {
+          const list = podsByDeployment.get(depKey) || [];
+          list.push(podId);
+          podsByDeployment.set(depKey, list);
+        });
+      }
+    });
+
+    const radius = 220;
+    const angleStep = (Math.PI * 2) / pods.length;
     
     pods.forEach((podId, i) => {
       const pod = apiCluster.pods.find((p) => p.id === podId);
-      const pos = podPositions[i]!;
       
-      nodePositions.set(podId, pos);
+      const angle = i * angleStep + Math.PI / pods.length;
+      const x = Math.cos(angle) * radius;
+      const z = -340 + Math.sin(angle) * radius;
+      const y = -120;
+      
+      nodePositions.set(podId, { x, y, z });
       
       const outgoingConnections = connectionCounts.get(podId) || 0;
       
@@ -249,9 +264,9 @@ export function transformTopology(apiCluster: ApiCluster): TopologyGraph {
         type: "pod",
         name: podId.split("-").slice(0, 2).join("-"),
         namespace: pod?.namespace,
-        x: pos.x,
-        y: pos.y,
-        z: pos.z,
+        x,
+        y,
+        z,
         color: COLORS.pod.color,
         glow: COLORS.pod.glow,
         size: 12,

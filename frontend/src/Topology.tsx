@@ -119,8 +119,8 @@ export default function Topology() {
       const camera = controls.object;
       const startPosition = camera.position.clone();
       const startTarget = controls.target.clone();
-      const defaultPosition = new THREE.Vector3(250, 50, 350);
-      const defaultTarget = new THREE.Vector3(0, 0, -100);
+      const defaultPosition = new THREE.Vector3(300, 200, 300);
+      const defaultTarget = new THREE.Vector3(0, 20, -200);
       const duration = 1000;
       const startTime = Date.now();
       
@@ -163,7 +163,7 @@ export default function Topology() {
 
       {topologyGraph && (
         <Canvas
-          camera={{ position: [250, 50, 350], fov: 60 }}
+          camera={{ position: [300, 200, 300], fov: 60, near: 1, far: 3000 }}
           gl={{ antialias: true }}
           onClick={(e) => {
             if (e.target === e.currentTarget) {
@@ -172,7 +172,7 @@ export default function Topology() {
           }}
         >
           <color attach="background" args={["#05050f"]} />
-          <fog attach="fog" args={["#05050f", 500, 1200]} />
+          <fog attach="fog" args={["#05050f", 900, 2000]} />
           <TopologyScene
             graph={topologyGraph}
             onHover={setHovered}
@@ -189,8 +189,8 @@ export default function Topology() {
             rotateSpeed={0.5}
             zoomSpeed={0.8}
             minDistance={200}
-            maxDistance={1000}
-            target={[0, 0, -100]}
+            maxDistance={900}
+            target={[0, 20, -200]}
             enablePan={true}
             panSpeed={0.5}
             screenSpacePanning={true}
@@ -255,7 +255,7 @@ export default function Topology() {
               onClick={() => setFilterType("loadbalancer")}
               className={`px-2.5 py-1 rounded text-[9px] font-medium transition-all ${
                 filterType === "loadbalancer"
-                  ? "bg-[#c084fc]/20 text-[#c084fc] border border-[#c084fc]/30"
+                  ? "bg-[#f472b6]/20 text-[#f472b6] border border-[#f472b6]/30"
                   : "bg-white/5 text-white/50 border border-white/10 hover:bg-white/10"
               }`}
             >
@@ -323,7 +323,7 @@ export default function Topology() {
               <span className="text-white/60">Internet</span>
             </div>
             <div className="flex items-center gap-2.5 text-[10px]">
-              <div className="w-2.5 h-2.5 rounded-full bg-[#c084fc] shadow-[0_0_8px_rgba(192,132,252,0.6)]" />
+              <div className="w-2.5 h-2.5 rounded-full bg-[#f472b6] shadow-[0_0_8px_rgba(244,114,182,0.6)]" />
               <span className="text-white/60">Load Balancer</span>
             </div>
             <div className="flex items-center gap-2.5 text-[10px]">

@@ -26,8 +26,7 @@ const TYPE_LABELS: Record<string, string> = {
 
 function statusColor(status?: string): string {
   if (!status) return "#ffffff";
-  if (status.includes("Running") || status.includes("Ready"))
-    return "#5bffb0";
+  if (status.includes("Running") || status.includes("Ready")) return "#5bffb0";
   if (status.includes("Pending")) return "#ffd666";
   if (status.includes("Failed") || status.includes("Error")) return "#ff3333";
   return "#ffffff";
@@ -82,12 +81,13 @@ export default function Clusters() {
   const handleDoubleClick = (node: ClusterGalaxyNode) => {
     if (controlsRef.current) {
       const controls = controlsRef.current;
-      const distance = node.type === "cluster" ? 400 : node.type === "node" ? 250 : 150;
+      const distance =
+        node.type === "cluster" ? 400 : node.type === "node" ? 250 : 150;
       const direction = new THREE.Vector3(1, 0.5, 1).normalize();
       const newPosition = new THREE.Vector3(
         node.x + direction.x * distance,
         node.y + direction.y * distance,
-        node.z + direction.z * distance
+        node.z + direction.z * distance,
       );
 
       controls.target.set(node.x, node.y, node.z);
@@ -119,7 +119,7 @@ export default function Clusters() {
       const camera = controls.object;
       const startPosition = camera.position.clone();
       const startTarget = controls.target.clone();
-      const defaultPosition = new THREE.Vector3(600, 400, 600);
+      const defaultPosition = new THREE.Vector3(1200, 800, 1200);
       const defaultTarget = new THREE.Vector3(0, 0, 0);
       const duration = 1000;
       const startTime = Date.now();
@@ -147,12 +147,12 @@ export default function Clusters() {
 
     const totalNodes = data.clusters.reduce(
       (sum, c) => sum + c.nodes.length,
-      0
+      0,
     );
     const totalPods = data.clusters.reduce((sum, c) => sum + c.pods.length, 0);
     const totalDeployments = data.clusters.reduce(
       (sum, c) => sum + c.deployments.length,
-      0
+      0,
     );
 
     return {
@@ -248,7 +248,8 @@ export default function Clusters() {
               <div className="flex items-center gap-2">
                 <div className="w-2 h-2 rounded-full bg-[#00d4ff] shadow-[0_0_8px_rgba(0,212,255,0.6)]" />
                 <span className="text-white/60">
-                  {clusterStats.clusters} cluster{clusterStats.clusters !== 1 ? "s" : ""}
+                  {clusterStats.clusters} cluster
+                  {clusterStats.clusters !== 1 ? "s" : ""}
                 </span>
               </div>
               <div className="flex items-center gap-2">
@@ -260,7 +261,8 @@ export default function Clusters() {
               <div className="flex items-center gap-2">
                 <div className="w-2 h-2 rounded-full bg-[#fb923c] shadow-[0_0_8px_rgba(251,146,60,0.6)]" />
                 <span className="text-white/60">
-                  {clusterStats.deployments} deployment{clusterStats.deployments !== 1 ? "s" : ""}
+                  {clusterStats.deployments} deployment
+                  {clusterStats.deployments !== 1 ? "s" : ""}
                 </span>
               </div>
               <div className="flex items-center gap-2">
@@ -342,7 +344,8 @@ export default function Clusters() {
 
           {(searchQuery || filterType !== "all") && (
             <div className="mt-2 text-[9px] text-white/50">
-              {filteredNodes.size} {filteredNodes.size === 1 ? "resource" : "resources"} found
+              {filteredNodes.size}{" "}
+              {filteredNodes.size === 1 ? "resource" : "resources"} found
             </div>
           )}
         </div>
@@ -425,13 +428,16 @@ export default function Clusters() {
                 <>
                   {hovered.metadata.cpu && (
                     <div>
-                      cpu: <span className="opacity-80">{hovered.metadata.cpu}</span>
+                      cpu:{" "}
+                      <span className="opacity-80">{hovered.metadata.cpu}</span>
                     </div>
                   )}
                   {hovered.metadata.memory && (
                     <div>
                       memory:{" "}
-                      <span className="opacity-80">{hovered.metadata.memory}</span>
+                      <span className="opacity-80">
+                        {hovered.metadata.memory}
+                      </span>
                     </div>
                   )}
                 </>

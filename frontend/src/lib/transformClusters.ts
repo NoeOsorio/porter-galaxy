@@ -23,13 +23,13 @@ const TYPE_COLORS = {
 };
 
 export function transformClusters(
-  apiData: ApiClustersResponse
+  apiData: ApiClustersResponse,
 ): ClusterGalaxyGraph {
   const allNodes: ClusterGalaxyNode[] = [];
   const allEdges: ClusterGalaxyEdge[] = [];
 
   const clusterCount = apiData.clusters.length;
-  const clusterRadius = 500;
+  const clusterRadius = 1200;
   const clusterAngleStep = (Math.PI * 2) / clusterCount;
 
   apiData.clusters.forEach((apiCluster, clusterIndex) => {
@@ -45,7 +45,7 @@ export function transformClusters(
       type: "cluster",
       name: apiCluster.id,
       x: clusterCenterX,
-      y: clusterCenterY + 150,
+      y: clusterCenterY + 250,
       z: clusterCenterZ,
       color: clusterColor.color,
       glow: clusterColor.glow,
@@ -57,15 +57,15 @@ export function transformClusters(
     allNodes.push(clusterNode);
 
     const nodeCount = apiCluster.nodes.length;
-    const nodeRadius = 120;
+    const nodeRadius = 180;
     const nodeAngleStep = (Math.PI * 2) / nodeCount;
 
     apiCluster.nodes.forEach((apiNode, nodeIndex) => {
       const nodeAngle = nodeIndex * nodeAngleStep;
 
       const nodeX = clusterCenterX + Math.cos(nodeAngle) * nodeRadius;
-      const nodeY = clusterCenterY + 80;
-      const nodeZ = clusterCenterZ - 80 + Math.sin(nodeAngle) * nodeRadius;
+      const nodeY = clusterCenterY + 120;
+      const nodeZ = clusterCenterZ - 120 + Math.sin(nodeAngle) * nodeRadius;
 
       const nodeFullId = `${apiCluster.id}::node::${apiNode.id}`;
 
@@ -96,12 +96,18 @@ export function transformClusters(
       });
 
       const podsOnThisNode = apiCluster.pods.filter(
-        (pod) => pod.nodeId === apiNode.id
+        (pod) => pod.nodeId === apiNode.id,
       );
 
-      const deploymentMap = new Map<string, typeof apiCluster.deployments[0]>();
+      const deploymentMap = new Map<
+        string,
+        (typeof apiCluster.deployments)[0]
+      >();
       apiCluster.deployments.forEach((dep) => {
-        deploymentMap.set(`${apiCluster.id}::deployment::${dep.namespace}/${dep.id}`, dep);
+        deploymentMap.set(
+          `${apiCluster.id}::deployment::${dep.namespace}/${dep.id}`,
+          dep,
+        );
       });
 
       const deploymentsOnNode = new Map<string, typeof apiCluster.pods>();
@@ -116,7 +122,7 @@ export function transformClusters(
       });
 
       const deploymentCount = deploymentsOnNode.size || 1;
-      const deploymentRadius = 60;
+      const deploymentRadius = 140;
       const deploymentAngleStep = (Math.PI * 2) / deploymentCount;
 
       let deploymentIdx = 0;
@@ -124,9 +130,9 @@ export function transformClusters(
         const deploymentAngle = deploymentIdx * deploymentAngleStep;
         const deploymentX =
           nodeX + Math.cos(deploymentAngle) * deploymentRadius;
-        const deploymentY = clusterCenterY;
+        const deploymentY = clusterCenterY - 40;
         const deploymentZ =
-          nodeZ - 80 + Math.sin(deploymentAngle) * deploymentRadius;
+          nodeZ - 120 + Math.sin(deploymentAngle) * deploymentRadius;
 
         const depKeyParts = depKey.split("::");
         const namespaceAndId = depKeyParts[2] || depKey;
@@ -165,14 +171,14 @@ export function transformClusters(
         });
 
         const podCount = pods.length || 1;
-        const podRadius = 30;
+        const podRadius = 55;
         const podAngleStep = (Math.PI * 2) / podCount;
 
         pods.forEach((apiPod, podIdx) => {
           const podAngle = podIdx * podAngleStep;
           const podX = deploymentX + Math.cos(podAngle) * podRadius;
-          const podY = clusterCenterY - 80;
-          const podZ = deploymentZ - 80 + Math.sin(podAngle) * podRadius;
+          const podY = clusterCenterY - 180;
+          const podZ = deploymentZ - 120 + Math.sin(podAngle) * podRadius;
 
           const podFullId = `${apiCluster.id}::pod::${apiPod.id}`;
 
@@ -217,7 +223,7 @@ export function transformClusters(
 }
 
 export function getConstellations(
-  graph: ClusterGalaxyGraph
+  graph: ClusterGalaxyGraph,
 ): ClusterConstellation[] {
   const constellations: ClusterConstellation[] = [];
 
@@ -225,7 +231,7 @@ export function getConstellations(
 
   clusterNodes.forEach((clusterNode) => {
     const nodesInCluster = graph.nodes.filter(
-      (n) => n.metadata?.clusterId === clusterNode.id
+      (n) => n.metadata?.clusterId === clusterNode.id,
     );
 
     const edgesInCluster = graph.edges.filter((e) => {

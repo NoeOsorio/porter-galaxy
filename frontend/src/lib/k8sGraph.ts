@@ -217,12 +217,28 @@ export function generateK8sCluster(): K8sGraph {
   return { nodes, edges, namespaces };
 }
 
-export function forceStepK8s(nodes: K8sNode[], edges: K8sEdge[], alpha = 0.008): void {
-  const repulsion = 500;
-  const attractionOwnership = 0.0018;
-  const attractionService = 0.0004;
-  const attractionIngress = 0.00035;
-  const centerGravity = 0.0004;
+export interface ForceStepOptions {
+  focusNamespace?: string;
+  zoomLevel?: number;
+}
+
+export function forceStepK8s(
+  nodes: K8sNode[],
+  edges: K8sEdge[],
+  alpha = 0.008,
+  options?: ForceStepOptions
+): void {
+  const focused = options?.focusNamespace;
+  const zoom = Math.max(0.5, Math.min(3, options?.zoomLevel ?? 1));
+  const spread = 1 + 1.2 * Math.min(zoom, 2.5);
+
+  const baseRepulsion = focused ? 900 : 500;
+  const repulsion = baseRepulsion * spread;
+  const invSpread = 1 / spread;
+  const attractionOwnership = (focused ? 0.0009 : 0.0018) * invSpread;
+  const attractionService = (focused ? 0.00025 : 0.0004) * invSpread;
+  const attractionIngress = (focused ? 0.0002 : 0.00035) * invSpread;
+  const centerGravity = 0.0003;
 
   for (let i = 0; i < nodes.length; i++) {
     const ni = nodes[i]!;
@@ -232,7 +248,7 @@ export function forceStepK8s(nodes: K8sNode[], edges: K8sEdge[], alpha = 0.008):
     fx -= ni.x * centerGravity;
     fy -= ni.y * centerGravity;
 
-    for (let s = 0; s < 15; s++) {
+    for (let s = 0; s < 25; s++) {
       const j = Math.floor(Math.random() * nodes.length);
       if (i === j) continue;
       const nj = nodes[j]!;

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import type { K8sNode, K8sGraph, ProjectedK8sNode, K8sPodNode } from "./types/k8s";
 import { generateK8sCluster, forceStepK8s } from "./lib/k8sGraph";
-import { drawGlow } from "./lib/renderer";
+import { drawGlow, project } from "./lib/renderer";
 import {
   projectK8sNodes,
   drawPodAtom,
@@ -42,11 +42,13 @@ export default function K8sGalaxy() {
   const dataRef = useRef<K8sGraph | null>(null);
   const animRef = useRef<number>(0);
   const mouseRef = useRef({ x: -9999, y: -9999 });
-  const rotationRef = useRef({ x: 0.35, y: 0, autoRotate: true });
+  const rotationRef = useRef({ x: 0.35, y: 0 });
   const dragRef = useRef({ dragging: false, lastX: 0, lastY: 0 });
   const zoomRef = useRef(1);
-  const timeRef = useRef(0);
   const hoveredIdRef = useRef<number | null>(null);
+
+  const ZOOM_FOCUSED = 2;
+  const ZOOM_DEFAULT = 1;
 
   const [hovered, setHovered] = useState<ProjectedK8sNode | null>(null);
   const [selected, setSelected] = useState<ProjectedK8sNode | null>(null);
@@ -98,22 +100,11 @@ export default function K8sGalaxy() {
         return;
       }
 
-      timeRef.current += 0.016;
-      const time = timeRef.current;
-
-      if (rotationRef.current.autoRotate) rotationRef.current.y += 0.0015;
-      forceStepK8s(data.nodes, data.edges, 0.0008);
+      const targetZoom = filter === "all" ? ZOOM_DEFAULT : ZOOM_FOCUSED;
+      zoomRef.current += (targetZoom - zoomRef.current) * 0.06;
 
       ctx.fillStyle = BG;
       ctx.fillRect(0, 0, width, height);
-
-      for (const st of stars) {
-        const twinkle = st.b + Math.sin(time * 0.5 + st.x * 100) * 0.05;
-        ctx.fillStyle = `rgba(255,255,255,${twinkle})`;
-        ctx.beginPath();
-        ctx.arc(st.x * width, st.y * height, st.s, 0, Math.PI * 2);
-        ctx.fill();
-      }
 
       const projected = projectK8sNodes(
         data.nodes,
@@ -122,37 +113,66 @@ export default function K8sGalaxy() {
         zoomRef.current
       );
 
+      let offsetX = 0;
+      let offsetY = 0;
+      if (filter !== "all") {
+        const focusNodes = data.nodes.filter(
+          (n) => n.kind === "Namespace" && n.name === filter
+        );
+        const focusNode = focusNodes[0];
+        if (focusNode) {
+          const focusProj = project(focusNode, rotationRef.current, { width, height }, zoomRef.current);
+          offsetX = width / 2 - focusProj.sx;
+          offsetY = height / 2 - focusProj.sy;
+        }
+      }
+
+      const projectedWithOffset = projected.map((n) => ({
+        ...n,
+        sx: n.sx + offsetX,
+        sy: n.sy + offsetY,
+      }));
+
       const visible =
         filter === "all"
-          ? projected
-          : projected.filter((n) => n.namespace === filter || n.kind === "Namespace");
+          ? projectedWithOffset
+          : projectedWithOffset.filter((n) => n.namespace === filter || n.kind === "Namespace");
       const visibleIds = new Set(visible.map((n) => n.id));
+
+      const nodeSizeScale = 0.55 + 0.45 * Math.min(zoomRef.current, 2.5);
+
+      for (const st of stars) {
+        ctx.fillStyle = `rgba(255,255,255,${st.b})`;
+        ctx.beginPath();
+        ctx.arc(st.x * width, st.y * height, st.s, 0, Math.PI * 2);
+        ctx.fill();
+      }
 
       for (const n of data.nodes) {
         if (n.kind !== "Namespace") continue;
-        const p = projected.find((proj) => proj.id === n.id);
+        const p = projectedWithOffset.find((proj) => proj.id === n.id);
         if (!p) continue;
-        drawGlow(ctx, p.sx, p.sy, 120 * p.scale, n.glow, 0.018);
+        drawGlow(ctx, p.sx, p.sy, 70 * p.scale, n.glow, 0.012);
       }
 
-      drawK8sEdges(ctx, projected, data.edges, visibleIds, time);
+      drawK8sEdges(ctx, projectedWithOffset, data.edges, visibleIds, 0);
 
-      let closestNode: ProjectedK8sNode | null = null;
+      let closestNode: (ProjectedK8sNode & { sx: number; sy: number }) | null = null;
       let closestDist = 25;
       const { x: mx, y: my } = mouseRef.current;
 
       for (const n of visible) {
-        const r = n.size * n.scale;
+        const r = n.size * n.scale * nodeSizeScale;
         if (r < 0.3) continue;
 
         if (n.kind === "Pod") {
-          drawPodAtom(ctx, n.sx, n.sy, r, n as ProjectedK8sNode & K8sPodNode, time, n.scale);
+          drawPodAtom(ctx, n.sx, n.sy, r, n as ProjectedK8sNode & K8sPodNode, 0, n.scale);
         } else if (n.kind === "Service") {
-          drawServiceDiamond(ctx, n.sx, n.sy, r, n, time, n.scale);
+          drawServiceDiamond(ctx, n.sx, n.sy, r, n, 0, n.scale);
         } else if (n.kind === "Ingress") {
-          drawIngressWormhole(ctx, n.sx, n.sy, r, n, time, n.scale);
+          drawIngressWormhole(ctx, n.sx, n.sy, r, n, 0, n.scale);
         } else if (n.kind === "Namespace") {
-          drawNamespaceNode(ctx, n.sx, n.sy, r, n, time, n.scale);
+          drawNamespaceNode(ctx, n.sx, n.sy, r, n, 0, n.scale);
         } else {
           drawDeploymentStar(ctx, n.sx, n.sy, r, n, n.scale);
         }
@@ -174,10 +194,10 @@ export default function K8sGalaxy() {
         ctx.strokeStyle = (n.color || "#ffffff") + "88";
         ctx.lineWidth = 1.5;
         ctx.beginPath();
-        ctx.arc(n.sx, n.sy, n.size * n.scale + 6, 0, Math.PI * 2);
+        ctx.arc(n.sx, n.sy, n.size * n.scale * nodeSizeScale + 6, 0, Math.PI * 2);
         ctx.stroke();
 
-        const byId = new Map(projected.map((p) => [p.id, p]));
+        const byId = new Map(projectedWithOffset.map((p) => [p.id, p]));
         for (const e of data.edges) {
           if (e.source !== n.id && e.target !== n.id) continue;
           const s = byId.get(e.source);
@@ -222,14 +242,10 @@ export default function K8sGalaxy() {
 
     function onMouseDown(e: MouseEvent) {
       dragRef.current = { dragging: true, lastX: e.clientX, lastY: e.clientY };
-      rotationRef.current.autoRotate = false;
     }
 
     function onMouseUp() {
       dragRef.current.dragging = false;
-      setTimeout(() => {
-        rotationRef.current.autoRotate = true;
-      }, 4000);
     }
 
     function onClick() {
@@ -252,7 +268,7 @@ export default function K8sGalaxy() {
 
     function onWheel(e: WheelEvent) {
       e.preventDefault();
-      zoomRef.current = Math.max(0.3, Math.min(3.5, zoomRef.current - e.deltaY * 0.001));
+      zoomRef.current = Math.max(0.4, Math.min(3.2, zoomRef.current - e.deltaY * 0.001));
     }
 
     canvas.addEventListener("mousemove", onMouseMove);
@@ -280,7 +296,7 @@ export default function K8sGalaxy() {
 
       <div className="absolute top-5 left-6 text-white/70 text-[11px] leading-[1.8] pointer-events-none">
         <div className="text-lg font-semibold text-white/90 tracking-[4px] mb-1.5">K8S GALAXY</div>
-        <div className="opacity-40 text-[10px]">drag to rotate · scroll to zoom · click to inspect</div>
+        <div className="opacity-40 text-[10px]">drag to rotate · scroll to zoom · zoom changes scale and spacing · click to inspect</div>
       </div>
 
       <div className="absolute top-5 right-6 flex flex-col gap-1.5 text-[10px] text-white/50 pointer-events-none">

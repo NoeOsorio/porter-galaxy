@@ -21,20 +21,15 @@ export function drawPodAtom(
   y: number,
   r: number,
   node: ProjectedK8sNode & K8sPodNode,
-  time: number,
+  _time: number,
   scale: number
 ): void {
   let baseColor = node.color;
-  let pulseAlpha = 0.8;
+  const pulseAlpha =
+    node.status === "CrashLoopBackOff" ? 0.55 : node.status === "Pending" ? 0.45 : 0.8;
+  if (node.status === "CrashLoopBackOff") baseColor = "#ff3333";
 
-  if (node.status === "CrashLoopBackOff") {
-    baseColor = "#ff3333";
-    pulseAlpha = 0.4 + Math.sin(time * 6) * 0.3;
-  } else if (node.status === "Pending") {
-    pulseAlpha = 0.3 + Math.sin(time * 2) * 0.15;
-  }
-
-  drawGlow(ctx, x, y, r * 5, node.glow, pulseAlpha * 0.12 * scale);
+  drawGlow(ctx, x, y, r * 3, node.glow, pulseAlpha * 0.08 * scale);
 
   ctx.fillStyle = baseColor;
   ctx.globalAlpha = pulseAlpha;
@@ -52,8 +47,7 @@ export function drawPodAtom(
   if (node.containers && r > 1.5) {
     node.containers.forEach((c, ci) => {
       const orbitR = r * 2.5 + ci * 2;
-      const speed = 1.5 + ci * 0.7;
-      const particleAngle = c.angle + time * speed;
+      const particleAngle = c.angle;
       const px = x + Math.cos(particleAngle) * orbitR;
       const py = y + Math.sin(particleAngle) * orbitR;
       const particleR = Math.max(0.8, r * 0.3);
@@ -84,7 +78,7 @@ export function drawDeploymentStar(
   node: ProjectedK8sNode,
   scale: number
 ): void {
-  drawGlow(ctx, x, y, r * 5, node.glow, 0.12 * scale);
+  drawGlow(ctx, x, y, r * 3, node.glow, 0.08 * scale);
   ctx.fillStyle = node.color;
   ctx.beginPath();
   ctx.arc(x, y, r, 0, Math.PI * 2);
@@ -103,20 +97,19 @@ export function drawServiceDiamond(
   y: number,
   r: number,
   node: ProjectedK8sNode,
-  time: number,
+  _time: number,
   scale: number
 ): void {
-  const pulse = 0.7 + Math.sin(time * 1.5) * 0.15;
-  drawGlow(ctx, x, y, r * 4, node.glow, 0.15 * scale);
+  drawGlow(ctx, x, y, r * 2.5, node.glow, 0.1 * scale);
 
   ctx.save();
   ctx.translate(x, y);
   ctx.rotate(Math.PI / 4);
   ctx.fillStyle = node.color;
-  ctx.globalAlpha = pulse;
+  ctx.globalAlpha = 0.85;
   ctx.fillRect(-r, -r, r * 2, r * 2);
   ctx.fillStyle = "#ffffff";
-  ctx.globalAlpha = pulse * 0.5;
+  ctx.globalAlpha = 0.45;
   ctx.fillRect(-r * 0.3, -r * 0.3, r * 0.6, r * 0.6);
   ctx.globalAlpha = 1;
   ctx.restore();
@@ -128,28 +121,27 @@ export function drawIngressWormhole(
   y: number,
   r: number,
   node: ProjectedK8sNode,
-  time: number,
+  _time: number,
   scale: number
 ): void {
-  const pulse = 0.6 + Math.sin(time * 2) * 0.3;
-  drawGlow(ctx, x, y, r * 6, node.glow, 0.2 * scale * pulse);
+  drawGlow(ctx, x, y, r * 4, node.glow, 0.12 * scale);
 
   ctx.strokeStyle = node.glow;
-  ctx.globalAlpha = pulse;
+  ctx.globalAlpha = 0.75;
   ctx.lineWidth = 1.5;
   ctx.beginPath();
   ctx.arc(x, y, r * 2, 0, Math.PI * 2);
   ctx.stroke();
 
   ctx.strokeStyle = "#ffffff";
-  ctx.globalAlpha = pulse * 0.6;
+  ctx.globalAlpha = 0.5;
   ctx.lineWidth = 1;
   ctx.beginPath();
   ctx.arc(x, y, r, 0, Math.PI * 2);
   ctx.stroke();
 
   ctx.fillStyle = "#ffffff";
-  ctx.globalAlpha = pulse;
+  ctx.globalAlpha = 0.75;
   ctx.beginPath();
   ctx.arc(x, y, r * 0.4, 0, Math.PI * 2);
   ctx.fill();
@@ -162,21 +154,20 @@ export function drawNamespaceNode(
   y: number,
   r: number,
   node: ProjectedK8sNode,
-  time: number,
+  _time: number,
   scale: number
 ): void {
-  const pulse = 0.5 + Math.sin(time * 0.5 + node.nsIndex) * 0.1;
-  drawGlow(ctx, x, y, r * 8, node.glow, 0.06 * scale);
-  drawGlow(ctx, x, y, r * 3, node.color, 0.2 * scale);
+  drawGlow(ctx, x, y, r * 5, node.glow, 0.04 * scale);
+  drawGlow(ctx, x, y, r * 2.5, node.color, 0.12 * scale);
 
   ctx.fillStyle = node.color;
-  ctx.globalAlpha = pulse;
+  ctx.globalAlpha = 0.55;
   ctx.beginPath();
   ctx.arc(x, y, r, 0, Math.PI * 2);
   ctx.fill();
 
   ctx.fillStyle = "#ffffff";
-  ctx.globalAlpha = pulse * 0.8;
+  ctx.globalAlpha = 0.45;
   ctx.beginPath();
   ctx.arc(x, y, r * 0.4, 0, Math.PI * 2);
   ctx.fill();
@@ -188,7 +179,7 @@ export function drawK8sEdges(
   projected: ProjectedK8sNode[],
   edges: K8sEdge[],
   visibleIds: Set<number>,
-  time: number
+  _time: number
 ): void {
   const byId = new Map(projected.map((n) => [n.id, n]));
 
@@ -205,12 +196,12 @@ export function drawK8sEdges(
       width = 0.5;
       dash = [];
     } else if (e.type === "service") {
-      alpha = 0.12 + Math.sin(time * 3 + e.source) * 0.04;
+      alpha = 0.12;
       color = s.color;
       width = 1;
       dash = [4, 4];
     } else {
-      alpha = 0.15 + Math.sin(time * 2) * 0.05;
+      alpha = 0.15;
       color = "#ffffff";
       width = 1.2;
       dash = [6, 3];

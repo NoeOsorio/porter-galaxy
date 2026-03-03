@@ -28,7 +28,7 @@ export default function GalaxyGraph() {
   const graphRef = useRef<Graph | null>(null);
   const animRef = useRef<number>(0);
   const mouseRef = useRef({ x: 0, y: 0 });
-  const rotationRef = useRef({ x: 0.3, y: 0, autoRotate: true });
+  const rotationRef = useRef({ x: 0.3, y: 0 });
   const dragRef = useRef({ dragging: false, lastX: 0, lastY: 0 });
   const zoomRef = useRef(1);
   const hoveredIdRef = useRef<number | null>(null);
@@ -75,10 +75,6 @@ export default function GalaxyGraph() {
       if (!graph) {
         animRef.current = requestAnimationFrame(render);
         return;
-      }
-
-      if (rotationRef.current.autoRotate) {
-        rotationRef.current.y += 0.002;
       }
 
       forceStep(graph.nodes, graph.edges, 0.001);
@@ -200,12 +196,10 @@ export default function GalaxyGraph() {
 
     function onMouseDown(e: MouseEvent) {
       dragRef.current = { dragging: true, lastX: e.clientX, lastY: e.clientY };
-      rotationRef.current.autoRotate = false;
     }
 
     function onMouseUp() {
       dragRef.current.dragging = false;
-      setTimeout(() => { rotationRef.current.autoRotate = true; }, 3000);
     }
 
     function onWheel(e: WheelEvent) {

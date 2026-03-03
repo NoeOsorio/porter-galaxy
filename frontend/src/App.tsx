@@ -12,12 +12,14 @@ export default function App() {
 
   return (
     <>
-      <div className="fixed top-4 left-1/2 -translate-x-1/2 z-10 flex gap-1 rounded-full bg-black/40 border border-white/10 p-1 font-['JetBrains_Mono',monospace] text-xs">
+      <div className="fixed top-5 left-1/2 -translate-x-1/2 z-50 flex gap-1 rounded-full bg-[rgba(8,8,25,0.85)] border border-white/[0.12] p-1.5 font-['JetBrains_Mono',monospace] text-xs backdrop-blur-xl shadow-lg">
         <button
           type="button"
           onClick={() => setView("galaxy")}
-          className={`px-4 py-2 rounded-full transition-colors ${
-            view === "galaxy" ? "bg-white/15 text-white" : "text-white/60 hover:text-white/80"
+          className={`px-5 py-2.5 rounded-full transition-all duration-200 ${
+            view === "galaxy" 
+              ? "bg-white/20 text-white shadow-[0_0_12px_rgba(255,255,255,0.15)]" 
+              : "text-white/60 hover:text-white/90 hover:bg-white/5"
           }`}
         >
           Galaxy
@@ -25,8 +27,10 @@ export default function App() {
         <button
           type="button"
           onClick={() => setView("k8s")}
-          className={`px-4 py-2 rounded-full transition-colors ${
-            view === "k8s" ? "bg-white/15 text-white" : "text-white/60 hover:text-white/80"
+          className={`px-5 py-2.5 rounded-full transition-all duration-200 ${
+            view === "k8s" 
+              ? "bg-white/20 text-white shadow-[0_0_12px_rgba(255,255,255,0.15)]" 
+              : "text-white/60 hover:text-white/90 hover:bg-white/5"
           }`}
         >
           K8s Galaxy
@@ -34,8 +38,10 @@ export default function App() {
         <button
           type="button"
           onClick={() => setView("cluster")}
-          className={`px-4 py-2 rounded-full transition-colors ${
-            view === "cluster" ? "bg-white/15 text-white" : "text-white/60 hover:text-white/80"
+          className={`px-5 py-2.5 rounded-full transition-all duration-200 ${
+            view === "cluster" 
+              ? "bg-white/20 text-white shadow-[0_0_12px_rgba(255,255,255,0.15)]" 
+              : "text-white/60 hover:text-white/90 hover:bg-white/5"
           }`}
         >
           Cluster Explorer
@@ -43,8 +49,10 @@ export default function App() {
         <button
           type="button"
           onClick={() => setView("molecule")}
-          className={`px-4 py-2 rounded-full transition-colors ${
-            view === "molecule" ? "bg-white/15 text-white" : "text-white/60 hover:text-white/80"
+          className={`px-5 py-2.5 rounded-full transition-all duration-200 ${
+            view === "molecule" 
+              ? "bg-white/20 text-white shadow-[0_0_12px_rgba(255,255,255,0.15)]" 
+              : "text-white/60 hover:text-white/90 hover:bg-white/5"
           }`}
         >
           K8s Molecule
@@ -52,8 +60,10 @@ export default function App() {
         <button
           type="button"
           onClick={() => setView("topology")}
-          className={`px-4 py-2 rounded-full transition-colors ${
-            view === "topology" ? "bg-white/15 text-white" : "text-white/60 hover:text-white/80"
+          className={`px-5 py-2.5 rounded-full transition-all duration-200 ${
+            view === "topology" 
+              ? "bg-white/20 text-white shadow-[0_0_12px_rgba(255,255,255,0.15)]" 
+              : "text-white/60 hover:text-white/90 hover:bg-white/5"
           }`}
         >
           Topology

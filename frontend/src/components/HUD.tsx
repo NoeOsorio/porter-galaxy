@@ -7,7 +7,7 @@ interface HUDProps {
 
 export default function HUD({ title = "GALAXY GRAPH", stats }: HUDProps) {
   return (
-    <div className="absolute top-5 left-6 text-white/60 text-[11px] leading-[1.8] pointer-events-none font-['JetBrains_Mono','SF_Mono',monospace]">
+    <div className="absolute top-20 left-6 text-white/60 text-[11px] leading-[1.8] pointer-events-none font-['JetBrains_Mono','SF_Mono',monospace]">
       <div className="text-base font-medium text-white/85 tracking-[3px] mb-2">
         {title}
       </div>

@@ -96,7 +96,7 @@ export default function Topology() {
         </Canvas>
       )}
 
-      <div className="absolute top-5 left-6 text-white/70 text-[11px] leading-[1.8] pointer-events-none">
+      <div className="absolute top-20 left-6 text-white/70 text-[11px] leading-[1.8] pointer-events-none">
         <div className="flex items-center gap-2 mb-1.5">
           <div className="text-lg font-semibold text-white/90 tracking-[4px]">
             TOPOLOGY
@@ -117,26 +117,26 @@ export default function Topology() {
         )}
       </div>
 
-      <div className="absolute top-5 right-6 pointer-events-none">
+      <div className="absolute top-20 right-6 pointer-events-none">
         <div className="bg-[rgba(8,8,25,0.8)] border border-white/[0.08] rounded-xl py-3 px-4 backdrop-blur-xl">
           <div className="text-white/70 text-[10px] mb-2 font-semibold opacity-80">
             LEGEND
           </div>
-          <div className="space-y-1.5">
-            <div className="flex items-center gap-2 text-[10px]">
-              <span className="text-base">{TYPE_ICONS.internet}</span>
+          <div className="space-y-2">
+            <div className="flex items-center gap-2.5 text-[10px]">
+              <div className="w-2.5 h-2.5 rounded-full bg-[#00d4ff] shadow-[0_0_8px_rgba(0,212,255,0.6)]" />
               <span className="text-white/60">Internet</span>
             </div>
-            <div className="flex items-center gap-2 text-[10px]">
-              <span className="text-base">{TYPE_ICONS.loadbalancer}</span>
+            <div className="flex items-center gap-2.5 text-[10px]">
+              <div className="w-2.5 h-2.5 rounded-full bg-[#ff4d9f] shadow-[0_0_8px_rgba(255,77,159,0.6)]" />
               <span className="text-white/60">Load Balancer</span>
             </div>
-            <div className="flex items-center gap-2 text-[10px]">
-              <span className="text-base">{TYPE_ICONS.deployment}</span>
+            <div className="flex items-center gap-2.5 text-[10px]">
+              <div className="w-2.5 h-2.5 rounded-full bg-[#ffd666] shadow-[0_0_8px_rgba(255,214,102,0.6)]" />
               <span className="text-white/60">Deployment</span>
             </div>
-            <div className="flex items-center gap-2 text-[10px]">
-              <span className="text-base">{TYPE_ICONS.pod}</span>
+            <div className="flex items-center gap-2.5 text-[10px]">
+              <div className="w-2.5 h-2.5 rounded-full bg-[#5bffb0] shadow-[0_0_8px_rgba(91,255,176,0.6)]" />
               <span className="text-white/60">Pod</span>
             </div>
           </div>
@@ -202,7 +202,7 @@ export default function Topology() {
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: -12 }}
             transition={{ duration: 0.2 }}
-            className="absolute top-20 left-6 pointer-events-auto min-w-[260px] max-w-[320px]"
+            className="absolute top-[180px] left-6 pointer-events-auto min-w-[260px] max-w-[320px]"
           >
             <div
               className="bg-[rgba(8,8,25,0.92)] rounded-xl py-4 px-5 text-white/75 text-[11px] leading-[1.8] backdrop-blur-xl border"

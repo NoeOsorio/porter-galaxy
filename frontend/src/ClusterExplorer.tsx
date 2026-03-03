@@ -166,7 +166,7 @@ export default function ClusterExplorer() {
         </Canvas>
       )}
 
-      <div className="absolute top-5 left-6 text-white/70 text-[11px] leading-[1.8] pointer-events-none">
+      <div className="absolute top-20 left-6 text-white/70 text-[11px] leading-[1.8] pointer-events-none">
         <div className="text-lg font-semibold text-white/90 tracking-[4px] mb-1.5">
           CLUSTER EXPLORER
         </div>
@@ -175,7 +175,7 @@ export default function ClusterExplorer() {
         </div>
       </div>
 
-      <div className="absolute top-14 left-6 flex items-center gap-1.5 text-[11px] text-white/60 pointer-events-auto">
+      <div className="absolute top-[110px] left-6 flex items-center gap-1.5 text-[11px] text-white/60 pointer-events-auto">
         {breadcrumbSegments.map((seg, i) => (
           <span key={seg.level} className="flex items-center gap-1.5">
             {i > 0 && <span className="opacity-50">/</span>}
@@ -248,7 +248,7 @@ export default function ClusterExplorer() {
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: -12 }}
             transition={{ duration: 0.2 }}
-            className="absolute top-24 left-6 pointer-events-auto min-w-[240px] max-w-[300px]"
+            className="absolute top-[150px] left-6 pointer-events-auto min-w-[240px] max-w-[300px]"
           >
             <div
               className="bg-[rgba(8,8,25,0.92)] rounded-xl py-4 px-5 text-white/75 text-[11px] leading-8 backdrop-blur-xl border"

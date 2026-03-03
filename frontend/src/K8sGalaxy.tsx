@@ -71,7 +71,7 @@ export default function K8sGalaxy() {
         </EffectComposer>
       </Canvas>
 
-      <div className="absolute top-5 left-6 text-white/70 text-[11px] leading-[1.8] pointer-events-none">
+      <div className="absolute top-20 left-6 text-white/70 text-[11px] leading-[1.8] pointer-events-none">
         <div className="text-lg font-semibold text-white/90 tracking-[4px] mb-1.5">
           K8S GALAXY
         </div>
@@ -81,7 +81,7 @@ export default function K8sGalaxy() {
         </div>
       </div>
 
-      <div className="absolute top-5 right-6 flex flex-col gap-1.5 text-[10px] text-white/50 pointer-events-none">
+      <div className="absolute top-20 right-6 flex flex-col gap-1.5 text-[10px] text-white/50 pointer-events-none">
         {LEGEND_ITEMS.map((item) => (
           <div key={item.label} className="flex items-center gap-2">
             <span className="w-[18px] text-center text-sm">{item.icon}</span>
@@ -208,7 +208,7 @@ export default function K8sGalaxy() {
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: -12 }}
             transition={{ duration: 0.2 }}
-            className="absolute top-20 left-6 pointer-events-auto min-w-[240px] max-w-[300px]"
+            className="absolute top-[110px] left-6 pointer-events-auto min-w-[240px] max-w-[300px]"
           >
             <div
               className="bg-[rgba(8,8,25,0.92)] rounded-xl py-4 px-5 text-white/75 text-[11px] leading-8 backdrop-blur-xl border"

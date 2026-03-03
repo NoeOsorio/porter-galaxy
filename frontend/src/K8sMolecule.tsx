@@ -83,7 +83,7 @@ export default function K8sMolecule() {
         </Canvas>
       )}
 
-      <div className="absolute top-5 left-6 text-white/70 text-[11px] leading-[1.8] pointer-events-none">
+      <div className="absolute top-20 left-6 text-white/70 text-[11px] leading-[1.8] pointer-events-none">
         <div className="flex items-center gap-2 mb-1.5">
           <div className="text-lg font-semibold text-white/90 tracking-[4px]">
             K8S MOLECULE
@@ -116,7 +116,7 @@ export default function K8sMolecule() {
         )}
       </div>
 
-      <div className="absolute top-5 right-6 flex flex-col gap-2 pointer-events-auto">
+      <div className="absolute top-20 right-6 flex flex-col gap-2 pointer-events-auto">
         <div className="bg-[rgba(8,8,25,0.8)] border border-white/[0.08] rounded-xl py-3 px-4 backdrop-blur-xl">
           <div className="text-white/70 text-[10px] mb-2">Node Spacing</div>
           <input
@@ -202,7 +202,7 @@ export default function K8sMolecule() {
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: -12 }}
             transition={{ duration: 0.2 }}
-            className="absolute top-20 left-6 pointer-events-auto min-w-[240px] max-w-[300px]"
+            className="absolute top-[180px] left-6 pointer-events-auto min-w-[240px] max-w-[300px]"
           >
             <div
               className="bg-[rgba(8,8,25,0.92)] rounded-xl py-4 px-5 text-white/75 text-[11px] leading-8 backdrop-blur-xl border"

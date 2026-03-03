@@ -1,5 +1,35 @@
-import GalaxyGraph from './GalaxyGraph'
+import { useState } from "react";
+import GalaxyGraph from "./GalaxyGraph";
+import K8sGalaxy from "./K8sGalaxy";
+
+type View = "galaxy" | "k8s";
 
 export default function App() {
-  return <GalaxyGraph />
+  const [view, setView] = useState<View>("k8s");
+
+  return (
+    <>
+      <div className="fixed top-4 left-1/2 -translate-x-1/2 z-10 flex gap-1 rounded-full bg-black/40 border border-white/10 p-1 font-['JetBrains_Mono',monospace] text-xs">
+        <button
+          type="button"
+          onClick={() => setView("galaxy")}
+          className={`px-4 py-2 rounded-full transition-colors ${
+            view === "galaxy" ? "bg-white/15 text-white" : "text-white/60 hover:text-white/80"
+          }`}
+        >
+          Galaxy
+        </button>
+        <button
+          type="button"
+          onClick={() => setView("k8s")}
+          className={`px-4 py-2 rounded-full transition-colors ${
+            view === "k8s" ? "bg-white/15 text-white" : "text-white/60 hover:text-white/80"
+          }`}
+        >
+          K8s Galaxy
+        </button>
+      </div>
+      {view === "galaxy" ? <GalaxyGraph /> : <K8sGalaxy />}
+    </>
+  );
 }

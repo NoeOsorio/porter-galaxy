@@ -13,6 +13,7 @@ export interface ApiPod {
   nodeId: string;
   status: string;
   version?: string;
+  controllerId?: string;
 }
 
 export interface ApiDeployment {

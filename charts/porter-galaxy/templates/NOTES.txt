@@ -1,0 +1,15 @@
+Porter Galaxy has been deployed!
+
+{{- if .Values.ingress.enabled }}
+Access the UI at: http{{ if .Values.ingress.tls }}s{{ end }}://{{ .Values.ingress.host }}
+{{- else if eq .Values.service.type "LoadBalancer" }}
+Get the external IP by running:
+  kubectl get svc {{ include "porter-galaxy.fullname" . }}-frontend -n {{ .Release.Namespace }} -w
+
+Then open http://<EXTERNAL-IP>
+{{- else }}
+Port-forward to access the UI locally:
+  kubectl port-forward svc/{{ include "porter-galaxy.fullname" . }}-frontend 8080:80 -n {{ .Release.Namespace }}
+
+Then open http://localhost:8080
+{{- end }}

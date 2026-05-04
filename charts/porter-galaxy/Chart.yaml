@@ -1,0 +1,17 @@
+apiVersion: v2
+name: porter-galaxy
+description: Galaxy-style Kubernetes cluster graph visualizer
+type: application
+version: 0.1.0
+appVersion: "latest"
+keywords:
+  - kubernetes
+  - visualization
+  - cluster
+  - topology
+home: https://github.com/noeosorio/porter-galaxy
+sources:
+  - https://github.com/noeosorio/porter-galaxy
+maintainers:
+  - name: noeosorio
+    email: noe@porter.run

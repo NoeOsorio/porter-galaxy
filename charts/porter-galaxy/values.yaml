@@ -1,0 +1,42 @@
+nameOverride: ""
+fullnameOverride: ""
+
+backend:
+  image:
+    repository: ghcr.io/noeosorio/porter-galaxy-backend
+    tag: latest
+    pullPolicy: IfNotPresent
+  port: 4000
+  env:
+    LOG_LEVEL: info
+  resources: {}
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+frontend:
+  image:
+    repository: ghcr.io/noeosorio/porter-galaxy-frontend
+    tag: latest
+    pullPolicy: IfNotPresent
+  port: 80
+  resources: {}
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+serviceAccount:
+  create: true
+  name: ""
+  annotations: {}
+
+service:
+  type: ClusterIP
+  port: 80
+
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+  host: ""
+  tls: []

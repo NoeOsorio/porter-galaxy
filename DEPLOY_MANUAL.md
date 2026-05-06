@@ -66,12 +66,13 @@ This is a standard `helm install` — same as installing any other tool.
 
 ```bash
 # Add the Chart Museum Helm repo
-helm repo add chartmuseum https://chartmuseum.github.io/charts
-helm repo update
+porter helm -- repo add chartmuseum https://chartmuseum.github.io/charts
+porter helm -- repo update
 
 # Install Chart Museum
-# Note: porter helm does not support --namespace/-n flags; use HELM_NAMESPACE env var instead
-HELM_NAMESPACE=default porter helm install chartmuseum chartmuseum/chartmuseum \
+# The -- separator tells the Porter CLI to pass everything after it directly to helm
+porter helm -- install chartmuseum chartmuseum/chartmuseum \
+  --namespace default \
   --set env.open.STORAGE=local \
   --set env.open.DISABLE_API=false \
   --set env.open.ALLOW_OVERWRITE=true \

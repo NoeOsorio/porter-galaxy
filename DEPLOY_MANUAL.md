@@ -12,7 +12,7 @@ GitHub Actions
   └── packages Helm chart  → Chart Museum (your cluster)
 
 Anyone installs with:
-  helm repo add porter-galaxy https://charts.yourdomain.com
+  helm repo add porter-galaxy https://charts.noeosorio.com
   helm install galaxy porter-galaxy/porter-galaxy
 ```
 
@@ -48,13 +48,15 @@ If you see `<pending>`, your cluster doesn't have a cloud load balancer provisio
 
 Go to wherever your domain's DNS is managed (Cloudflare, Route 53, GoDaddy, Namecheap, etc.) and create:
 
-| Type | Name | Value |
-|------|------|-------|
-| `A` | `charts` | `YOUR_EXTERNAL_IP` |
+
+| Type | Name     | Value              |
+| ---- | -------- | ------------------ |
+| `A`  | `charts` | `YOUR_EXTERNAL_IP` |
+
 
 > If your load balancer gives a **hostname** instead of an IP (common on AWS), create a `CNAME` record instead of an `A` record.
 
-This makes `charts.yourdomain.com` resolve to your cluster. Within a few minutes (up to 24h depending on your registrar), the domain is live.
+This makes `charts.noeosorio.com` resolve to your cluster. Within a few minutes (up to 24h depending on your registrar), the domain is live.
 
 **Don't have a domain yet?** The cheapest option is to buy one from Namecheap (~$1/year for `.xyz`) or use a free subdomain service like `nip.io` for testing: `charts.YOUR_IP.nip.io` works immediately with no DNS config.
 
@@ -81,11 +83,11 @@ porter helm -- install chartmuseum chartmuseum/chartmuseum \
   --set persistence.enabled=true \
   --set persistence.size=5Gi \
   --set ingress.enabled=true \
-  --set 'ingress.hosts[0].name=charts.yourdomain.com' \
+  --set 'ingress.hosts[0].name=charts.noeosorio.com' \
   --set 'ingress.hosts[0].path=/'
 ```
 
-Replace `charts.yourdomain.com` and `CHANGE_ME` with your actual values.
+Replace `charts.noeosorio.com` and `CHANGE_ME` with your actual values.
 
 **Verify it's running:**
 
@@ -93,7 +95,7 @@ Replace `charts.yourdomain.com` and `CHANGE_ME` with your actual values.
 kubectl get pods -n chartmuseum
 # Should show chartmuseum pod as Running
 
-curl https://charts.yourdomain.com/index.yaml
+curl https://charts.noeosorio.com/index.yaml
 # Should return an empty chart index (YAML with no entries yet)
 ```
 
@@ -105,11 +107,13 @@ These are used by the CI workflow to push images and the chart automatically.
 
 Go to your GitHub repo → **Settings → Secrets and variables → Actions → New repository secret** and add:
 
-| Secret name | Value |
-|---|---|
-| `CHARTMUSEUM_URL` | `https://charts.yourdomain.com` |
+
+| Secret name        | Value                           |
+| ------------------ | ------------------------------- |
+| `CHARTMUSEUM_URL`  | `https://charts.noeosorio.com` |
 | `CHARTMUSEUM_USER` | `admin` (or what you set above) |
-| `CHARTMUSEUM_PASS` | the password you set above |
+| `CHARTMUSEUM_PASS` | the password you set above      |
+
 
 `GITHUB_TOKEN` is provided automatically by GitHub — you don't need to add it.
 
@@ -124,18 +128,20 @@ make release VERSION=1.0.0
 ```
 
 What it does under the hood:
+
 1. Bumps `version` and `appVersion` in `charts/porter-galaxy/Chart.yaml`
 2. Creates a `v1.0.0` git commit and tag
 3. Pushes both to GitHub
 
 GitHub Actions then takes over and:
+
 1. Builds `ghcr.io/noeosorio/porter-galaxy-backend:v1.0.0` and pushes to GHCR
 2. Builds `ghcr.io/noeosorio/porter-galaxy-frontend:v1.0.0` and pushes to GHCR
 3. Packages the Helm chart and pushes `porter-galaxy-1.0.0.tgz` to Chart Museum
 
 You can watch it run at: `https://github.com/noeosorio/porter-galaxy/actions`
 
-When the workflow is green, the chart is live at `https://charts.yourdomain.com`.
+When the workflow is green, the chart is live at `https://charts.noeosorio.com`.
 
 ---
 
@@ -145,7 +151,7 @@ Once published, anyone (including you) installs it like this:
 
 ```bash
 # Register your Chart Museum as a Helm repo (once per machine)
-helm repo add porter-galaxy https://charts.yourdomain.com
+helm repo add porter-galaxy https://charts.noeosorio.com
 helm repo update
 
 # Install
@@ -159,7 +165,7 @@ helm install galaxy porter-galaxy/porter-galaxy \
 Or using the Makefile (after setting `CHARTMUSEUM_REMOTE`):
 
 ```bash
-make chart-repo-add CHARTMUSEUM_REMOTE=https://charts.yourdomain.com
+make chart-repo-add CHARTMUSEUM_REMOTE=https://charts.noeosorio.com
 make install-prod INGRESS_HOST=galaxy.theirdomain.com
 ```
 
@@ -270,16 +276,19 @@ The GHCR images are public by default for public repos. If your repo is private,
 
 **Chart Museum returns 401**
 You're hitting the basic auth. All `curl` pushes and `helm repo add` calls need credentials:
+
 ```bash
-helm repo add porter-galaxy https://charts.yourdomain.com \
+helm repo add porter-galaxy https://charts.noeosorio.com \
   --username admin --password YOURPASS
 ```
 
-**`helm repo update` shows no new versions**
+`**helm repo update` shows no new versions**
 The chart push in CI may have failed. Check GitHub Actions logs. You can also push manually: `make chart-push-remote CHARTMUSEUM_PASS=yourpass`.
 
 **Backend pods crash on startup**
 The backend needs RBAC access to list Kubernetes resources. The chart creates a `ClusterRole` and `ClusterRoleBinding` automatically — check they exist:
+
 ```bash
 kubectl get clusterrole,clusterrolebinding | grep porter-galaxy
 ```
+

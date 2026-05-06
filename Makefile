@@ -8,7 +8,7 @@ FRONTEND_IMG := porter-galaxy-frontend:local
 
 # Remote Chart Museum — set via env or override: make chart-push-remote CHARTMUSEUM_REMOTE=https://...
 CHARTMUSEUM_LOCAL   := http://localhost:8080
-CHARTMUSEUM_REMOTE  ?= https://charts.YOUR_DOMAIN
+CHARTMUSEUM_REMOTE  ?= https://charts.noeosorio.com
 CHARTMUSEUM_USER    ?= admin
 CHARTMUSEUM_PASS    ?=
 

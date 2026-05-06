@@ -6,6 +6,9 @@ frontend/public/main.wasm
 frontend/public/wasm_exec.js
 frontend/public/dist/
 
+# Helm packaged charts
+*.tgz
+
 # Go
 *.exe
 *.test

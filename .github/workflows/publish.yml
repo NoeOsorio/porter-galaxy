@@ -1,0 +1,103 @@
+name: Publish
+
+# Triggers on version tags: git tag v1.2.3 && git push --tags
+on:
+  push:
+    tags: ['v*.*.*']
+
+env:
+  REGISTRY: ghcr.io
+  BACKEND_IMAGE: ghcr.io/${{ github.repository_owner }}/porter-galaxy-backend
+  FRONTEND_IMAGE: ghcr.io/${{ github.repository_owner }}/porter-galaxy-frontend
+
+jobs:
+  # ── Build & push backend image ──────────────────────────────────────────────
+  build-backend:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/metadata-action@v5
+        id: meta
+        with:
+          images: ${{ env.BACKEND_IMAGE }}
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=latest
+
+      - uses: docker/build-push-action@v5
+        with:
+          context: ./backend
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+
+  # ── Build & push frontend image ─────────────────────────────────────────────
+  build-frontend:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/metadata-action@v5
+        id: meta
+        with:
+          images: ${{ env.FRONTEND_IMAGE }}
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=latest
+
+      - uses: docker/build-push-action@v5
+        with:
+          context: ./frontend
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+
+  # ── Package chart and push to Chart Museum ──────────────────────────────────
+  publish-chart:
+    runs-on: ubuntu-latest
+    needs: [build-backend, build-frontend]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: azure/setup-helm@v3
+
+      - name: Set version from tag
+        id: version
+        # strips the leading 'v' → 1.2.3
+        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Update Chart.yaml versions
+        run: |
+          sed -i "s/^version:.*/version: ${{ steps.version.outputs.version }}/" charts/porter-galaxy/Chart.yaml
+          sed -i "s/^appVersion:.*/appVersion: \"${{ github.ref_name }}\"/" charts/porter-galaxy/Chart.yaml
+
+      - name: Package chart
+        run: helm package ./charts/porter-galaxy
+
+      - name: Push chart to Chart Museum
+        run: |
+          curl --silent --show-error --fail \
+            --user "${{ secrets.CHARTMUSEUM_USER }}:${{ secrets.CHARTMUSEUM_PASS }}" \
+            --data-binary @porter-galaxy-${{ steps.version.outputs.version }}.tgz \
+            "${{ secrets.CHARTMUSEUM_URL }}/api/charts"

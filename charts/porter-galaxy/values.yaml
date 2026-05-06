@@ -1,0 +1,48 @@
+nameOverride: ""
+fullnameOverride: ""
+
+# Secrets used to pull images from a private registry (e.g. private GHCR).
+# Example:
+#   imagePullSecrets:
+#     - name: ghcr-creds
+imagePullSecrets: []
+
+backend:
+  image:
+    repository: ghcr.io/noeosorio/porter-galaxy-backend
+    tag: ""   # defaults to Chart.appVersion; override with --set backend.image.tag=vX.Y.Z
+    pullPolicy: IfNotPresent
+  port: 4000
+  env:
+    LOG_LEVEL: info
+  resources: {}
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+frontend:
+  image:
+    repository: ghcr.io/noeosorio/porter-galaxy-frontend
+    tag: ""   # defaults to Chart.appVersion; override with --set frontend.image.tag=vX.Y.Z
+    pullPolicy: IfNotPresent
+  port: 80
+  resources: {}
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+serviceAccount:
+  create: true
+  name: ""
+  annotations: {}
+
+service:
+  type: ClusterIP
+  port: 80
+
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+  host: ""
+  tls: []

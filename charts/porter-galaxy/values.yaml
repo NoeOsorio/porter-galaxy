@@ -4,7 +4,7 @@ fullnameOverride: ""
 backend:
   image:
     repository: ghcr.io/noeosorio/porter-galaxy-backend
-    tag: latest
+    tag: ""   # defaults to Chart.appVersion; override with --set backend.image.tag=vX.Y.Z
     pullPolicy: IfNotPresent
   port: 4000
   env:
@@ -17,7 +17,7 @@ backend:
 frontend:
   image:
     repository: ghcr.io/noeosorio/porter-galaxy-frontend
-    tag: latest
+    tag: ""   # defaults to Chart.appVersion; override with --set frontend.image.tag=vX.Y.Z
     pullPolicy: IfNotPresent
   port: 80
   resources: {}

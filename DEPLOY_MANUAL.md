@@ -121,6 +121,9 @@ Go to your GitHub repo → **Settings → Secrets and variables → Actions → 
 
 ## Part 4 — Ship your first release
 
+> **TL;DR — pushing code does NOT publish anything.**
+> The CI workflow (`.github/workflows/publish.yml`) only runs on **git tags matching `v*.*.*`**. Merging to `main` does nothing on its own. You ship by tagging.
+
 This is the only command you run to publish a new version:
 
 ```bash
@@ -180,12 +183,21 @@ kubectl port-forward svc/galaxy-porter-galaxy-frontend 8080:80 -n porter-galaxy
 
 ## Part 6 — How to update the chart
 
+> **Releases are tag-driven, not push-driven.**
+> Pushing to `main` does **not** rebuild images or publish a new chart version. The `Publish` workflow only fires when you push a `v*.*.*` git tag. Use `make release VERSION=X.Y.Z` (or `git tag vX.Y.Z && git push origin vX.Y.Z` if you want to skip the Makefile). Without a tag, GHCR and Chart Museum stay on the previous version forever.
+
 ### For a new release (code change or new feature):
 
 ```bash
-# 1. Make your code changes and push to main
-# 2. When ready to release:
+# 1. Make your code changes and merge to main
+# 2. When ready to release, cut a tag — this is what triggers CI:
 make release VERSION=1.1.0
+#   ↳ bumps Chart.yaml, commits, creates tag v1.1.0, pushes tag
+#   ↳ GitHub Actions then builds images + publishes the chart
+
+# Equivalent without the Makefile:
+git tag v1.1.0
+git push origin v1.1.0
 ```
 
 That's it. CI builds new images, pushes a new chart version. Then upgrade any running install:

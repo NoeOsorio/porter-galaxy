@@ -1,232 +1,233 @@
+<div align="center">
+
 # Porter Galaxy
 
-A visual cluster explorer that maps relationships between entities as an interactive, navigable graph — inspired by Obsidian's note graph view.
+**Visualize your Kubernetes cluster as a living galaxy.**
 
-Built as a monorepo with a Go backend and a WebAssembly frontend.
+A force-directed graph view of every Pod, Service, Deployment, and the relationships between them — rendered with Three.js, served by a Go backend that reads the live cluster state via `client-go`.
+
+[![Release](https://img.shields.io/github/v/tag/NoeOsorio/porter-galaxy?label=release&sort=semver)](https://github.com/NoeOsorio/porter-galaxy/releases)
+[![CI](https://github.com/NoeOsorio/porter-galaxy/actions/workflows/publish.yml/badge.svg)](https://github.com/NoeOsorio/porter-galaxy/actions/workflows/publish.yml)
+[![Helm](https://img.shields.io/badge/helm-chart-0F1689?logo=helm&logoColor=white)](https://charts.noeosorio.com)
+[![Backend image](https://img.shields.io/badge/ghcr.io-porter--galaxy--backend-2188ff?logo=docker&logoColor=white)](https://github.com/NoeOsorio/porter-galaxy/pkgs/container/porter-galaxy-backend)
+[![Frontend image](https://img.shields.io/badge/ghcr.io-porter--galaxy--frontend-2188ff?logo=docker&logoColor=white)](https://github.com/NoeOsorio/porter-galaxy/pkgs/container/porter-galaxy-frontend)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+
+</div>
+
+<p align="center">
+  <img src="docs/screenshots/topology.png" alt="Topology view — force-directed graph of cluster objects" width="49%" />
+  <img src="docs/screenshots/clusters.png" alt="Clusters view — hierarchical layout of namespaces and workloads" width="49%" />
+</p>
 
 ---
 
-## Overview
+## Why
 
-Porter Galaxy renders clusters of connected nodes in a force-directed graph canvas. Each node represents an entity (e.g. a service, a host, a workload) and edges represent relationships between them. The goal is to provide an intuitive, spatial way to explore complex topologies at a glance.
+`kubectl get` tells you *what* is in the cluster. Porter Galaxy shows you *how it all connects* — which Pods belong to which ReplicaSet, which Service selects which Deployment, where the dense regions are, and where the lonely dangling object lives. It runs in-cluster, refreshes in near real time, and renders the whole thing on a single canvas you can fly around.
 
-### Inspiration
+Two views, one model:
 
-Obsidian's graph view makes knowledge relationships instantly visual. Porter Galaxy applies the same principle to infrastructure or domain data: instead of notes linking to notes, you get services linking to services, hosts linking to workloads, or any domain model your backend feeds in.
+- **Topology** — every workload and its dependencies, force-laid-out so neighborhoods emerge naturally.
+- **Clusters** — hierarchical view (Namespace → Workload → Pod) for when you want structure instead of physics.
+
+---
+
+## Install
+
+### One-liner with Helm
+
+```bash
+helm repo add porter-galaxy https://charts.noeosorio.com
+helm repo update
+helm install galaxy porter-galaxy/porter-galaxy \
+  --namespace porter-galaxy --create-namespace
+```
+
+Then port-forward and open it:
+
+```bash
+kubectl port-forward svc/galaxy-porter-galaxy-frontend 8080:80 -n porter-galaxy
+open http://localhost:8080
+```
+
+### Expose it with an Ingress
+
+```bash
+helm upgrade galaxy porter-galaxy/porter-galaxy \
+  --namespace porter-galaxy --reuse-values \
+  --set ingress.enabled=true \
+  --set ingress.className=nginx \
+  --set ingress.host=galaxy.example.com
+```
+
+### Private GHCR images
+
+If your fork uses private container images, create a pull secret and pass it to the chart:
+
+```bash
+kubectl create secret docker-registry ghcr-creds \
+  --docker-server=ghcr.io --docker-username=YOUR_USER \
+  --docker-password=YOUR_PAT --namespace porter-galaxy
+
+helm upgrade galaxy porter-galaxy/porter-galaxy \
+  --namespace porter-galaxy --reuse-values \
+  --set 'imagePullSecrets[0].name=ghcr-creds'
+```
+
+Full deploy walkthrough: **[DEPLOY_MANUAL.md](DEPLOY_MANUAL.md)**.
+
+---
+
+## Local development
+
+```bash
+# 1. Frontend (Vite dev server, hot reload)
+cd frontend && npm install && npm run dev
+
+# 2. Backend (against your current kubeconfig context)
+cd backend && go run ./cmd/server
+```
+
+Or boot everything inside a local **kind** cluster with one command:
+
+```bash
+make up        # build images, load into kind, helm install the chart
+make open      # port-forward the frontend to http://localhost:8888
+make logs-backend
+```
+
+`make help` lists every target.
 
 ---
 
 ## Architecture
 
 ```
-porter-galaxy/
-├── backend/          # Go REST/WebSocket API server
-├── frontend/         # Go WebAssembly application + Tailwind CSS
-├── infra/
-│   └── nginx/        # Reverse proxy / static file server
-├── scripts/          # Build & utility scripts
-├── docker-compose.yml
-└── docker-compose.dev.yml
+                        ┌─────────────────────────────┐
+                        │  React 19 + Three.js (Vite) │
+                        │  Force-directed canvas      │
+                        └──────────────┬──────────────┘
+                                       │ /api/*  (nginx proxy)
+                        ┌──────────────▼──────────────┐
+                        │  Go backend (client-go)     │
+                        │  Watches Pods/Svcs/Deploys  │
+                        │  Builds nodes + edges       │
+                        └──────────────┬──────────────┘
+                                       │ Kubernetes API
+                                       ▼
+                              your live cluster
 ```
 
-### Backend (Go)
+| Layer        | Tech                                                        |
+| ------------ | ----------------------------------------------------------- |
+| Frontend     | React 19, TypeScript, Vite, Tailwind v4, Three.js (R3F)     |
+| Backend      | Go 1.22, `k8s.io/client-go` informers                       |
+| Distribution | Multi-stage Docker images on GHCR, Helm chart on Chart Museum |
+| RBAC         | ClusterRole + ClusterRoleBinding (read-only across the cluster) |
 
-- Serves graph data via a REST API and optionally over WebSockets for live updates
-- Owns the domain model: nodes, edges, clusters, and metadata
-- Organized around Clean Architecture layers (`cmd`, `internal`, `pkg`)
-
-### Frontend (Go → WebAssembly)
-
-- Written in Go and compiled to a `.wasm` binary targeting `GOOS=js GOARCH=wasm`
-- Renders the graph canvas using the browser's Canvas or WebGL API
-- Styled with **Tailwind CSS** for all UI chrome (panels, tooltips, controls)
-- Communicates with the backend over HTTP/WebSocket via the standard `syscall/js` bridge
-
-### Infrastructure
-
-- **nginx** serves the static frontend assets and proxies `/api` requests to the backend
-- Multi-stage Docker builds keep images lean
-- `docker-compose` orchestrates all services for both dev and production
+The backend uses informers to keep an in-memory graph in sync with cluster state, so the frontend gets fast, consistent reads without hitting the API server on every paint.
 
 ---
 
-## Tech Stack
-
-| Layer      | Technology              |
-|------------|-------------------------|
-| Backend    | Go 1.22+                |
-| Frontend   | Go (WASM) + Tailwind CSS |
-| CSS Build  | Node.js / PostCSS       |
-| Proxy      | nginx                   |
-| Container  | Docker + Compose        |
-
----
-
-## Project Structure
+## Repository layout
 
 ```
 porter-galaxy/
-├── README.md
-├── .env.example
-├── .gitignore
-├── Makefile
-├── docker-compose.yml          # Production compose
-├── docker-compose.dev.yml      # Dev compose (hot-reload friendly)
-│
-├── backend/
-│   ├── Dockerfile
-│   ├── Dockerfile.dev
-│   ├── go.mod
-│   ├── cmd/
-│   │   └── server/
-│   │       └── main.go         # Entry point — HTTP server bootstrap
-│   ├── internal/
-│   │   ├── api/                # HTTP handlers & route definitions
-│   │   ├── graph/              # Graph domain: nodes, edges, clusters
-│   │   └── store/              # Data access layer (in-memory / DB)
-│   └── pkg/                    # Exported, reusable packages
-│
-├── frontend/
-│   ├── Dockerfile
-│   ├── Dockerfile.dev
-│   ├── go.mod
-│   ├── package.json            # Node tooling for Tailwind build
-│   ├── tailwind.config.js
-│   ├── postcss.config.js
+├── backend/                 # Go API server
+│   ├── cmd/server/          # Entry point
+│   └── internal/
+│       ├── api/             # HTTP handlers
+│       ├── cluster/         # Cluster client wiring
+│       ├── informers/       # client-go informer setup
+│       ├── registry/        # Object registry → graph
+│       └── store/           # In-memory graph store
+├── frontend/                # React + Three.js app
 │   ├── src/
-│   │   ├── main.go             # WASM entry point
-│   │   └── styles/
-│   │       └── main.css        # Tailwind directives
-│   └── public/
-│       └── index.html          # Shell HTML that boots the WASM module
-│
-├── infra/
-│   └── nginx/
-│       ├── Dockerfile
-│       └── nginx.conf
-│
-└── scripts/
-    └── build.sh                # One-shot build script (WASM + CSS)
+│   │   ├── GalaxyGraph.tsx  # Canvas + state
+│   │   ├── Topology.tsx     # Force-directed view
+│   │   ├── Clusters.tsx     # Hierarchical view
+│   │   ├── components/      # HUD, legend, node detail
+│   │   └── lib/             # Pure graph + render helpers
+│   └── nginx.conf.template  # Serves static + proxies /api
+├── charts/porter-galaxy/    # Helm chart (deployments, svcs, ingress, RBAC)
+├── .github/workflows/       # publish.yml — tag-driven release
+├── Makefile                 # dev + release commands
+└── DEPLOY_MANUAL.md         # Full deploy / Chart Museum guide
 ```
 
 ---
 
-## Getting Started
+## Configuration
 
-### Prerequisites
+The chart's most useful values:
 
-- [Docker](https://docs.docker.com/get-docker/) & Docker Compose
-- [Go 1.22+](https://go.dev/dl/) (for local development)
-- [Node.js 20+](https://nodejs.org/) (for Tailwind CSS compilation)
+| Value                          | Default                                  | What it does                                |
+| ------------------------------ | ---------------------------------------- | ------------------------------------------- |
+| `backend.image.repository`     | `ghcr.io/noeosorio/porter-galaxy-backend`  | Backend image                               |
+| `frontend.image.repository`    | `ghcr.io/noeosorio/porter-galaxy-frontend` | Frontend image                              |
+| `*.image.tag`                  | `Chart.AppVersion`                       | Override per-release if needed              |
+| `imagePullSecrets`             | `[]`                                     | Secrets for private registries              |
+| `service.type`                 | `ClusterIP`                              | Set to `LoadBalancer` for a public IP       |
+| `ingress.enabled`              | `false`                                  | Toggle Ingress object                       |
+| `ingress.className`            | `""`                                     | e.g. `nginx`, `alb`                         |
+| `ingress.host`                 | `""`                                     | Public DNS name                             |
+| `ingress.tls`                  | `[]`                                     | Standard `tls:` block (cert-manager works)  |
+| `serviceAccount.create`        | `true`                                   | Backend RBAC needs a ServiceAccount         |
 
-### Run with Docker (recommended)
+Full default values: [`charts/porter-galaxy/values.yaml`](charts/porter-galaxy/values.yaml).
+
+---
+
+## Releasing
+
+> **Releases are tag-driven.** Pushing to `main` does not publish anything — the `Publish` workflow only fires on tags matching `v*.*.*`.
 
 ```bash
-# Copy environment config
-cp .env.example .env
-
-# Build and start all services
-docker compose up --build
+make release VERSION=1.1.0
+# equivalent to: git tag v1.1.0 && git push origin v1.1.0
 ```
 
-The app will be available at `http://localhost:8080`.
+CI then:
 
-### Run locally (development)
+1. Builds and pushes `ghcr.io/<owner>/porter-galaxy-{backend,frontend}:1.1.0`, `:1.1`, `:latest`.
+2. Rewrites `Chart.yaml` to pin `appVersion: v1.1.0`.
+3. Packages and pushes the chart to Chart Museum.
 
-```bash
-# 1. Start the backend
-make dev-backend
-
-# 2. Build the WASM binary and CSS, then serve the frontend
-make dev-frontend
-
-# 3. (Optional) watch for CSS changes
-make watch-css
-```
-
----
-
-## Makefile Targets
-
-| Target            | Description                                      |
-|-------------------|--------------------------------------------------|
-| `make build`      | Build all Docker images                          |
-| `make up`         | Start all services via docker compose            |
-| `make down`       | Stop all services                                |
-| `make dev-backend`| Run the Go backend with live reload              |
-| `make dev-frontend`| Build WASM + CSS and start a local file server  |
-| `make build-wasm` | Compile the Go frontend to `main.wasm`           |
-| `make build-css`  | Run Tailwind CSS build                           |
-| `make watch-css`  | Watch and rebuild CSS on change                  |
-| `make clean`      | Remove build artifacts                           |
-| `make test`       | Run all tests                                    |
-
----
-
-## Environment Variables
-
-See `.env.example` for all available configuration options.
-
-| Variable           | Default       | Description                        |
-|--------------------|---------------|------------------------------------|
-| `BACKEND_PORT`     | `4000`        | Port the Go API server listens on  |
-| `NGINX_PORT`       | `8080`        | Externally exposed port via nginx  |
-| `LOG_LEVEL`        | `info`        | Backend log verbosity              |
-
----
-
-## Graph Data Model
-
-> Full spec to be defined during implementation. Initial sketch:
-
-```
-Node {
-  id:       string       // Unique identifier
-  label:    string       // Display name
-  kind:     string       // Entity type (e.g. "service", "host")
-  metadata: map[string]any
-}
-
-Edge {
-  source:   string       // Node ID
-  target:   string       // Node ID
-  weight:   float64      // Optional edge strength
-  label:    string
-}
-
-Cluster {
-  id:       string
-  nodes:    []Node
-  edges:    []Edge
-}
-```
+Full flow including Chart Museum bootstrap: **[DEPLOY_MANUAL.md](DEPLOY_MANUAL.md)**.
 
 ---
 
 ## Roadmap
 
-- [ ] Backend: graph data model + in-memory store
-- [ ] Backend: REST API for CRUD operations on nodes/edges
-- [ ] Frontend: WASM canvas renderer with force-directed layout
-- [ ] Frontend: Node selection, hover tooltips, pan & zoom
-- [ ] Backend: WebSocket endpoint for live graph updates
-- [ ] Frontend: Live update subscription
-- [ ] UI: Search and filter controls
-- [ ] UI: Cluster grouping and color coding
-- [ ] Persistence: pluggable store (SQLite, Postgres)
-- [ ] Auth: optional JWT-based access control
+- [x] Force-directed canvas with Three.js
+- [x] Topology + Clusters views
+- [x] Helm chart + tag-driven CI
+- [x] In-cluster RBAC for read-only graph access
+- [ ] Live updates over WebSocket (currently polled)
+- [ ] Search / filter / namespace scoping in the UI
+- [ ] Node-detail side panel for any object kind
+- [ ] Export current view as PNG / share URL
+- [ ] Optional Go → WASM force simulation for large clusters
 
 ---
 
 ## Contributing
 
-1. Fork and clone the repo
-2. Create a feature branch: `git checkout -b feat/my-feature`
-3. Commit your changes following [Conventional Commits](https://www.conventionalcommits.org/)
-4. Open a pull request
+PRs welcome. Conventional Commits encouraged but not enforced.
+
+```bash
+git checkout -b feat/your-thing
+# hack hack hack
+git commit -m "feat: your thing"
+git push origin feat/your-thing
+gh pr create
+```
+
+If you're touching the chart, run `helm lint charts/porter-galaxy && make template` before pushing.
 
 ---
 
 ## License
 
-MIT
+[MIT](LICENSE) © Noé Osorio

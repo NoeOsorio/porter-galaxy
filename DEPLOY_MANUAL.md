@@ -70,9 +70,8 @@ helm repo add chartmuseum https://chartmuseum.github.io/charts
 helm repo update
 
 # Install Chart Museum
-helm install chartmuseum chartmuseum/chartmuseum \
-  --namespace chartmuseum \
-  --create-namespace \
+# Note: porter helm does not support --namespace/-n flags; use HELM_NAMESPACE env var instead
+HELM_NAMESPACE=default porter helm install chartmuseum chartmuseum/chartmuseum \
   --set env.open.STORAGE=local \
   --set env.open.DISABLE_API=false \
   --set env.open.ALLOW_OVERWRITE=true \

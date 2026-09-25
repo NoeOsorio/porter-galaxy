@@ -1,0 +1,27 @@
+"on":
+    push:
+        branches:
+            - main
+name: Deploy to backend
+jobs:
+    porter-deploy:
+        runs-on: ubuntu-latest
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v4
+            - name: Set Github tag
+              id: vars
+              run: echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+            - name: Setup porter
+              uses: porter-dev/setup-porter@v0.2.0
+            - name: Deploy stack
+              timeout-minutes: 30
+              run: porter apply
+              env:
+                PORTER_APP_NAME: backend
+                PORTER_CLUSTER: "1034"
+                PORTER_DEPLOYMENT_TARGET_ID: dc97dfce-8d58-4744-a44e-d378f634f730
+                PORTER_HOST: https://dashboard.internal-tools.porter.run
+                PORTER_PROJECT: "8"
+                PORTER_TAG: ${{ steps.vars.outputs.sha_short }}
+                PORTER_TOKEN: ${{ secrets.PORTER_APP_8_3607 }}

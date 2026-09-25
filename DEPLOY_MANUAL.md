@@ -8,118 +8,28 @@ This guide covers everything needed to go from source code to a publicly install
 
 ```
 GitHub Actions
-  ├── builds Docker images → GHCR (public image registry)
-  └── packages Helm chart  → Chart Museum (your cluster)
+  ├── builds Docker images → ghcr.io/noeosorio/porter-galaxy-{backend,frontend}
+  └── packages Helm chart  → oci://ghcr.io/noeosorio/charts/porter-galaxy
 
 Anyone installs with:
-  helm repo add porter-galaxy https://charts.noeosorio.com
-  helm install galaxy porter-galaxy/porter-galaxy
+  helm install galaxy oci://ghcr.io/noeosorio/charts/porter-galaxy
 ```
 
-**Chart Museum** is a small server that stores and serves Helm charts over HTTP. You run it once in your own Kubernetes cluster. After that, every `make release` pushes a new chart version to it automatically.
+Both the images and the chart live in **GitHub Container Registry (GHCR)**. Helm 3.8+ pulls charts from OCI registries directly, so there is no chart server to run, no domain to set up, and no `helm repo add` step.
 
 ---
 
 ## Prerequisites
 
-- A Kubernetes cluster with an nginx Ingress controller (Porter clusters have this by default)
+- A Kubernetes cluster (with an Ingress controller if you want a public hostname — Porter clusters have nginx by default)
 - `kubectl` configured to point to that cluster
-- `helm` v3 installed locally
-- A domain name you control (explained below)
-- Your GitHub repo's **Settings → Secrets → Actions** open in a browser tab
+- `helm` v3.8 or newer installed locally
+
+No extra GitHub secrets are needed: CI pushes images and the chart with the built-in `GITHUB_TOKEN`.
 
 ---
 
-## Part 1 — Get a domain for Chart Museum
-
-Chart Museum needs to be reachable over HTTPS so anyone can `helm repo add` it. You need a real domain pointing to your cluster's load balancer.
-
-### Step 1a — Find your cluster's external IP
-
-```bash
-kubectl get svc -A | grep LoadBalancer
-```
-
-Look for the `EXTERNAL-IP` column — it will be an IP address or a hostname (AWS gives a hostname, GCP/Azure/DigitalOcean give an IP). Copy it.
-
-If you see `<pending>`, your cluster doesn't have a cloud load balancer provisioned yet. On Porter this is usually already set up.
-
-### Step 1b — Set up a DNS record
-
-Go to wherever your domain's DNS is managed (Cloudflare, Route 53, GoDaddy, Namecheap, etc.) and create:
-
-
-| Type | Name     | Value              |
-| ---- | -------- | ------------------ |
-| `A`  | `charts` | `YOUR_EXTERNAL_IP` |
-
-
-> If your load balancer gives a **hostname** instead of an IP (common on AWS), create a `CNAME` record instead of an `A` record.
-
-This makes `charts.noeosorio.com` resolve to your cluster. Within a few minutes (up to 24h depending on your registrar), the domain is live.
-
-**Don't have a domain yet?** The cheapest option is to buy one from Namecheap (~$1/year for `.xyz`) or use a free subdomain service like `nip.io` for testing: `charts.YOUR_IP.nip.io` works immediately with no DNS config.
-
----
-
-## Part 2 — Install Chart Museum in your cluster (one-time setup)
-
-This is a standard `helm install` — same as installing any other tool.
-
-```bash
-# Add the Chart Museum Helm repo
-porter helm -- repo add chartmuseum https://chartmuseum.github.io/charts
-porter helm -- repo update
-
-# Install Chart Museum
-# The -- separator tells the Porter CLI to pass everything after it directly to helm
-porter helm -- install chartmuseum chartmuseum/chartmuseum \
-  --namespace default \
-  --set env.open.STORAGE=local \
-  --set env.open.DISABLE_API=false \
-  --set env.open.ALLOW_OVERWRITE=true \
-  --set env.secret.BASIC_AUTH_USER=admin \
-  --set env.secret.BASIC_AUTH_PASS=CHANGE_ME \
-  --set persistence.enabled=true \
-  --set persistence.size=5Gi \
-  --set ingress.enabled=true \
-  --set 'ingress.hosts[0].name=charts.noeosorio.com' \
-  --set 'ingress.hosts[0].path=/'
-```
-
-Replace `charts.noeosorio.com` and `CHANGE_ME` with your actual values.
-
-**Verify it's running:**
-
-```bash
-kubectl get pods -n chartmuseum
-# Should show chartmuseum pod as Running
-
-curl https://charts.noeosorio.com/index.yaml
-# Should return an empty chart index (YAML with no entries yet)
-```
-
----
-
-## Part 3 — Add GitHub secrets
-
-These are used by the CI workflow to push images and the chart automatically.
-
-Go to your GitHub repo → **Settings → Secrets and variables → Actions → New repository secret** and add:
-
-
-| Secret name        | Value                           |
-| ------------------ | ------------------------------- |
-| `CHARTMUSEUM_URL`  | `https://charts.noeosorio.com` |
-| `CHARTMUSEUM_USER` | `admin` (or what you set above) |
-| `CHARTMUSEUM_PASS` | the password you set above      |
-
-
-`GITHUB_TOKEN` is provided automatically by GitHub — you don't need to add it.
-
----
-
-## Part 4 — Ship your first release
+## Part 1 — Ship your first release
 
 > **TL;DR — pushing code does NOT publish anything.**
 > The CI workflow (`.github/workflows/publish.yml`) only runs on **git tags matching `v*.*.*`**. Merging to `main` does nothing on its own. You ship by tagging.
@@ -133,43 +43,58 @@ make release VERSION=1.0.0
 What it does under the hood:
 
 1. Bumps `version` and `appVersion` in `charts/porter-galaxy/Chart.yaml`
-2. Creates a `v1.0.0` git commit and tag
+2. Creates a release commit and a `v1.0.0` tag
 3. Pushes both to GitHub
 
 GitHub Actions then takes over and:
 
-1. Builds `ghcr.io/noeosorio/porter-galaxy-backend:v1.0.0` and pushes to GHCR
-2. Builds `ghcr.io/noeosorio/porter-galaxy-frontend:v1.0.0` and pushes to GHCR
-3. Packages the Helm chart and pushes `porter-galaxy-1.0.0.tgz` to Chart Museum
+1. Builds `ghcr.io/noeosorio/porter-galaxy-backend:1.0.0` (plus `:1.0` and `:latest`) and pushes to GHCR
+2. Builds `ghcr.io/noeosorio/porter-galaxy-frontend:1.0.0` (same tags) and pushes to GHCR
+3. Packages the Helm chart and pushes it to `oci://ghcr.io/noeosorio/charts/porter-galaxy` as version `1.0.0`
 
 You can watch it run at: `https://github.com/noeosorio/porter-galaxy/actions`
 
-When the workflow is green, the chart is live at `https://charts.noeosorio.com`.
+---
+
+## Part 2 — Make the packages public (one-time)
+
+GHCR creates every new package as **private**, even for public repos. Until you change that, anonymous `helm install` fails with `401`/`403`, and so does Porter's custom Helm chart add-on (it pulls without credentials).
+
+After the first release, go to **GitHub → your profile → Packages** and for each of:
+
+- `charts/porter-galaxy`
+- `porter-galaxy-backend`
+- `porter-galaxy-frontend`
+
+open **Package settings → Change visibility → Public**. Later releases keep the visibility.
+
+Verify from a machine that isn't logged in to GHCR:
+
+```bash
+helm show chart oci://ghcr.io/noeosorio/charts/porter-galaxy --version 1.0.0
+```
 
 ---
 
-## Part 5 — Install the chart in any cluster
+## Part 3 — Install the chart in any cluster
 
 Once published, anyone (including you) installs it like this:
 
 ```bash
-# Register your Chart Museum as a Helm repo (once per machine)
-helm repo add porter-galaxy https://charts.noeosorio.com
-helm repo update
-
-# Install
-helm install galaxy porter-galaxy/porter-galaxy \
+helm install galaxy oci://ghcr.io/noeosorio/charts/porter-galaxy \
+  --version 1.0.0 \
   --namespace porter-galaxy \
   --create-namespace \
   --set ingress.enabled=true \
   --set ingress.host=galaxy.theirdomain.com
 ```
 
-Or using the Makefile (after setting `CHARTMUSEUM_REMOTE`):
+Leave out `--version` to get the latest release.
+
+Or using the Makefile:
 
 ```bash
-make chart-repo-add CHARTMUSEUM_REMOTE=https://charts.noeosorio.com
-make install-prod INGRESS_HOST=galaxy.theirdomain.com
+make install-prod INGRESS_HOST=galaxy.theirdomain.com NAMESPACE=porter-galaxy
 ```
 
 **Access without an Ingress (port-forward):**
@@ -179,12 +104,24 @@ kubectl port-forward svc/galaxy-porter-galaxy-frontend 8080:80 -n porter-galaxy
 # Open http://localhost:8080
 ```
 
+### Installing as a Porter add-on
+
+In the Porter dashboard, go to **Add-ons → Custom Helm chart** and fill in:
+
+| Field                 | Value                             |
+| --------------------- | --------------------------------- |
+| Helm Repository URL   | `oci://ghcr.io/noeosorio/charts`  |
+| Chart Name            | `porter-galaxy`                   |
+| Chart Version         | `1.0.0` (no leading `v`)          |
+
+Porter downloads the chart from its own backend, not from your cluster, and without credentials — so the package must be public (Part 2).
+
 ---
 
-## Part 6 — How to update the chart
+## Part 4 — How to update the chart
 
 > **Releases are tag-driven, not push-driven.**
-> Pushing to `main` does **not** rebuild images or publish a new chart version. The `Publish` workflow only fires when you push a `v*.*.*` git tag. Use `make release VERSION=X.Y.Z` (or `git tag vX.Y.Z && git push origin vX.Y.Z` if you want to skip the Makefile). Without a tag, GHCR and Chart Museum stay on the previous version forever.
+> Pushing to `main` does **not** rebuild images or publish a new chart version. The `Publish` workflow only fires when you push a `v*.*.*` git tag. Use `make release VERSION=X.Y.Z` (or `git tag vX.Y.Z && git push origin vX.Y.Z` if you want to skip the Makefile). Without a tag, GHCR stays on the previous version forever.
 
 ### For a new release (code change or new feature):
 
@@ -200,17 +137,15 @@ git tag v1.1.0
 git push origin v1.1.0
 ```
 
-That's it. CI builds new images, pushes a new chart version. Then upgrade any running install:
+Then upgrade any running install:
 
 ```bash
-# Pull the updated chart index
-helm repo update
-
 # Upgrade (picks up new images automatically via appVersion)
-helm upgrade galaxy porter-galaxy/porter-galaxy --namespace porter-galaxy --reuse-values
+helm upgrade galaxy oci://ghcr.io/noeosorio/charts/porter-galaxy \
+  --version 1.1.0 --namespace porter-galaxy --reuse-values
 
 # Or with the Makefile:
-make upgrade-prod VERSION=1.1.0
+make upgrade-prod VERSION=1.1.0 NAMESPACE=porter-galaxy
 ```
 
 ### For a config-only change (no code change):
@@ -218,7 +153,7 @@ make upgrade-prod VERSION=1.1.0
 If you just want to change a value (e.g., enable ingress, change resource limits) without cutting a new release:
 
 ```bash
-helm upgrade galaxy porter-galaxy/porter-galaxy \
+helm upgrade galaxy oci://ghcr.io/noeosorio/charts/porter-galaxy \
   --namespace porter-galaxy \
   --reuse-values \
   --set ingress.enabled=true \
@@ -229,14 +164,14 @@ helm upgrade galaxy porter-galaxy/porter-galaxy \
 
 ```
 Chart.yaml
-  version: 1.1.0     ← the chart version (tracks Chart Museum)
-  appVersion: v1.1.0 ← becomes the Docker image tag
+  version: 1.1.0     ← the chart version (the OCI tag in GHCR)
+  appVersion: 1.1.0  ← becomes the Docker image tag
 
 Deployment uses:
-  image: ghcr.io/noeosorio/porter-galaxy-backend:v1.1.0
+  image: ghcr.io/noeosorio/porter-galaxy-backend:1.1.0
 ```
 
-`make release VERSION=1.1.0` updates both. You never touch image tags manually.
+CI sets both from the git tag (`v1.1.0` → `1.1.0`). You never touch image tags manually.
 
 ---
 
@@ -272,30 +207,32 @@ make logs-backend
 make logs-frontend
 
 # Preview what a helm upgrade would change (dry run)
-helm diff upgrade galaxy porter-galaxy/porter-galaxy --reuse-values
+helm diff upgrade galaxy oci://ghcr.io/noeosorio/charts/porter-galaxy --reuse-values
 # (requires: helm plugin install https://github.com/databus23/helm-diff)
 
-# See all chart versions available in Chart Museum
-helm search repo porter-galaxy --versions
+# Inspect a published chart version
+helm show chart oci://ghcr.io/noeosorio/charts/porter-galaxy --version 1.1.0
 ```
+
+Published chart versions are listed on the package page: `https://github.com/noeosorio/porter-galaxy/pkgs/container/charts%2Fporter-galaxy`.
 
 ---
 
 ## Troubleshooting
 
-**Pods stuck in `ImagePullBackOff`**
-The GHCR images are public by default for public repos. If your repo is private, you need to create an `imagePullSecret`. Check: `kubectl describe pod <pod-name> -n porter-galaxy`.
+**`helm install` or Porter says the chart is not found / `401` / `403`**
+The chart package is still private. Make it public (Part 2). To pull a private chart with Helm, log in first: `echo $GITHUB_PAT | helm registry login ghcr.io -u YOUR_USER --password-stdin`. Porter add-ons can't use credentials.
 
-**Chart Museum returns 401**
-You're hitting the basic auth. All `curl` pushes and `helm repo add` calls need credentials:
+**Pods stuck in `ImagePullBackOff`**
+The image packages are private, or the tag doesn't exist. Check `kubectl describe pod <pod-name> -n porter-galaxy`. Either make the images public or create an `imagePullSecret` (see the README).
+
+**A release tag didn't publish a new chart**
+The chart push in CI may have failed. Check GitHub Actions logs. You can also push manually:
 
 ```bash
-helm repo add porter-galaxy https://charts.noeosorio.com \
-  --username admin --password YOURPASS
+echo $GITHUB_PAT | helm registry login ghcr.io -u YOUR_USER --password-stdin   # PAT with write:packages
+make chart-push
 ```
-
-`**helm repo update` shows no new versions**
-The chart push in CI may have failed. Check GitHub Actions logs. You can also push manually: `make chart-push-remote CHARTMUSEUM_PASS=yourpass`.
 
 **Backend pods crash on startup**
 The backend needs RBAC access to list Kubernetes resources. The chart creates a `ClusterRole` and `ClusterRoleBinding` automatically — check they exist:
@@ -303,4 +240,3 @@ The backend needs RBAC access to list Kubernetes resources. The chart creates a 
 ```bash
 kubectl get clusterrole,clusterrolebinding | grep porter-galaxy
 ```
-

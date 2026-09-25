@@ -8,7 +8,7 @@ A force-directed graph view of every Pod, Service, Deployment, and the relations
 
 [![Release](https://img.shields.io/github/v/tag/NoeOsorio/porter-galaxy?label=release&sort=semver)](https://github.com/NoeOsorio/porter-galaxy/releases)
 [![CI](https://github.com/NoeOsorio/porter-galaxy/actions/workflows/publish.yml/badge.svg)](https://github.com/NoeOsorio/porter-galaxy/actions/workflows/publish.yml)
-[![Helm](https://img.shields.io/badge/helm-chart-0F1689?logo=helm&logoColor=white)](https://charts.noeosorio.com)
+[![Helm](https://img.shields.io/badge/helm-chart-0F1689?logo=helm&logoColor=white)](https://github.com/noeosorio/porter-galaxy/pkgs/container/charts%2Fporter-galaxy)
 [![Backend image](https://img.shields.io/badge/ghcr.io-porter--galaxy--backend-2188ff?logo=docker&logoColor=white)](https://github.com/NoeOsorio/porter-galaxy/pkgs/container/porter-galaxy-backend)
 [![Frontend image](https://img.shields.io/badge/ghcr.io-porter--galaxy--frontend-2188ff?logo=docker&logoColor=white)](https://github.com/NoeOsorio/porter-galaxy/pkgs/container/porter-galaxy-frontend)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
@@ -38,9 +38,7 @@ Two views, one model:
 ### One-liner with Helm
 
 ```bash
-helm repo add porter-galaxy https://charts.noeosorio.com
-helm repo update
-helm install galaxy porter-galaxy/porter-galaxy \
+helm install galaxy oci://ghcr.io/noeosorio/charts/porter-galaxy \
   --namespace porter-galaxy --create-namespace
 ```
 
@@ -54,7 +52,7 @@ open http://localhost:8080
 ### Expose it with an Ingress
 
 ```bash
-helm upgrade galaxy porter-galaxy/porter-galaxy \
+helm upgrade galaxy oci://ghcr.io/noeosorio/charts/porter-galaxy \
   --namespace porter-galaxy --reuse-values \
   --set ingress.enabled=true \
   --set ingress.className=nginx \
@@ -70,7 +68,7 @@ kubectl create secret docker-registry ghcr-creds \
   --docker-server=ghcr.io --docker-username=YOUR_USER \
   --docker-password=YOUR_PAT --namespace porter-galaxy
 
-helm upgrade galaxy porter-galaxy/porter-galaxy \
+helm upgrade galaxy oci://ghcr.io/noeosorio/charts/porter-galaxy \
   --namespace porter-galaxy --reuse-values \
   --set 'imagePullSecrets[0].name=ghcr-creds'
 ```
@@ -123,7 +121,7 @@ make logs-backend
 | ------------ | ----------------------------------------------------------- |
 | Frontend     | React 19, TypeScript, Vite, Tailwind v4, Three.js (R3F)     |
 | Backend      | Go 1.22, `k8s.io/client-go` informers                       |
-| Distribution | Multi-stage Docker images on GHCR, Helm chart on Chart Museum |
+| Distribution | Multi-stage Docker images on GHCR, Helm chart as OCI on GHCR |
 | RBAC         | ClusterRole + ClusterRoleBinding (read-only across the cluster) |
 
 The backend uses informers to keep an in-memory graph in sync with cluster state, so the frontend gets fast, consistent reads without hitting the API server on every paint.
@@ -153,7 +151,7 @@ porter-galaxy/
 ├── charts/porter-galaxy/    # Helm chart (deployments, svcs, ingress, RBAC)
 ├── .github/workflows/       # publish.yml — tag-driven release
 ├── Makefile                 # dev + release commands
-└── DEPLOY_MANUAL.md         # Full deploy / Chart Museum guide
+└── DEPLOY_MANUAL.md         # Full deploy guide
 ```
 
 ---
@@ -191,10 +189,12 @@ make release VERSION=1.1.0
 CI then:
 
 1. Builds and pushes `ghcr.io/<owner>/porter-galaxy-{backend,frontend}:1.1.0`, `:1.1`, `:latest`.
-2. Rewrites `Chart.yaml` to pin `appVersion: v1.1.0`.
-3. Packages and pushes the chart to Chart Museum.
+2. Rewrites `Chart.yaml` to pin `appVersion: 1.1.0` (matches the image tag).
+3. Packages the chart and pushes it to `oci://ghcr.io/<owner>/charts/porter-galaxy`.
 
-Full flow including Chart Museum bootstrap: **[DEPLOY_MANUAL.md](DEPLOY_MANUAL.md)**.
+GHCR creates new packages as private. After the first release, set the `charts/porter-galaxy` package (and both images) to **Public** in GitHub → Packages, or anonymous `helm install` and Porter add-ons can't pull them.
+
+Full flow: **[DEPLOY_MANUAL.md](DEPLOY_MANUAL.md)**.
 
 ---
 

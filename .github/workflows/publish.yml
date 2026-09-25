@@ -73,10 +73,13 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
 
-  # ── Package chart and push to Chart Museum ──────────────────────────────────
+  # ── Package chart and push to GHCR as an OCI artifact ─────────────────────
   publish-chart:
     runs-on: ubuntu-latest
     needs: [build-backend, build-frontend]
+    permissions:
+      contents: read
+      packages: write
     steps:
       - uses: actions/checkout@v4
 
@@ -90,14 +93,14 @@ jobs:
       - name: Update Chart.yaml versions
         run: |
           sed -i "s/^version:.*/version: ${{ steps.version.outputs.version }}/" charts/porter-galaxy/Chart.yaml
-          sed -i "s/^appVersion:.*/appVersion: \"${{ github.ref_name }}\"/" charts/porter-galaxy/Chart.yaml
+          sed -i "s/^appVersion:.*/appVersion: \"${{ steps.version.outputs.version }}\"/" charts/porter-galaxy/Chart.yaml
 
       - name: Package chart
         run: helm package ./charts/porter-galaxy
 
-      - name: Push chart to Chart Museum
-        run: |
-          curl --silent --show-error --fail \
-            --user "${{ secrets.CHARTMUSEUM_USER }}:${{ secrets.CHARTMUSEUM_PASS }}" \
-            --data-binary @porter-galaxy-${{ steps.version.outputs.version }}.tgz \
-            "${{ secrets.CHARTMUSEUM_URL }}/api/charts"
+      - name: Log in to GHCR
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | helm registry login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+      # OCI references must be lowercase; repository_owner keeps the GitHub casing.
+      - name: Push chart to GHCR
+        run: helm push porter-galaxy-${{ steps.version.outputs.version }}.tgz "oci://ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/charts"

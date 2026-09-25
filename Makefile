@@ -6,11 +6,8 @@ CHART        := ./charts/porter-galaxy
 BACKEND_IMG  := porter-galaxy-backend:local
 FRONTEND_IMG := porter-galaxy-frontend:local
 
-# Remote Chart Museum — set via env or override: make chart-push-remote CHARTMUSEUM_REMOTE=https://...
-CHARTMUSEUM_LOCAL   := http://localhost:8080
-CHARTMUSEUM_REMOTE  ?= https://charts.noeosorio.com
-CHARTMUSEUM_USER    ?= admin
-CHARTMUSEUM_PASS    ?=
+CHART_REGISTRY ?= oci://ghcr.io/noeosorio/charts
+CHART_REF      := $(CHART_REGISTRY)/porter-galaxy
 
 # Helm flags for local dev (uses locally built images)
 HELM_LOCAL := \
@@ -111,14 +108,13 @@ logs-frontend: ## Stream frontend (nginx) logs
 #   make install-prod INGRESS_HOST=galaxy.yourdomain.com
 #   make install-prod INGRESS_HOST=galaxy.yourdomain.com INGRESS_CLASS=nginx
 .PHONY: install-prod
-install-prod: ## Install the chart from Chart Museum into the current cluster context
+install-prod: ## Install the chart from GHCR (OCI) into the current cluster context
 	@if [ -z "$(INGRESS_HOST)" ]; then \
 		echo "Error: INGRESS_HOST is required."; \
 		echo "Usage: make install-prod INGRESS_HOST=galaxy.yourdomain.com"; \
 		exit 1; \
 	fi
-	helm repo update
-	helm install $(RELEASE) porter-galaxy/porter-galaxy \
+	helm install $(RELEASE) $(CHART_REF) \
 		--namespace $(NAMESPACE) \
 		--create-namespace \
 		--set ingress.enabled=true \
@@ -126,12 +122,11 @@ install-prod: ## Install the chart from Chart Museum into the current cluster co
 		$(if $(INGRESS_CLASS),--set ingress.className=$(INGRESS_CLASS),)
 
 # Usage:
-#   make upgrade-prod VERSION=v1.2.0
+#   make upgrade-prod VERSION=1.2.0
 #   make upgrade-prod            ← re-applies current chart version
 .PHONY: upgrade-prod
 upgrade-prod: ## Upgrade the production release to a new chart version
-	helm repo update
-	helm upgrade $(RELEASE) porter-galaxy/porter-galaxy \
+	helm upgrade $(RELEASE) $(CHART_REF) \
 		--namespace $(NAMESPACE) \
 		--reuse-values \
 		$(if $(VERSION),--version $(VERSION),)
@@ -153,7 +148,7 @@ release: ## Tag a new release (triggers CI to build images + publish chart)
 	@echo "→ Bumping chart version to $(VERSION)..."
 	@sed -i '' \
 		-e "s/^version:.*/version: $(VERSION)/" \
-		-e "s/^appVersion:.*/appVersion: \"v$(VERSION)\"/" \
+		-e "s/^appVersion:.*/appVersion: \"$(VERSION)\"/" \
 		$(CHART)/Chart.yaml
 	@git add $(CHART)/Chart.yaml
 	@git commit -m "chore: release v$(VERSION)"
@@ -163,63 +158,17 @@ release: ## Tag a new release (triggers CI to build images + publish chart)
 	@echo "Tag v$(VERSION) pushed — CI will build images and publish the chart."
 	@echo "Watch: https://github.com/noeosorio/porter-galaxy/actions"
 
-# ── Chart Museum targets ──────────────────────────────────────────────────────
+# ── Chart registry (OCI on GHCR) ──────────────────────────────────────────────
 
 .PHONY: chart-package
 chart-package: ## Package the chart into a .tgz
 	helm package $(CHART)
 
+# Requires a prior `helm registry login ghcr.io` with a token that has write:packages.
 .PHONY: chart-push
-chart-push: chart-package ## Push chart to local Chart Museum (localhost:8080)
-	@echo "→ Pushing chart to local Chart Museum..."
+chart-push: chart-package ## Push the packaged chart to $(CHART_REGISTRY)
 	@CHART_TGZ=$$(ls porter-galaxy-*.tgz | sort -V | tail -1); \
-	curl --silent --show-error --fail \
-		--data-binary @$$CHART_TGZ \
-		$(CHARTMUSEUM_LOCAL)/api/charts && echo "Pushed $$CHART_TGZ"
-
-.PHONY: chart-push-remote
-chart-push-remote: chart-package ## Push chart to remote Chart Museum in cluster
-	@if [ -z "$(CHARTMUSEUM_PASS)" ]; then \
-		echo "Error: CHARTMUSEUM_PASS is required."; \
-		echo "Usage: make chart-push-remote CHARTMUSEUM_PASS=yourpassword"; \
-		exit 1; \
-	fi
-	@echo "→ Pushing chart to $(CHARTMUSEUM_REMOTE)..."
-	@CHART_TGZ=$$(ls porter-galaxy-*.tgz | sort -V | tail -1); \
-	curl --silent --show-error --fail \
-		--user "$(CHARTMUSEUM_USER):$(CHARTMUSEUM_PASS)" \
-		--data-binary @$$CHART_TGZ \
-		$(CHARTMUSEUM_REMOTE)/api/charts && echo "Pushed $$CHART_TGZ"
-
-.PHONY: chart-repo-add-local
-chart-repo-add-local: ## Register local Chart Museum as 'local-charts' helm repo
-	helm repo add local-charts $(CHARTMUSEUM_LOCAL)
-	helm repo update
-
-.PHONY: chart-repo-add
-chart-repo-add: ## Register the remote Chart Museum as 'porter-galaxy' helm repo
-	@if [ "$(CHARTMUSEUM_REMOTE)" = "https://charts.YOUR_DOMAIN" ]; then \
-		echo "Error: Set CHARTMUSEUM_REMOTE first."; \
-		echo "Usage: make chart-repo-add CHARTMUSEUM_REMOTE=https://charts.yourdomain.com"; \
-		exit 1; \
-	fi
-	helm repo add porter-galaxy $(CHARTMUSEUM_REMOTE)
-	helm repo update
-
-.PHONY: chartmuseum-start
-chartmuseum-start: ## Start a local Chart Museum on port 8080
-	@mkdir -p chartstorage
-	docker run -d --name chartmuseum -p 8080:8080 \
-		-e DEBUG=true \
-		-e STORAGE=local \
-		-e STORAGE_LOCAL_ROOTDIR=/charts \
-		-v $(PWD)/chartstorage:/charts \
-		ghcr.io/helm/chartmuseum:latest
-	@echo "Chart Museum running at $(CHARTMUSEUM_LOCAL)"
-
-.PHONY: chartmuseum-stop
-chartmuseum-stop: ## Stop and remove the local Chart Museum container
-	docker rm -f chartmuseum
+	helm push $$CHART_TGZ $(CHART_REGISTRY)
 
 # ── Validation ────────────────────────────────────────────────────────────────
 
@@ -246,13 +195,11 @@ help: ## Show this help
 	@echo ""
 	@echo "Production:"
 	@echo "  make release VERSION=1.2.0       Tag + push → triggers CI"
-	@echo "  make install-prod INGRESS_HOST=… Install from Chart Museum in any cluster"
+	@echo "  make install-prod INGRESS_HOST=… Install from GHCR (OCI) in any cluster"
 	@echo "  make upgrade-prod [VERSION=…]    Upgrade prod release"
 	@echo ""
-	@echo "Chart Museum:"
-	@echo "  make chart-push                  Push to local Chart Museum"
-	@echo "  make chart-push-remote           Push to cluster Chart Museum"
-	@echo "  make chart-repo-add              Register remote CM as helm repo"
+	@echo "Chart registry:"
+	@echo "  make chart-push                  Package + push chart to GHCR (OCI)"
 	@echo ""
 	@echo "All targets:"
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \

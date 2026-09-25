@@ -1,0 +1,130 @@
+---
+description: "Task list for 001 Truthful Graph and Usable Camera"
+---
+
+# Tasks: Truthful Graph and Usable Camera
+
+**Input**: Design documents from `/specs/001-truthful-graph-and-camera/`
+
+**Prerequisites**: plan.md, spec.md, research.md, data-model.md, contracts/snapshot.md, quickstart.md
+
+**Tests**: None. Per the constitution (Principle II), verification is the build gates plus
+[quickstart.md](quickstart.md) on the deployed add-on.
+
+**Organization**: One phase per user story; each phase is one PR and one release.
+
+## Format: `[ID] [P?] [Story] Description`
+
+- **[P]**: Can run in parallel (different files, no dependencies)
+- **[Story]**: Which user story this task belongs to (US1, US2, US3)
+
+---
+
+## Phase 1: Setup
+
+**Purpose**: Clean working tree so builds and diffs only show real changes
+
+- [ ] T001 Delete untracked artifacts `porter-galaxy-0.1.0.tgz`, `frontend/dist/`, `frontend/.vite/` and add `frontend/.vite/` to `frontend/.gitignore`
+
+---
+
+## Phase 2: Foundational
+
+**Purpose**: Shared identity and state helpers that every story uses
+
+- [ ] T002 [P] Add `ObjectKey` helpers (`key(kind, ns, name)`, cluster-scoped `_` namespace) and the `State` type in `backend/internal/cluster/keys.go` per data-model.md
+- [ ] T003 [P] Add matching `objectKey`, `parseKey`, `State`, and `STATE_COLORS` (one color per state) in `frontend/src/lib/objectKey.ts`
+- [ ] T004 Add `key`, `state`, `owner`, and `loadBalancers` fields to the snapshot types in `backend/internal/cluster/types.go` and `frontend/src/types/api.ts` per contracts/snapshot.md
+
+**Checkpoint**: Both sides compile with the new fields present but unused
+
+---
+
+## Phase 3: User Story 1 - The graph shows what is really in the cluster (P1) 🎯 MVP · release 0.3.0
+
+**Goal**: Every Deployment and Pod appears once, correctly named, owned, and colored.
+
+**Independent Test**: quickstart.md §1
+
+### Backend
+
+- [ ] T005 [US1] Add a ReplicaSet informer with a `SetTransform` that keeps name, namespace, and owner references in `backend/internal/informers/manager.go`, and a `ListReplicaSets`/`GetReplicaSet` lister in `backend/internal/store/store.go`
+- [ ] T006 [P] [US1] Add `replicasets` (apps) get/list/watch to `charts/porter-galaxy/templates/clusterrole.yaml`
+- [ ] T007 [US1] Resolve Pod owner through owner references (Pod → ReplicaSet → Deployment; other controllers keep their kind; none → `standalone`) and derive `controllerId` from it in `backend/internal/cluster/builder.go` (replaces the selector loop at lines 115-143)
+- [ ] T008 [US1] Compute `state` for nodes, pods, and deployments per data-model.md State table in `backend/internal/cluster/builder.go`
+- [ ] T009 [US1] Emit ObjectKeys for every object and for every `topology` link endpoint (pods now `pod/<ns>/<name>`), and emit `loadBalancers` with `displayName` = Service `namespace/name` and `address` = external hostname or IP in `backend/internal/cluster/builder.go`
+- [ ] T010 [US1] Add `GET /readyz` returning 503 until every cluster's `WaitForCacheSync` succeeded in `backend/internal/api/handler.go`, exposing a synced flag from `backend/internal/informers/manager.go` and wiring it in `backend/cmd/server/main.go`
+- [ ] T011 [P] [US1] Point `readinessProbe` at `/readyz` in `charts/porter-galaxy/templates/backend-deployment.yaml`
+
+### Frontend
+
+- [ ] T012 [US1] Rebuild `frontend/src/lib/transformTopology.ts` on ObjectKeys: Services link to Deployments through their Pods' `owner` (drop the name-equality check at lines 197-203), keep Pods without Deployments as standalone, label LBs from `loadBalancers[].displayName`, and take colors from `STATE_COLORS`
+- [ ] T013 [US1] Rebuild `frontend/src/lib/transformClusters.ts` on ObjectKeys: one node per Deployment with links to each Node running its Pods, keep standalone Pods, colors from `STATE_COLORS`
+- [ ] T014 [US1] Replace color-based error detection and string state checks with `state` in `frontend/src/Topology.tsx` and `frontend/src/Clusters.tsx` (e.g. `Topology.tsx:76`), and show namespace and LB `address` in the detail panels
+- [ ] T015 [US1] Run the gates, open PR `001-truthful-graph-and-camera-us1`, merge, `make release VERSION=0.3.0`, upgrade the Porter add-on, and walk quickstart.md §1
+
+**Checkpoint**: Counts in Galaxy equal `kubectl` counts on `porter-gloom-dev` (SC-001)
+
+---
+
+## Phase 4: User Story 2 - The app loads fast and never breaks when switching views (P2) · release 0.4.0
+
+**Goal**: One canvas, one stream, visible loading and connection state, compressed and smaller bundle.
+
+**Independent Test**: quickstart.md §2
+
+- [ ] T016 [US2] Delete the unused views and everything only they import: `frontend/src/GalaxyGraph.tsx`, `K8sGalaxy.tsx`, `ClusterExplorer.tsx`, `K8sMolecule.tsx`, `components/three/{GalaxyScene,K8sScene,K8sMoleculeScene,ClusterScene}.tsx`, `components/{HUD,NodeDetail,ClusterLegend}.tsx`, `lib/{graph,k8sGraph,k8sMoleculeGraph,clusterData,transformApiToMolecule,transformClusterData}.ts`, `hooks/useClusters.ts`, and unused `types/*`; confirm with `npm run build`
+- [ ] T017 [US2] Remove the React Query provider from `frontend/src/main.tsx` and uninstall `@tanstack/react-query` (and `framer-motion` if T016 left no users) from `frontend/package.json`
+- [ ] T018 [US2] Make `frontend/src/hooks/useClustersSSE.ts` expose `{ snapshot, connection: 'connecting'|'live'|'reconnecting'|'offline', lastUpdate }`, switching to `offline` after 30 s without a successful reconnect
+- [ ] T019 [US2] Move the single `<Canvas>` and the single `useClustersSSE` call into `frontend/src/App.tsx`; turn `Topology.tsx` and `Clusters.tsx` into overlay + scene pairs that receive the snapshot as props and render inside the shared Canvas
+- [ ] T020 [P] [US2] Add a loading screen (shown until the first snapshot) and a connection indicator (live / reconnecting / offline + last update time) in `frontend/src/components/ConnectionStatus.tsx`, and remove the old error overlay in `Topology.tsx` and `Clusters.tsx`
+- [ ] T021 [P] [US2] Enable `gzip on` for JS, CSS, JSON, and SVG with `gzip_min_length 1024` in `frontend/nginx.conf.template`, leaving the `/api/` SSE location uncompressed
+- [ ] T022 [US2] Run the gates, open PR `001-truthful-graph-and-camera-us2`, merge, `make release VERSION=0.4.0`, upgrade the add-on, and walk quickstart.md §2
+
+**Checkpoint**: ≤ 685 KB compressed JS, 0 context-lost messages over 10 switches (SC-003, SC-004)
+
+---
+
+## Phase 5: User Story 3 - The camera frames and follows what I care about (P3) · release 0.5.0
+
+**Goal**: Framed on load and reset, interruptible fly-to on click and search, useful zoom, round nodes.
+
+**Independent Test**: quickstart.md §3
+
+- [ ] T023 [US3] Create `frontend/src/components/CameraRig.tsx` around drei `CameraControls`: `frame(keys?)` fits the bounding box of the given (or all visible) nodes with padding, `flyTo(key)` centers a node and its neighbors via `setLookAt(..., true)`, distance limits derived from the graph's bounding radius, `R` key calls `frame()`; if drei lacks `CameraControls`, add `camera-controls` and note why in the PR
+- [ ] T024 [US3] Replace `OrbitControls` and the manual `requestAnimationFrame` lerps in `frontend/src/Topology.tsx` (lines 91-151, 210-222) and `frontend/src/Clusters.tsx` (lines 225-232) with `CameraRig`; call `frame()` on the first snapshot of each view and on "Reset view"
+- [ ] T025 [US3] Call `flyTo` on node click and on search Enter (one match → fly and select; several → `frame(matches)`; none → "No matches") in `frontend/src/Topology.tsx` and `frontend/src/Clusters.tsx`
+- [ ] T026 [US3] Remove the dead `cameraTargetRef` code and per-node `pointLight`s, and draw node glows as camera-facing sprites so nodes stay round in `frontend/src/components/three/TopologyScene.tsx` and `frontend/src/components/three/ClustersScene.tsx`
+- [ ] T027 [US3] Keep selection by ObjectKey so the detail panel follows the live object and shows "deleted" when it disappears in `frontend/src/Topology.tsx` and `frontend/src/Clusters.tsx`
+- [ ] T028 [US3] Run the gates, open PR `001-truthful-graph-and-camera-us3`, merge, `make release VERSION=0.5.0`, upgrade the add-on, and walk quickstart.md §3
+
+**Checkpoint**: A new user finds and centers `grafana` in under 10 s (SC-005)
+
+---
+
+## Phase 6: Polish
+
+- [ ] T029 [P] Update README (Why, Architecture, Configuration, Roadmap) to match what 0.5.0 draws, including the ownership links and `/readyz`
+- [ ] T030 Remove `controllerId` and `status` from the snapshot contract once 0.5.0 is deployed, in `backend/internal/cluster/types.go`, `backend/internal/cluster/builder.go`, and `frontend/src/types/api.ts`
+
+---
+
+## Dependencies & Execution Order
+
+- Setup (T001) → Foundational (T002–T004) → US1 → US2 → US3 → Polish.
+- US2 does not need US1's data changes, but it restructures `Topology.tsx`/`Clusters.tsx`; doing
+  US1 first avoids rebasing those rewrites.
+- US3 depends on US2's single Canvas (T019), because `CameraRig` lives in the shared scene.
+- Within US1: T005 → T007; T008 and T009 can follow in either order; frontend T012–T014 need T009.
+
+## Parallel Opportunities
+
+- T002 and T003 (backend and frontend helpers).
+- T006 and T011 (chart) alongside backend Go work.
+- T020 and T021 alongside T018/T019.
+
+## Implementation Strategy
+
+1. Ship US1 alone as 0.3.0: the app becomes trustworthy even with the old camera.
+2. Ship US2 as 0.4.0: faster, stable shell.
+3. Ship US3 as 0.5.0: camera. Then run plan + tasks for spec 002.

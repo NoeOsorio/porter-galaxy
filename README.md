@@ -56,8 +56,8 @@ Two views, one model:
      host: ""
    ```
 
-5. Click **Review changes → Deploy changes**. The add-on turns **Deployed** once both pods are running (about a minute).
-6. Get the URL: it's the hostname of the cluster's ingress load balancer.
+5. Click **Review changes → Deploy changes**. The add-on shows **Deployed** once both pods are running.
+6. The app is served on the hostname of the cluster's ingress load balancer. Get it with:
 
    ```bash
    porter kubectl -- get svc -n ingress-nginx ingress-nginx-controller \

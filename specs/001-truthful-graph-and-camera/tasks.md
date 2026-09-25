@@ -98,7 +98,7 @@ errors".
 - [X] T025 [US3] Call `flyTo` on node click and on search Enter (one match → fly and select; several → `frame(matches)`; none → "No matches") in `frontend/src/Topology.tsx` and `frontend/src/Clusters.tsx`
 - [X] T026 [US3] Remove the dead `cameraTargetRef` code and per-node `pointLight`s, and draw nodes and glows as camera-facing sprites so nodes stay round (also fixes flow particles that never moved, and the lint errors from mutating `gl.domElement`) in `frontend/src/components/three/TopologyScene.tsx` and `frontend/src/components/three/ClustersScene.tsx`
 - [X] T027 [US3] Keep selection by ObjectKey so the detail panel follows the live object and shows "deleted" when it disappears in `frontend/src/Topology.tsx` and `frontend/src/Clusters.tsx`
-- [ ] T028 [US3] Run the gates, open PR `001-truthful-graph-and-camera-us3`, merge, `make release VERSION=0.5.0`, upgrade the add-on, and walk quickstart.md §3
+- [X] T028 [US3] Run the gates, open PR `001-truthful-graph-and-camera-us3`, merge, `make release VERSION=0.5.0`, upgrade the add-on, and walk quickstart.md §3
 
 **Checkpoint**: A new user finds and centers `grafana` in under 10 s (SC-005)
 

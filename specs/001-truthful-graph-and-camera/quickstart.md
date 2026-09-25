@@ -56,7 +56,8 @@ pk get pods -A --field-selector=status.phase=Succeeded --no-headers
 1. Load each view: all nodes are inside the viewport with a margin.
 2. Rotate and zoom out, press `R` and then "Reset view": the camera returns in under 1 s.
 3. Click three nodes in quick succession: each click redirects the flight smoothly, no jump.
-4. Search `grafana` + Enter: the camera centers it and opens its detail panel. Search `porter`:
-   the camera frames all matches.
+4. Search `deployment/default/grafana` + Enter (one match): the camera centers it and opens its
+   detail panel. Search `grafana` (ingress, service, deployment, and pod match): the camera frames
+   all matches. Search `zzz`: "No matches" and the camera stays.
 5. Scroll 5 steps in and out: the distance visibly changes each step and stops at the limits.
 6. Resize the window to a wide and a tall shape: nodes stay round.

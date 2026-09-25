@@ -10,7 +10,7 @@ imagePullSecrets: []
 backend:
   image:
     repository: ghcr.io/noeosorio/porter-galaxy-backend
-    tag: ""   # defaults to Chart.appVersion; override with --set backend.image.tag=vX.Y.Z
+    tag: ""   # defaults to Chart.appVersion; override with --set backend.image.tag=X.Y.Z
     pullPolicy: IfNotPresent
   port: 4000
   env:
@@ -23,7 +23,7 @@ backend:
 frontend:
   image:
     repository: ghcr.io/noeosorio/porter-galaxy-frontend
-    tag: ""   # defaults to Chart.appVersion; override with --set frontend.image.tag=vX.Y.Z
+    tag: ""   # defaults to Chart.appVersion; override with --set frontend.image.tag=X.Y.Z
     pullPolicy: IfNotPresent
   port: 80
   resources: {}

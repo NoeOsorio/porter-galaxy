@@ -81,7 +81,7 @@ errors".
 - [X] T019 [US2] Move the single `<Canvas>` and the single `useClustersSSE` call into `frontend/src/App.tsx`; turn `Topology.tsx` and `Clusters.tsx` into overlay + scene pairs that receive the snapshot as props and render inside the shared Canvas (views publish their scene through `lib/sceneSlot.ts`, rendered by `components/SceneSlot.tsx`)
 - [X] T020 [P] [US2] Add a loading screen (shown until the first snapshot) and a connection indicator (live / reconnecting / offline + last update time) in `frontend/src/components/ConnectionStatus.tsx`, and remove the old error overlay in `Topology.tsx` and `Clusters.tsx`
 - [X] T021 [P] [US2] Enable `gzip on` for JS, CSS, JSON, and SVG with `gzip_min_length 1024` in `frontend/nginx.conf.template`, leaving the `/api/` SSE location uncompressed
-- [ ] T022 [US2] Run the gates, open PR `001-truthful-graph-and-camera-us2`, merge, `make release VERSION=0.4.0`, upgrade the add-on, and walk quickstart.md §2
+- [X] T022 [US2] Run the gates, open PR `001-truthful-graph-and-camera-us2`, merge, `make release VERSION=0.4.0`, upgrade the add-on, and walk quickstart.md §2
 
 **Checkpoint**: ≤ 685 KB compressed JS, 0 context-lost messages over 10 switches (SC-003, SC-004)
 

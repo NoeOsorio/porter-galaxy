@@ -9,11 +9,13 @@ import { useClustersSSE } from "./hooks/useClustersSSE";
 import { transformTopology } from "./lib/transformTopology";
 import TopologyScene from "./components/three/TopologyScene";
 import type { TopologyNode } from "./types/topology";
+import { STATE_COLORS, type State } from "./lib/objectKey";
 
 const TYPE_ICONS: Record<string, string> = {
   internet: "🌐",
   loadbalancer: "⚖️",
   ingress: "🚪",
+  service: "🔀",
   deployment: "📦",
   pod: "⚛️",
 };
@@ -22,15 +24,13 @@ const TYPE_LABELS: Record<string, string> = {
   internet: "Internet",
   loadbalancer: "Load Balancer",
   ingress: "Ingress",
+  service: "Service",
   deployment: "Deployment",
   pod: "Pod",
 };
 
-function statusColor(status?: string): string {
-  if (!status) return "#ffffff";
-  if (status.includes("Running")) return "#5bffb0";
-  if (status.includes("Pending")) return "#ffd666";
-  return "#ff3333";
+function stateColor(state?: State): string {
+  return state ? STATE_COLORS[state].color : "#ffffff";
 }
 
 export default function Topology() {
@@ -73,7 +73,7 @@ export default function Topology() {
   const errorPods = useMemo(() => {
     if (!topologyGraph) return [];
     return topologyGraph.nodes.filter(
-      node => node.type === "pod" && node.color === "#ff3333"
+      node => node.type === "pod" && node.state === "failed"
     );
   }, [topologyGraph]);
 
@@ -337,6 +337,17 @@ export default function Topology() {
                     </button>
                     <button
                       type="button"
+                      onClick={() => setFilterType("service")}
+                      className={`px-2.5 py-1 rounded text-[9px] font-medium transition-all ${
+                        filterType === "service"
+                          ? "bg-[#38bdf8]/20 text-[#38bdf8] border border-[#38bdf8]/30"
+                          : "bg-white/5 text-white/50 border border-white/10 hover:bg-white/10"
+                      }`}
+                    >
+                      Svc
+                    </button>
+                    <button
+                      type="button"
                       onClick={() => setFilterType("deployment")}
                       className={`px-2.5 py-1 rounded text-[9px] font-medium transition-all ${
                         filterType === "deployment"
@@ -435,6 +446,10 @@ export default function Topology() {
                     <span className="text-white/60">Ingress</span>
                   </div>
                   <div className="flex items-center gap-2.5 text-[10px]">
+                    <div className="w-2.5 h-2.5 rounded-full bg-[#38bdf8] shadow-[0_0_8px_rgba(56,189,248,0.6)]" />
+                    <span className="text-white/60">Service</span>
+                  </div>
+                  <div className="flex items-center gap-2.5 text-[10px]">
                     <div className="w-2.5 h-2.5 rounded-full bg-[#fb923c] shadow-[0_0_8px_rgba(251,146,60,0.6)]" />
                     <span className="text-white/60">Deployment</span>
                   </div>
@@ -511,7 +526,7 @@ export default function Topology() {
               {hovered.status && (
                 <div>
                   status:{" "}
-                  <span style={{ color: statusColor(hovered.status) }}>
+                  <span style={{ color: stateColor(hovered.state) }}>
                     {hovered.status}
                   </span>
                 </div>
@@ -590,7 +605,7 @@ export default function Topology() {
                 {selected.status && (
                   <div>
                     status:{" "}
-                    <span style={{ color: statusColor(selected.status) }}>
+                    <span style={{ color: stateColor(selected.state) }}>
                       {selected.status}
                     </span>
                   </div>
@@ -635,6 +650,17 @@ export default function Topology() {
                       </span>
                     </div>
                   )}
+                </div>
+              )}
+
+              {selected.type === "loadbalancer" && selected.metadata?.address && (
+                <div className="border-t border-white/[0.06] pt-2 mt-2 space-y-1">
+                  <div className="text-[10px] font-semibold opacity-60 mb-1.5">
+                    ADDRESS
+                  </div>
+                  <div className="text-white/60 text-[10px] font-mono break-all">
+                    {selected.metadata.address}
+                  </div>
                 </div>
               )}
 

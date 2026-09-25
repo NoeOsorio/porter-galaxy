@@ -2,13 +2,11 @@ package cluster
 
 import (
 	"cmp"
-	"fmt"
 	"slices"
 
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/labels"
 
 	"github.com/noeosorio/porter-galaxy/backend/internal/store"
 )
@@ -48,15 +46,17 @@ func NewBuilder(s *store.Store, clusterID string) *Builder {
 }
 
 func (b *Builder) Build() Snapshot {
+	links, lbs := b.buildTopology()
 	return Snapshot{
 		Clusters: []Cluster{
 			{
-				ID:          b.clusterID,
-				Nodes:       b.buildNodes(),
-				Pods:        b.buildPods(),
-				Deployments: b.buildDeployments(),
-				Topology:    b.buildTopology(),
-				Metrics:     map[string]Metrics{},
+				ID:            b.clusterID,
+				Nodes:         b.buildNodes(),
+				Pods:          b.buildPods(),
+				Deployments:   b.buildDeployments(),
+				LoadBalancers: lbs,
+				Topology:      links,
+				Metrics:       map[string]Metrics{},
 			},
 		},
 	}
@@ -70,11 +70,17 @@ func (b *Builder) buildNodes() []NodeInfo {
 
 	for _, n := range k8sNodes {
 		status := "Unknown"
+		state := StateUnknown
 		var pressures []string
 
 		for _, cond := range n.Status.Conditions {
-			if cond.Type == corev1.NodeReady && cond.Status == corev1.ConditionTrue {
-				status = "Ready"
+			if cond.Type == corev1.NodeReady {
+				switch cond.Status {
+				case corev1.ConditionTrue:
+					status, state = "Ready", StateRunning
+				case corev1.ConditionFalse:
+					state = StateFailed
+				}
 			}
 			if cond.Status == corev1.ConditionTrue {
 				switch cond.Type {
@@ -97,7 +103,9 @@ func (b *Builder) buildNodes() []NodeInfo {
 		}
 
 		out = append(out, NodeInfo{
+			Key:        objectKey("node", "", n.Name),
 			ID:         n.Name,
+			State:      state,
 			Capacity:   capacity,
 			Status:     status,
 			Conditions: pressures,
@@ -111,21 +119,6 @@ func (b *Builder) buildNodes() []NodeInfo {
 
 func (b *Builder) buildPods() []PodInfo {
 	k8sPods := b.store.ListPods()
-
-	// Build a per-namespace index of deployment selectors for O(1) lookup.
-	type depEntry struct {
-		id       string
-		selector labels.Selector
-	}
-	depsByNS := make(map[string][]depEntry)
-	for _, d := range b.store.ListDeployments() {
-		sel, err := metav1.LabelSelectorAsSelector(d.Spec.Selector)
-		if err != nil {
-			continue
-		}
-		depsByNS[d.Namespace] = append(depsByNS[d.Namespace], depEntry{id: d.Name, selector: sel})
-	}
-
 	out := make([]PodInfo, 0, len(k8sPods))
 	for _, p := range k8sPods {
 		version := firstNonEmpty(
@@ -134,27 +127,79 @@ func (b *Builder) buildPods() []PodInfo {
 			p.Labels["app.kubernetes.io/version"],
 		)
 
+		owner := b.podOwner(p)
 		var controllerID string
-		for _, dep := range depsByNS[p.Namespace] {
-			if dep.selector.Matches(labels.Set(p.Labels)) {
-				controllerID = dep.id
-				break
-			}
+		if owner.Kind == "Deployment" {
+			controllerID = owner.Name
 		}
 
 		out = append(out, PodInfo{
+			Key:          objectKey("pod", p.Namespace, p.Name),
 			ID:           p.Name,
 			Namespace:    p.Namespace,
 			NodeID:       p.Spec.NodeName,
+			State:        podState(p),
 			Status:       podStatus(p),
 			Version:      version,
+			Owner:        owner,
 			ControllerID: controllerID,
 		})
 	}
-	slices.SortFunc(out, func(a, b PodInfo) int {
-		return cmp.Compare(a.Namespace+"/"+a.ID, b.Namespace+"/"+b.ID)
-	})
+	slices.SortFunc(out, func(a, b PodInfo) int { return cmp.Compare(a.Key, b.Key) })
 	return out
+}
+
+// podOwner follows the pod's controller reference, and one more hop for
+// ReplicaSets so Deployment-managed pods report the Deployment. If the
+// ReplicaSet is not cached yet the pod reports the ReplicaSet; the next
+// ReplicaSet event triggers a rebuild that corrects it.
+func (b *Builder) podOwner(p *corev1.Pod) Owner {
+	ref := metav1.GetControllerOf(p)
+	if ref == nil {
+		return Owner{Kind: "standalone"}
+	}
+	if ref.Kind == "ReplicaSet" {
+		if rs := b.store.GetReplicaSet(p.Namespace, ref.Name); rs != nil {
+			if dep := metav1.GetControllerOf(rs); dep != nil && dep.Kind == "Deployment" {
+				return Owner{Kind: "Deployment", Name: dep.Name}
+			}
+		}
+	}
+	return Owner{Kind: ref.Kind, Name: ref.Name}
+}
+
+// failingWaitReasons are container waiting reasons that mean the pod will not
+// become ready without intervention, as opposed to normal startup waits.
+var failingWaitReasons = map[string]bool{
+	"CrashLoopBackOff": true,
+	"ImagePullBackOff": true,
+	"ErrImagePull":     true,
+}
+
+func podState(p *corev1.Pod) State {
+	switch p.Status.Phase {
+	case corev1.PodSucceeded:
+		return StateCompleted
+	case corev1.PodFailed:
+		return StateFailed
+	}
+	for _, cs := range p.Status.ContainerStatuses {
+		if cs.State.Waiting != nil && failingWaitReasons[cs.State.Waiting.Reason] {
+			return StateFailed
+		}
+	}
+	switch p.Status.Phase {
+	case corev1.PodPending:
+		return StatePending
+	case corev1.PodRunning:
+		for _, cs := range p.Status.ContainerStatuses {
+			if !cs.Ready {
+				return StatePending
+			}
+		}
+		return StateRunning
+	}
+	return StateUnknown
 }
 
 // podStatus returns a human-readable status for a pod, preferring container-level
@@ -185,17 +230,30 @@ func (b *Builder) buildDeployments() []DeploymentInfo {
 			desired = *d.Spec.Replicas
 		}
 		out = append(out, DeploymentInfo{
+			Key:       objectKey("deployment", d.Namespace, d.Name),
 			ID:        d.Name,
+			State:     deploymentState(desired, d.Status.ReadyReplicas),
 			Namespace: d.Namespace,
 			Desired:   desired,
 			Ready:     d.Status.ReadyReplicas,
 			Available: d.Status.AvailableReplicas,
 		})
 	}
-	slices.SortFunc(out, func(a, b DeploymentInfo) int {
-		return cmp.Compare(a.Namespace+"/"+a.ID, b.Namespace+"/"+b.ID)
-	})
+	slices.SortFunc(out, func(a, b DeploymentInfo) int { return cmp.Compare(a.Key, b.Key) })
 	return out
+}
+
+func deploymentState(desired, ready int32) State {
+	switch {
+	case desired == 0:
+		return StateScaledToZero
+	case ready >= desired:
+		return StateRunning
+	case ready == 0:
+		return StateFailed
+	default:
+		return StatePending
+	}
 }
 
 // ── Topology ──────────────────────────────────────────────────────────────────
@@ -206,57 +264,65 @@ type epEntry struct {
 	ready   bool
 }
 
-func (b *Builder) buildTopology() []Link {
-	// Build map: "namespace/serviceName" → []epEntry from all EndpointSlices.
+// buildTopology returns the routing links (Internet → LB → Ingress → Service
+// → Pod) and the load balancers they start from.
+func (b *Builder) buildTopology() ([]Link, []LoadBalancerInfo) {
+	// "namespace/serviceName" → endpoints, from all EndpointSlices.
 	serviceEPs := make(map[string][]epEntry)
 	for _, es := range b.store.ListEndpointSlices() {
 		svcName := es.Labels["kubernetes.io/service-name"]
 		if svcName == "" {
 			continue
 		}
-		key := es.Namespace + "/" + svcName
+		nsName := es.Namespace + "/" + svcName
 		for _, ep := range es.Endpoints {
 			if ep.TargetRef == nil || ep.TargetRef.Kind != "Pod" {
 				continue
 			}
 			ready := ep.Conditions.Ready != nil && *ep.Conditions.Ready
-			serviceEPs[key] = append(serviceEPs[key], epEntry{
-				podName: ep.TargetRef.Name,
-				ready:   ready,
-			})
+			serviceEPs[nsName] = append(serviceEPs[nsName], epEntry{podName: ep.TargetRef.Name, ready: ready})
 		}
 	}
 
-	// Track which services already have an Ingress in front of them so we don't
-	// create duplicate INTERNET → LB links for bare LoadBalancer services.
-	coveredServices := make(map[string]bool)
-
-	// Track LB IDs claimed by Ingress objects. The ingress controller's own
-	// LoadBalancer service shares the same external IP/hostname, so we skip it
-	// in the bare-LB pass to avoid a redundant INTERNET → LB → controller path.
-	ingressLBIDs := make(map[string]bool)
-	for _, ing := range b.store.ListIngresses() {
-		ingressLBIDs[ingressLBID(ing)] = true
+	// An Ingress only reports the controller's external address, so map
+	// addresses back to their LoadBalancer Service to name the entry point.
+	services := b.store.ListServices()
+	lbServiceByAddr := make(map[string]*corev1.Service)
+	for _, svc := range services {
+		if svc.Spec.Type != corev1.ServiceTypeLoadBalancer {
+			continue
+		}
+		if addr := serviceAddress(svc); addr != "" {
+			lbServiceByAddr[addr] = svc
+		}
 	}
 
+	lbs := make(map[string]LoadBalancerInfo)
 	var links []Link
 	seen := make(map[string]bool)
 	addLink := func(l Link) {
-		key := l.From + "|" + l.To
-		if seen[key] {
+		id := l.From + "|" + l.To
+		if seen[id] {
 			return
 		}
-		seen[key] = true
+		seen[id] = true
 		links = append(links, l)
 	}
+	addServicePods := func(namespace, svcName, svcKey string) {
+		for _, ep := range serviceEPs[namespace+"/"+svcName] {
+			addLink(Link{From: svcKey, To: objectKey("pod", namespace, ep.podName), Active: ep.ready, Type: "service"})
+		}
+	}
 
-	// ── Ingress-routed paths: INTERNET → LB → Ingress → Service → Pods ────────
+	// ── Ingress-routed paths ──────────────────────────────────────────────────
+	coveredServices := make(map[string]bool)
 	for _, ing := range b.store.ListIngresses() {
-		lbID := ingressLBID(ing)
-		ingID := fmt.Sprintf("ingress/%s/%s", ing.Namespace, ing.Name)
+		lb := ingressLoadBalancer(ing, lbServiceByAddr)
+		lbs[lb.Key] = lb
+		ingKey := objectKey("ingress", ing.Namespace, ing.Name)
 
-		addLink(Link{From: "INTERNET", To: lbID, Active: true, Type: "internet"})
-		addLink(Link{From: lbID, To: ingID, Active: true, Type: "lb"})
+		addLink(Link{From: internetKey, To: lb.Key, Active: true, Type: "internet"})
+		addLink(Link{From: lb.Key, To: ingKey, Active: true, Type: "lb"})
 
 		for _, rule := range ing.Spec.Rules {
 			if rule.HTTP == nil {
@@ -267,38 +333,38 @@ func (b *Builder) buildTopology() []Link {
 					continue
 				}
 				svcName := path.Backend.Service.Name
-				svcKey := ing.Namespace + "/" + svcName
+				svcKey := objectKey("service", ing.Namespace, svcName)
 				coveredServices[svcKey] = true
 
-				addLink(Link{From: ingID, To: svcKey, Active: true, Type: "ingress"})
-
-				for _, ep := range serviceEPs[svcKey] {
-					addLink(Link{From: svcKey, To: ep.podName, Active: ep.ready, Type: "service"})
-				}
+				addLink(Link{From: ingKey, To: svcKey, Active: true, Type: "ingress"})
+				addServicePods(ing.Namespace, svcName, svcKey)
 			}
 		}
 	}
 
 	// ── Bare LoadBalancer services not already behind an Ingress ──────────────
-	for _, svc := range b.store.ListServices() {
+	for _, svc := range services {
 		if svc.Spec.Type != corev1.ServiceTypeLoadBalancer {
 			continue
 		}
-		svcKey := svc.Namespace + "/" + svc.Name
+		svcKey := objectKey("service", svc.Namespace, svc.Name)
+		lbKey := objectKey("loadbalancer", svc.Namespace, svc.Name)
 		if coveredServices[svcKey] {
 			continue
 		}
-
-		lbID := serviceLBID(svc)
-		if ingressLBIDs[lbID] {
+		// The ingress controller's own Service is already the entry point of
+		// the ingress paths above; routing it again would duplicate that LB.
+		if _, ok := lbs[lbKey]; ok {
 			continue
 		}
-
-		addLink(Link{From: "INTERNET", To: lbID, Active: true, Type: "internet"})
-		addLink(Link{From: lbID, To: svcKey, Active: true, Type: "lb"})
-		for _, ep := range serviceEPs[svcKey] {
-			addLink(Link{From: svcKey, To: ep.podName, Active: ep.ready, Type: "service"})
+		lbs[lbKey] = LoadBalancerInfo{
+			Key:         lbKey,
+			DisplayName: svc.Namespace + "/" + svc.Name,
+			Address:     serviceAddress(svc),
 		}
+		addLink(Link{From: internetKey, To: lbKey, Active: true, Type: "internet"})
+		addLink(Link{From: lbKey, To: svcKey, Active: true, Type: "lb"})
+		addServicePods(svc.Namespace, svc.Name, svcKey)
 	}
 
 	slices.SortFunc(links, func(a, b Link) int {
@@ -307,39 +373,47 @@ func (b *Builder) buildTopology() []Link {
 		}
 		return cmp.Compare(a.To, b.To)
 	})
-	return links
+	lbList := make([]LoadBalancerInfo, 0, len(lbs))
+	for _, lb := range lbs {
+		lbList = append(lbList, lb)
+	}
+	slices.SortFunc(lbList, func(a, b LoadBalancerInfo) int { return cmp.Compare(a.Key, b.Key) })
+	return links, lbList
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-// ingressLBID returns a stable node ID for the load-balancer entry point
-// of an Ingress. Uses the actual IP/hostname when available.
-func ingressLBID(ing *networkingv1.Ingress) string {
+// ingressLoadBalancer names the entry point of an Ingress after the
+// LoadBalancer Service that owns its address, falling back to the address,
+// or to the Ingress itself while no address has been assigned.
+func ingressLoadBalancer(ing *networkingv1.Ingress, lbServiceByAddr map[string]*corev1.Service) LoadBalancerInfo {
+	var addr string
 	if len(ing.Status.LoadBalancer.Ingress) > 0 {
 		lb := ing.Status.LoadBalancer.Ingress[0]
-		if lb.IP != "" {
-			return "LB-" + lb.IP
-		}
-		if lb.Hostname != "" {
-			return "LB-" + lb.Hostname
+		addr = firstNonEmpty(lb.Hostname, lb.IP)
+	}
+	if svc, ok := lbServiceByAddr[addr]; ok && addr != "" {
+		return LoadBalancerInfo{
+			Key:         objectKey("loadbalancer", svc.Namespace, svc.Name),
+			DisplayName: svc.Namespace + "/" + svc.Name,
+			Address:     addr,
 		}
 	}
-	return fmt.Sprintf("LB-%s-%s", ing.Namespace, ing.Name)
+	if addr != "" {
+		return LoadBalancerInfo{Key: objectKey("loadbalancer", "", addr), DisplayName: addr, Address: addr}
+	}
+	return LoadBalancerInfo{
+		Key:         objectKey("loadbalancer", ing.Namespace, ing.Name),
+		DisplayName: ing.Namespace + "/" + ing.Name,
+	}
 }
 
-// serviceLBID returns a stable node ID for the load-balancer entry point
-// of a bare LoadBalancer-type Service.
-func serviceLBID(svc *corev1.Service) string {
-	if len(svc.Status.LoadBalancer.Ingress) > 0 {
-		lb := svc.Status.LoadBalancer.Ingress[0]
-		if lb.IP != "" {
-			return "LB-" + lb.IP
-		}
-		if lb.Hostname != "" {
-			return "LB-" + lb.Hostname
-		}
+func serviceAddress(svc *corev1.Service) string {
+	if len(svc.Status.LoadBalancer.Ingress) == 0 {
+		return ""
 	}
-	return fmt.Sprintf("LB-%s-%s", svc.Namespace, svc.Name)
+	lb := svc.Status.LoadBalancer.Ingress[0]
+	return firstNonEmpty(lb.Hostname, lb.IP)
 }
 
 func firstNonEmpty(vals ...string) string {

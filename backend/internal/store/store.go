@@ -20,6 +20,7 @@ type Store struct {
 	ingresses      map[string]*networkingv1.Ingress
 	endpointSlices map[string]*discoveryv1.EndpointSlice
 	deployments    map[string]*appsv1.Deployment
+	replicaSets    map[string]*appsv1.ReplicaSet
 	notify         func()
 }
 
@@ -31,6 +32,7 @@ func New(notify func()) *Store {
 		ingresses:      make(map[string]*networkingv1.Ingress),
 		endpointSlices: make(map[string]*discoveryv1.EndpointSlice),
 		deployments:    make(map[string]*appsv1.Deployment),
+		replicaSets:    make(map[string]*appsv1.ReplicaSet),
 		notify:         notify,
 	}
 }
@@ -169,6 +171,29 @@ func (s *Store) ListDeployments() []*appsv1.Deployment {
 		out = append(out, d)
 	}
 	return out
+}
+
+// ── ReplicaSets ───────────────────────────────────────────────────────────────
+
+func (s *Store) UpsertReplicaSet(rs *appsv1.ReplicaSet) {
+	s.mu.Lock()
+	s.replicaSets[rs.Namespace+"/"+rs.Name] = rs
+	s.mu.Unlock()
+	s.signal()
+}
+
+func (s *Store) DeleteReplicaSet(namespace, name string) {
+	s.mu.Lock()
+	delete(s.replicaSets, namespace+"/"+name)
+	s.mu.Unlock()
+	s.signal()
+}
+
+// GetReplicaSet returns nil when the ReplicaSet is not in the cache yet.
+func (s *Store) GetReplicaSet(namespace, name string) *appsv1.ReplicaSet {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.replicaSets[namespace+"/"+name]
 }
 
 // ── EndpointSlices ────────────────────────────────────────────────────────────

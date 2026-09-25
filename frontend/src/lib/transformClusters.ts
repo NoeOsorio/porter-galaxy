@@ -1,10 +1,6 @@
-import type { ApiClustersResponse } from "../types/api";
-import type {
-  ClusterGalaxyNode,
-  ClusterGalaxyEdge,
-  ClusterGalaxyGraph,
-  ClusterConstellation,
-} from "../types/clusters";
+import type { ApiClustersResponse, ApiPod } from "../types/api";
+import type { ClusterGalaxyNode, ClusterGalaxyEdge, ClusterGalaxyGraph } from "../types/clusters";
+import { STATE_COLORS, STATE_LABELS, objectKey, podDisplayName } from "./objectKey";
 
 const CLUSTER_COLORS = [
   { color: "#00d4ff", glow: "#0088dd" },
@@ -16,267 +12,144 @@ const CLUSTER_COLORS = [
 ];
 
 const TYPE_COLORS = {
-  cluster: { color: "#00d4ff", glow: "#0088dd" },
   node: { color: "#a78bfa", glow: "#7c3aed" },
   deployment: { color: "#fb923c", glow: "#ea580c" },
   pod: { color: "#5bffb0", glow: "#00cc66" },
 };
 
-export function transformClusters(
-  apiData: ApiClustersResponse,
-): ClusterGalaxyGraph {
-  const allNodes: ClusterGalaxyNode[] = [];
-  const allEdges: ClusterGalaxyEdge[] = [];
+const CLUSTER_RING = 600;
+const NODE_RING = 200;
+const DEPLOYMENT_RING = 380;
+const POD_RING = 60;
 
-  const clusterCount = apiData.clusters.length;
-  const clusterRadius = 600;
-  const clusterAngleStep = (Math.PI * 2) / clusterCount;
+function ring(i: number, count: number, radius: number, cx: number, cz: number) {
+  const angle = (i * Math.PI * 2) / Math.max(count, 1);
+  return { x: cx + Math.cos(angle) * radius, z: cz + Math.sin(angle) * radius };
+}
+
+// Cluster → Node → Deployment → Pod. Each Deployment appears once per cluster
+// and links to every node that runs one of its pods; pods without a
+// Deployment hang directly off their node.
+export function transformClusters(apiData: ApiClustersResponse): ClusterGalaxyGraph {
+  const nodes: ClusterGalaxyNode[] = [];
+  const edges: ClusterGalaxyEdge[] = [];
 
   apiData.clusters.forEach((apiCluster, clusterIndex) => {
-    const clusterAngle = clusterIndex * clusterAngleStep;
-    const clusterCenterX = Math.cos(clusterAngle) * clusterRadius;
-    const clusterCenterY = 0;
-    const clusterCenterZ = Math.sin(clusterAngle) * clusterRadius;
-
+    const clusterId = apiCluster.id;
+    const id = (key: string) => `${clusterId}::${key}`;
+    const center = ring(clusterIndex, apiData.clusters.length, apiData.clusters.length > 1 ? CLUSTER_RING : 0, 0, 0);
     const clusterColor = CLUSTER_COLORS[clusterIndex % CLUSTER_COLORS.length]!;
 
-    const clusterNode: ClusterGalaxyNode = {
-      id: apiCluster.id,
+    nodes.push({
+      id: clusterId,
       type: "cluster",
-      name: apiCluster.id,
-      x: clusterCenterX,
-      y: clusterCenterY + 250,
-      z: clusterCenterZ,
-      color: clusterColor.color,
-      glow: clusterColor.glow,
+      name: clusterId,
+      x: center.x,
+      y: 250,
+      z: center.z,
+      ...clusterColor,
       size: 40,
-      metadata: {
-        clusterId: apiCluster.id,
-      },
-    };
-    allNodes.push(clusterNode);
+      metadata: { clusterId },
+    });
 
-    const nodeCount = apiCluster.nodes.length;
-    const nodeRadius = 200;
-    const nodeAngleStep = (Math.PI * 2) / nodeCount;
-
-    apiCluster.nodes.forEach((apiNode, nodeIndex) => {
-      const nodeAngle = nodeIndex * nodeAngleStep;
-      
-      const offsetX = Math.cos(nodeAngle) * nodeRadius;
-      const offsetZ = Math.sin(nodeAngle) * nodeRadius;
-
-      const nodeX = clusterCenterX + offsetX;
-      const nodeY = clusterCenterY + 120;
-      const nodeZ = clusterCenterZ + offsetZ;
-
-      const nodeFullId = `${apiCluster.id}::node::${apiNode.id}`;
-
-      const k8sNode: ClusterGalaxyNode = {
-        id: nodeFullId,
+    const nodePos = new Map<string, { x: number; z: number }>();
+    const k8sNodes = [...apiCluster.nodes].sort((a, b) => a.key.localeCompare(b.key));
+    k8sNodes.forEach((n, i) => {
+      const pos = ring(i, k8sNodes.length, NODE_RING, center.x, center.z);
+      nodePos.set(n.id, pos);
+      nodes.push({
+        id: id(n.key),
         type: "node",
-        name: apiNode.id,
-        x: nodeX,
-        y: nodeY,
-        z: nodeZ,
-        color: TYPE_COLORS.node.color,
-        glow: TYPE_COLORS.node.glow,
+        name: n.id,
+        x: pos.x,
+        y: 120,
+        z: pos.z,
+        ...(n.state === "running" ? TYPE_COLORS.node : STATE_COLORS[n.state]),
         size: 25,
-        status: apiNode.status,
+        state: n.state,
+        status: STATE_LABELS[n.state],
+        metadata: { cpu: n.capacity.cpu, memory: n.capacity.memory, clusterId },
+      });
+      edges.push({ from: clusterId, to: id(n.key), type: "cluster-node", color: TYPE_COLORS.node.color });
+    });
+
+    const podsByDeployment = new Map<string, ApiPod[]>();
+    const podsWithoutDeployment: ApiPod[] = [];
+    for (const pod of apiCluster.pods) {
+      if (pod.owner.kind === "Deployment" && pod.owner.name) {
+        const depKey = objectKey("deployment", pod.namespace, pod.owner.name);
+        podsByDeployment.set(depKey, [...(podsByDeployment.get(depKey) ?? []), pod]);
+      } else {
+        podsWithoutDeployment.push(pod);
+      }
+    }
+
+    const addPod = (pod: ApiPod, parentId: string, index: number, count: number, around: { x: number; z: number }, edgeType: ClusterGalaxyEdge["type"]) => {
+      const pos = ring(index, count, POD_RING, around.x, around.z);
+      nodes.push({
+        id: id(pod.key),
+        type: "pod",
+        name: podDisplayName(pod),
+        namespace: pod.namespace,
+        x: pos.x,
+        y: -180,
+        z: pos.z,
+        ...STATE_COLORS[pod.state],
+        size: 8,
+        state: pod.state,
+        status: STATE_LABELS[pod.state],
         metadata: {
-          cpu: apiNode.capacity.cpu,
-          memory: apiNode.capacity.memory,
-          clusterId: apiCluster.id,
+          version: pod.version,
+          nodeId: pod.nodeId,
+          clusterId,
+          owner: pod.owner.kind === "standalone" ? "standalone" : `${pod.owner.kind}/${pod.owner.name}`,
         },
-      };
-      allNodes.push(k8sNode);
+      });
+      edges.push({ from: parentId, to: id(pod.key), type: edgeType, color: TYPE_COLORS.pod.color });
+    };
 
-      allEdges.push({
-        from: apiCluster.id,
-        to: nodeFullId,
-        type: "cluster-node",
-        color: TYPE_COLORS.node.color,
+    const deployments = [...apiCluster.deployments].sort((a, b) => a.key.localeCompare(b.key));
+    deployments.forEach((dep, i) => {
+      const pos = ring(i, deployments.length, DEPLOYMENT_RING, center.x, center.z);
+      const depId = id(dep.key);
+      nodes.push({
+        id: depId,
+        type: "deployment",
+        name: dep.id,
+        namespace: dep.namespace,
+        x: pos.x,
+        y: -40,
+        z: pos.z,
+        ...(dep.state === "running" ? TYPE_COLORS.deployment : STATE_COLORS[dep.state]),
+        size: 15,
+        state: dep.state,
+        status: `${dep.ready}/${dep.desired} ready`,
+        metadata: { desired: dep.desired, ready: dep.ready, available: dep.available, clusterId },
       });
 
-      const podsOnThisNode = apiCluster.pods.filter(
-        (pod) => pod.nodeId === apiNode.id,
-      );
-
-      const deploymentMap = new Map<
-        string,
-        (typeof apiCluster.deployments)[0]
-      >();
-      apiCluster.deployments.forEach((dep) => {
-        if (dep.id === "standalone") {
-          return;
-        }
-        deploymentMap.set(
-          `${apiCluster.id}::deployment::${dep.namespace}/${dep.id}`,
-          dep,
-        );
-      });
-
-      const deploymentsOnNode = new Map<string, typeof apiCluster.pods>();
-      podsOnThisNode.forEach((pod) => {
-        if (!pod.controllerId || pod.controllerId.trim() === "" || pod.controllerId === "standalone") {
-          return;
-        }
-        const depKey = `${apiCluster.id}::deployment::${pod.namespace}/${pod.controllerId}`;
-        if (!deploymentsOnNode.has(depKey)) {
-          deploymentsOnNode.set(depKey, []);
-        }
-        deploymentsOnNode.get(depKey)!.push(pod);
-      });
-
-      const deploymentCount = deploymentsOnNode.size || 1;
-      const deploymentRadius = 180;
-      const deploymentAngleStep = (Math.PI * 2) / deploymentCount;
-
-      let deploymentIdx = 0;
-      deploymentsOnNode.forEach((pods, depKey) => {
-        if (pods.length === 0) {
-          return;
-        }
-
-        const deploymentAngle = deploymentIdx * deploymentAngleStep;
-        
-        const offsetX = Math.cos(deploymentAngle) * deploymentRadius;
-        const offsetZ = Math.sin(deploymentAngle) * deploymentRadius;
-        
-        const deploymentX = nodeX + offsetX;
-        const deploymentY = clusterCenterY - 40;
-        const deploymentZ = nodeZ + offsetZ;
-
-        const depKeyParts = depKey.split("::");
-        const namespaceAndId = depKeyParts[2] || depKey;
-        const [namespace, deploymentId] = namespaceAndId.split("/");
-        const deploymentData = deploymentMap.get(depKey);
-
-        const deployment: ClusterGalaxyNode = {
-          id: depKey,
-          type: "deployment",
-          name: deploymentId || depKey,
-          namespace,
-          x: deploymentX,
-          y: deploymentY,
-          z: deploymentZ,
-          color: TYPE_COLORS.deployment.color,
-          glow: TYPE_COLORS.deployment.glow,
-          size: 15,
-          status: deploymentData
-            ? `${deploymentData.ready}/${deploymentData.desired}`
-            : undefined,
-          metadata: {
-            desired: deploymentData?.desired,
-            ready: deploymentData?.ready,
-            available: deploymentData?.available,
-            nodeId: apiNode.id,
-            clusterId: apiCluster.id,
-          },
-        };
-        allNodes.push(deployment);
-
-        allEdges.push({
-          from: nodeFullId,
-          to: depKey,
+      const pods = podsByDeployment.get(dep.key) ?? [];
+      const hostNodes = new Set(pods.map((p) => p.nodeId).filter((n) => nodePos.has(n)));
+      for (const nodeName of hostNodes) {
+        edges.push({
+          from: id(objectKey("node", undefined, nodeName)),
+          to: depId,
           type: "node-deployment",
           color: TYPE_COLORS.deployment.color,
         });
-
-        const podCount = pods.length || 1;
-        const podRadius = 70;
-        const podAngleStep = (Math.PI * 2) / podCount;
-
-        pods.forEach((apiPod, podIdx) => {
-          const podAngle = podIdx * podAngleStep;
-          
-          const offsetX = Math.cos(podAngle) * podRadius;
-          const offsetZ = Math.sin(podAngle) * podRadius;
-          
-          const podX = deploymentX + offsetX;
-          const podY = clusterCenterY - 180;
-          const podZ = deploymentZ + offsetZ;
-
-          const podFullId = `${apiCluster.id}::pod::${apiPod.id}`;
-
-          let podColor = { color: "#ff3333", glow: "#dd0000" };
-          if (apiPod.status === "Running") {
-            podColor = { color: "#5bffb0", glow: "#00cc66" };
-          } else if (apiPod.status === "Pending") {
-            podColor = { color: "#ffd666", glow: "#cc9900" };
-          }
-
-          const pod: ClusterGalaxyNode = {
-            id: podFullId,
-            type: "pod",
-            name: apiPod.id.split("-").slice(-2).join("-"),
-            namespace: apiPod.namespace,
-            x: podX,
-            y: podY,
-            z: podZ,
-            color: podColor.color,
-            glow: podColor.glow,
-            size: 8,
-            status: apiPod.status,
-            metadata: {
-              version: apiPod.version,
-              nodeId: apiPod.nodeId,
-              clusterId: apiCluster.id,
-              controllerId: apiPod.controllerId,
-            },
-          };
-          allNodes.push(pod);
-
-          allEdges.push({
-            from: depKey,
-            to: podFullId,
-            type: "deployment-pod",
-            color: TYPE_COLORS.pod.color,
-          });
-        });
-
-        deploymentIdx++;
-      });
+      }
+      pods.forEach((pod, j) => addPod(pod, depId, j, pods.length, pos, "deployment-pod"));
     });
+
+    const looseByNode = new Map<string, ApiPod[]>();
+    for (const pod of podsWithoutDeployment) {
+      looseByNode.set(pod.nodeId, [...(looseByNode.get(pod.nodeId) ?? []), pod]);
+    }
+    for (const [nodeName, pods] of looseByNode) {
+      const around = nodePos.get(nodeName) ?? center;
+      const parentId = nodePos.has(nodeName) ? id(objectKey("node", undefined, nodeName)) : clusterId;
+      pods.forEach((pod, j) => addPod(pod, parentId, j, pods.length, around, "node-pod"));
+    }
   });
 
-  return {
-    nodes: allNodes,
-    edges: allEdges,
-  };
-}
-
-export function getConstellations(
-  graph: ClusterGalaxyGraph,
-): ClusterConstellation[] {
-  const constellations: ClusterConstellation[] = [];
-
-  const clusterNodes = graph.nodes.filter((n) => n.type === "cluster");
-
-  clusterNodes.forEach((clusterNode) => {
-    const nodesInCluster = graph.nodes.filter(
-      (n) => n.metadata?.clusterId === clusterNode.id,
-    );
-
-    const edgesInCluster = graph.edges.filter((e) => {
-      const fromNode = graph.nodes.find((n) => n.id === e.from);
-      const toNode = graph.nodes.find((n) => n.id === e.to);
-      return (
-        fromNode?.metadata?.clusterId === clusterNode.id ||
-        toNode?.metadata?.clusterId === clusterNode.id
-      );
-    });
-
-    constellations.push({
-      clusterId: clusterNode.id,
-      centerX: clusterNode.x,
-      centerY: clusterNode.y,
-      centerZ: clusterNode.z,
-      radius: 250,
-      nodes: [clusterNode, ...nodesInCluster],
-      edges: edgesInCluster,
-    });
-  });
-
-  return constellations;
+  return { nodes, edges };
 }

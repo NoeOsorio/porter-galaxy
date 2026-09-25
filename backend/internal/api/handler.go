@@ -13,20 +13,32 @@ import (
 type Handler struct {
 	builder cluster.SnapshotBuilder
 	hub     *Hub
+	ready   func() bool
 	logger  *slog.Logger
 }
 
-func NewHandler(builder cluster.SnapshotBuilder, hub *Hub, logger *slog.Logger) *Handler {
-	return &Handler{builder: builder, hub: hub, logger: logger}
+// NewHandler wires the routes. ready gates /readyz and must return true only
+// once every cluster's informer cache has synced.
+func NewHandler(builder cluster.SnapshotBuilder, hub *Hub, ready func() bool, logger *slog.Logger) *Handler {
+	return &Handler{builder: builder, hub: hub, ready: ready, logger: logger}
 }
 
 func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /healthz", h.handleHealthz)
+	mux.HandleFunc("GET /readyz", h.handleReadyz)
 	mux.HandleFunc("GET /api/v1/clusters", h.handleGraphSSE)
 }
 
 func (h *Handler) handleHealthz(w http.ResponseWriter, _ *http.Request) {
 	w.WriteHeader(http.StatusOK)
+	fmt.Fprint(w, "ok")
+}
+
+func (h *Handler) handleReadyz(w http.ResponseWriter, _ *http.Request) {
+	if !h.ready() {
+		http.Error(w, "informer caches not synced", http.StatusServiceUnavailable)
+		return
+	}
 	fmt.Fprint(w, "ok")
 }
 

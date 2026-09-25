@@ -9,6 +9,7 @@ import { useClustersSSE } from "./hooks/useClustersSSE";
 import { transformClusters } from "./lib/transformClusters";
 import ClustersScene from "./components/three/ClustersScene";
 import type { ClusterGalaxyNode } from "./types/clusters";
+import { STATE_COLORS, type State } from "./lib/objectKey";
 
 const TYPE_ICONS: Record<string, string> = {
   cluster: "🌌",
@@ -24,11 +25,8 @@ const TYPE_LABELS: Record<string, string> = {
   pod: "Pod",
 };
 
-function statusColor(status?: string): string {
-  if (!status) return "#ffffff";
-  if (status.includes("Running") || status.includes("Ready")) return "#5bffb0";
-  if (status.includes("Pending")) return "#ffd666";
-  return "#ff3333";
+function stateColor(state?: State): string {
+  return state ? STATE_COLORS[state].color : "#ffffff";
 }
 
 export default function Clusters() {
@@ -72,7 +70,7 @@ export default function Clusters() {
   const errorPods = useMemo(() => {
     if (!clustersGraph) return [];
     return clustersGraph.nodes.filter(
-      node => node.type === "pod" && node.color === "#ff3333"
+      node => node.type === "pod" && node.state === "failed"
     );
   }, [clustersGraph]);
 
@@ -520,7 +518,7 @@ export default function Clusters() {
               {hovered.status && (
                 <div>
                   status:{" "}
-                  <span style={{ color: statusColor(hovered.status) }}>
+                  <span style={{ color: stateColor(hovered.state) }}>
                     {hovered.status}
                   </span>
                 </div>
@@ -621,7 +619,7 @@ export default function Clusters() {
                 {selected.status && (
                   <div>
                     status:{" "}
-                    <span style={{ color: statusColor(selected.status) }}>
+                    <span style={{ color: stateColor(selected.state) }}>
                       {selected.status}
                     </span>
                   </div>
@@ -705,11 +703,11 @@ export default function Clusters() {
                       </span>
                     </div>
                   )}
-                  {selected.metadata.controllerId && (
+                  {selected.metadata.owner && (
                     <div>
-                      controller:{" "}
+                      owner:{" "}
                       <span className="text-white/60 text-[10px] font-mono break-all">
-                        {selected.metadata.controllerId}
+                        {selected.metadata.owner}
                       </span>
                     </div>
                   )}

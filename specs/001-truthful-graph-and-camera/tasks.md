@@ -63,7 +63,7 @@ errors".
 - [X] T012 [US1] Rebuild `frontend/src/lib/transformTopology.ts` on ObjectKeys: Services link to Deployments through their Pods' `owner` (drop the name-equality check at lines 197-203), keep Pods without Deployments as standalone, label LBs from `loadBalancers[].displayName`, and take colors from `STATE_COLORS`
 - [X] T013 [US1] Rebuild `frontend/src/lib/transformClusters.ts` on ObjectKeys: one node per Deployment with links to each Node running its Pods, keep standalone Pods, colors from `STATE_COLORS`
 - [X] T014 [US1] Replace color-based error detection and string state checks with `state` in `frontend/src/Topology.tsx` and `frontend/src/Clusters.tsx` (e.g. `Topology.tsx:76`), and show namespace and LB `address` in the detail panels
-- [ ] T015 [US1] Run the gates, open PR `001-truthful-graph-and-camera-us1`, merge, `make release VERSION=0.3.0`, upgrade the Porter add-on, and walk quickstart.md §1
+- [X] T015 [US1] Run the gates, open PR `001-truthful-graph-and-camera-us1`, merge, `make release VERSION=0.3.0`, upgrade the Porter add-on, and walk quickstart.md §1
 
 **Checkpoint**: Counts in Galaxy equal `kubectl` counts on `porter-gloom-dev` (SC-001)
 

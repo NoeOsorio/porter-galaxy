@@ -56,11 +56,11 @@ You can watch it run at: `https://github.com/noeosorio/porter-galaxy/actions`
 
 ---
 
-## Part 2 — Make the packages public (one-time)
+## Part 2 — Check the packages are public
 
-GHCR creates every new package as **private**, even for public repos. Until you change that, anonymous `helm install` fails with `401`/`403`, and so does Porter's custom Helm chart add-on (it pulls without credentials).
+Packages that the workflow pushes with `GITHUB_TOKEN` inherit the repository's visibility. On a public repo, the chart and both images are public as soon as the first release finishes, and there's nothing to do.
 
-After the first release, go to **GitHub → your profile → Packages** and for each of:
+If your repo (or fork) is private, the packages are private too. Anonymous `helm install` then fails with `401`/`403`, and so does Porter's custom Helm chart add-on, which pulls without credentials. To fix it, go to **GitHub → your profile → Packages** and for each of:
 
 - `charts/porter-galaxy`
 - `porter-galaxy-backend`

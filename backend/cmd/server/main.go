@@ -51,7 +51,15 @@ func main() {
 	multiBuilder := cluster.NewMultiBuilder(builders...)
 
 	hub := api.NewHub(logger)
-	handler := api.NewHandler(multiBuilder, hub, logger)
+	ready := func() bool {
+		for _, mgr := range managers {
+			if !mgr.Synced() {
+				return false
+			}
+		}
+		return true
+	}
+	handler := api.NewHandler(multiBuilder, hub, ready, logger)
 
 	mux := http.NewServeMux()
 	handler.RegisterRoutes(mux)

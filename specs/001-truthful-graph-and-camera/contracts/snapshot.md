@@ -58,6 +58,7 @@ Fields marked **new** are added; existing fields keep their meaning unless noted
 
 - Every `from`/`to` in `topology` MUST be an ObjectKey that exists in the same cluster's lists, or
   `internet/_/internet`.
-- `controllerId` and `status` stay for one release so the old frontend keeps working during a
-  rollout; they are removed in the next spec that touches the contract.
+- `controllerId` and `status` are deprecated and removed by task T030. Link endpoints change
+  format in this release, so frontend and backend must run the same version; both ship in one
+  chart release.
 - Endpoints: `GET /healthz` (liveness, always 200), `GET /readyz` (**new**, 503 until caches sync).

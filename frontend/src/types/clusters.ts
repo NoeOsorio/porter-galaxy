@@ -1,4 +1,7 @@
+import type { State } from "../lib/objectKey";
+
 export interface ClusterGalaxyNode {
+  /** `<clusterId>::<object key>`; the cluster node itself uses the cluster ID. */
   id: string;
   type: "cluster" | "node" | "deployment" | "pod";
   name: string;
@@ -10,6 +13,7 @@ export interface ClusterGalaxyNode {
   glow: string;
   size: number;
   status?: string;
+  state?: State;
   metadata?: {
     cpu?: string;
     memory?: string;
@@ -19,28 +23,18 @@ export interface ClusterGalaxyNode {
     version?: string;
     nodeId?: string;
     clusterId?: string;
-    controllerId?: string;
+    owner?: string;
   };
 }
 
 export interface ClusterGalaxyEdge {
   from: string;
   to: string;
-  type: "cluster-node" | "node-deployment" | "deployment-pod";
+  type: "cluster-node" | "node-deployment" | "deployment-pod" | "node-pod";
   color: string;
 }
 
 export interface ClusterGalaxyGraph {
-  nodes: ClusterGalaxyNode[];
-  edges: ClusterGalaxyEdge[];
-}
-
-export interface ClusterConstellation {
-  clusterId: string;
-  centerX: number;
-  centerY: number;
-  centerZ: number;
-  radius: number;
   nodes: ClusterGalaxyNode[];
   edges: ClusterGalaxyEdge[];
 }

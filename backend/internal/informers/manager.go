@@ -3,12 +3,14 @@ package informers
 import (
 	"context"
 	"log/slog"
+	"sync/atomic"
 	"time"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	discoveryv1 "k8s.io/api/discovery/v1"
 	networkingv1 "k8s.io/api/networking/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
@@ -17,11 +19,12 @@ import (
 )
 
 // Manager owns the SharedInformerFactory and registers event handlers for the
-// five resource types that power the galaxy graph.
+// resource types that power the galaxy graph.
 type Manager struct {
 	factory informers.SharedInformerFactory
 	store   *store.Store
 	logger  *slog.Logger
+	synced  atomic.Bool
 }
 
 func NewManager(client kubernetes.Interface, s *store.Store, resync time.Duration, logger *slog.Logger) *Manager {
@@ -38,22 +41,32 @@ func (m *Manager) Start(ctx context.Context) error {
 	m.registerNodes()
 	m.registerPods()
 	m.registerDeployments()
+	m.registerReplicaSets()
 	m.registerServices()
 	m.registerIngresses()
 	m.registerEndpointSlices()
 
 	m.factory.Start(ctx.Done())
 
-	synced := m.factory.WaitForCacheSync(ctx.Done())
-	for t, ok := range synced {
+	allSynced := true
+	for t, ok := range m.factory.WaitForCacheSync(ctx.Done()) {
 		if !ok {
+			allSynced = false
 			m.logger.Error("cache sync failed", "informer", t)
 		}
 	}
-	m.logger.Info("all informer caches synced")
+	if allSynced {
+		m.synced.Store(true)
+		m.logger.Info("all informer caches synced")
+	}
 
 	<-ctx.Done()
 	return nil
+}
+
+// Synced reports whether every informer finished its initial list.
+func (m *Manager) Synced() bool {
+	return m.synced.Load()
 }
 
 // ── Nodes ─────────────────────────────────────────────────────────────────────
@@ -202,6 +215,53 @@ func (m *Manager) registerDeployments() {
 	})
 }
 
+// ── ReplicaSets ───────────────────────────────────────────────────────────────
+
+// registerReplicaSets caches only identity and owner references: the builder
+// needs ReplicaSets solely to map a pod to its Deployment, and dropping spec and
+// status keeps memory flat and ignores the frequent status-only updates.
+func (m *Manager) registerReplicaSets() {
+	inf := m.factory.Apps().V1().ReplicaSets().Informer()
+	if err := inf.SetTransform(trimReplicaSet); err != nil {
+		m.logger.Error("replicaset transform not set", "error", err)
+	}
+	inf.AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc: func(obj any) {
+			if rs, ok := obj.(*appsv1.ReplicaSet); ok {
+				m.store.UpsertReplicaSet(rs)
+			}
+		},
+		UpdateFunc: func(oldObj, newObj any) {
+			oldRS, _ := oldObj.(*appsv1.ReplicaSet)
+			rs, ok := newObj.(*appsv1.ReplicaSet)
+			if !ok || (oldRS != nil && oldRS.ResourceVersion == rs.ResourceVersion) {
+				return
+			}
+			m.store.UpsertReplicaSet(rs)
+		},
+		DeleteFunc: func(obj any) {
+			rs := extractReplicaSet(obj)
+			if rs == nil {
+				return
+			}
+			m.store.DeleteReplicaSet(rs.Namespace, rs.Name)
+		},
+	})
+}
+
+func trimReplicaSet(obj any) (any, error) {
+	rs, ok := obj.(*appsv1.ReplicaSet)
+	if !ok {
+		return obj, nil
+	}
+	return &appsv1.ReplicaSet{ObjectMeta: metav1.ObjectMeta{
+		Name:            rs.Name,
+		Namespace:       rs.Namespace,
+		ResourceVersion: rs.ResourceVersion,
+		OwnerReferences: rs.OwnerReferences,
+	}}, nil
+}
+
 // ── Tombstone helpers ─────────────────────────────────────────────────────────
 // When a watch connection drops and the informer misses a delete event, the
 // cache replays it as a DeletedFinalStateUnknown tombstone. We must unwrap it.
@@ -273,6 +333,18 @@ func extractDeployment(obj any) *appsv1.Deployment {
 	if ts, ok := obj.(cache.DeletedFinalStateUnknown); ok {
 		if d, ok := ts.Obj.(*appsv1.Deployment); ok {
 			return d
+		}
+	}
+	return nil
+}
+
+func extractReplicaSet(obj any) *appsv1.ReplicaSet {
+	if rs, ok := obj.(*appsv1.ReplicaSet); ok {
+		return rs
+	}
+	if ts, ok := obj.(cache.DeletedFinalStateUnknown); ok {
+		if rs, ok := ts.Obj.(*appsv1.ReplicaSet); ok {
+			return rs
 		}
 	}
 	return nil

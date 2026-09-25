@@ -93,11 +93,11 @@ errors".
 
 **Independent Test**: quickstart.md §3
 
-- [ ] T023 [US3] Create `frontend/src/components/CameraRig.tsx` around drei `CameraControls`: `frame(keys?)` fits the bounding box of the given (or all visible) nodes with padding, `flyTo(key)` centers a node and its neighbors via `setLookAt(..., true)`, distance limits derived from the graph's bounding radius, `R` key calls `frame()`; if drei lacks `CameraControls`, add `camera-controls` and note why in the PR
-- [ ] T024 [US3] Replace `OrbitControls` and the manual `requestAnimationFrame` lerps in `frontend/src/Topology.tsx` (lines 91-151, 210-222) and `frontend/src/Clusters.tsx` (lines 225-232) with `CameraRig`; call `frame()` on the first snapshot of each view and on "Reset view"
-- [ ] T025 [US3] Call `flyTo` on node click and on search Enter (one match → fly and select; several → `frame(matches)`; none → "No matches") in `frontend/src/Topology.tsx` and `frontend/src/Clusters.tsx`
-- [ ] T026 [US3] Remove the dead `cameraTargetRef` code and per-node `pointLight`s, and draw node glows as camera-facing sprites so nodes stay round in `frontend/src/components/three/TopologyScene.tsx` and `frontend/src/components/three/ClustersScene.tsx`
-- [ ] T027 [US3] Keep selection by ObjectKey so the detail panel follows the live object and shows "deleted" when it disappears in `frontend/src/Topology.tsx` and `frontend/src/Clusters.tsx`
+- [X] T023 [US3] Create `frontend/src/components/CameraRig.tsx` around drei `CameraControls`: `frame(keys?)` fits the bounding box of the given (or all visible) nodes with padding, `flyTo(key)` centers a node and its neighbors via `setLookAt(..., true)`, distance limits derived from the graph's bounding radius, `R` key calls `frame()`; if drei lacks `CameraControls`, add `camera-controls` and note why in the PR
+- [X] T024 [US3] Replace `OrbitControls` and the manual `requestAnimationFrame` lerps in `frontend/src/Topology.tsx` (lines 91-151, 210-222) and `frontend/src/Clusters.tsx` (lines 225-232) with `CameraRig`; call `frame()` on the first snapshot of each view and on "Reset view" (the per-scene `PerspectiveCamera` was replaced by one fixed camera on the App Canvas so `CameraControls` never binds to a camera that is about to be swapped)
+- [X] T025 [US3] Call `flyTo` on node click and on search Enter (one match → fly and select; several → `frame(matches)`; none → "No matches") in `frontend/src/Topology.tsx` and `frontend/src/Clusters.tsx`
+- [X] T026 [US3] Remove the dead `cameraTargetRef` code and per-node `pointLight`s, and draw nodes and glows as camera-facing sprites so nodes stay round (also fixes flow particles that never moved, and the lint errors from mutating `gl.domElement`) in `frontend/src/components/three/TopologyScene.tsx` and `frontend/src/components/three/ClustersScene.tsx`
+- [X] T027 [US3] Keep selection by ObjectKey so the detail panel follows the live object and shows "deleted" when it disappears in `frontend/src/Topology.tsx` and `frontend/src/Clusters.tsx`
 - [ ] T028 [US3] Run the gates, open PR `001-truthful-graph-and-camera-us3`, merge, `make release VERSION=0.5.0`, upgrade the add-on, and walk quickstart.md §3
 
 **Checkpoint**: A new user finds and centers `grafana` in under 10 s (SC-005)

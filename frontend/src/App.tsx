@@ -1,18 +1,25 @@
 import { useState } from "react";
-import GalaxyGraph from "./GalaxyGraph";
-import K8sGalaxy from "./K8sGalaxy";
-import ClusterExplorer from "./ClusterExplorer";
-import K8sMolecule from "./K8sMolecule";
+import { Canvas } from "@react-three/fiber";
 import Topology from "./Topology";
 import Clusters from "./Clusters";
+import ConnectionStatus from "./components/ConnectionStatus";
+import { useClustersSSE } from "./hooks/useClustersSSE";
+import SceneSlot from "./components/SceneSlot";
+import { handlePointerMissed } from "./lib/sceneSlot";
 
-type View = "galaxy" | "k8s" | "cluster" | "molecule" | "topology" | "clusters";
+type View = "topology" | "clusters";
 
 export default function App() {
   const [view, setView] = useState<View>("topology");
+  const { snapshot, connection, lastUpdate } = useClustersSSE();
 
   return (
     <>
+      <div className="fixed inset-0 bg-[#05050f]" style={{ touchAction: "none" }}>
+        <Canvas gl={{ antialias: true }} onPointerMissed={handlePointerMissed}>
+          <SceneSlot />
+        </Canvas>
+      </div>
       <div className="fixed top-5 left-1/2 -translate-x-1/2 z-50 flex gap-1 rounded-full bg-[rgba(8,8,25,0.85)] border border-white/[0.12] p-1.5 font-['JetBrains_Mono',monospace] text-xs backdrop-blur-xl shadow-lg">
         <button
           type="button"
@@ -37,12 +44,9 @@ export default function App() {
           Clusters
         </button>
       </div>
-      {view === "galaxy" && <GalaxyGraph />}
-      {view === "k8s" && <K8sGalaxy />}
-      {view === "cluster" && <ClusterExplorer />}
-      {view === "molecule" && <K8sMolecule />}
-      {view === "topology" && <Topology />}
-      {view === "clusters" && <Clusters />}
+      {view === "topology" && <Topology snapshot={snapshot} />}
+      {view === "clusters" && <Clusters snapshot={snapshot} />}
+      <ConnectionStatus connection={connection} lastUpdate={lastUpdate} hasSnapshot={snapshot !== null} />
     </>
   );
 }

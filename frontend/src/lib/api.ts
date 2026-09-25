@@ -2,16 +2,6 @@ import type { ApiClustersResponse } from "../types/api";
 
 const API_URL = import.meta.env.VITE_API_URL ?? "";
 
-export async function fetchClusters(): Promise<ApiClustersResponse> {
-  const response = await fetch(`${API_URL}/api/v1/clusters`);
-
-  if (!response.ok) {
-    throw new Error(`Failed to fetch clusters: ${response.statusText}`);
-  }
-
-  return response.json();
-}
-
 export function createClusterEventSource(
   onMessage: (data: ApiClustersResponse) => void,
   onError: (error: Error) => void

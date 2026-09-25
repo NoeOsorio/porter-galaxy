@@ -1,58 +1,63 @@
-import { useState, useEffect, useRef } from "react";
+import { useEffect, useState } from "react";
 import { createClusterEventSource } from "../lib/api";
 import type { ApiClustersResponse } from "../types/api";
 
-interface UseClustersSSEResult {
-  data: ApiClustersResponse | null;
-  isLoading: boolean;
-  isError: boolean;
-  error: Error | null;
-  isConnected: boolean;
+export type Connection = "connecting" | "live" | "reconnecting" | "offline";
+
+export interface ClustersStream {
+  snapshot: ApiClustersResponse | null;
+  connection: Connection;
+  lastUpdate: Date | null;
 }
 
-export function useClustersSSE(): UseClustersSSEResult {
-  const [data, setData] = useState<ApiClustersResponse | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isError, setIsError] = useState(false);
-  const [error, setError] = useState<Error | null>(null);
-  const [isConnected, setIsConnected] = useState(false);
-  const eventSourceRef = useRef<EventSource | null>(null);
+const OFFLINE_AFTER_MS = 30_000;
+const RETRY_CLOSED_MS = 3_000;
+
+// Must be called once, at the app root: each call opens its own stream.
+export function useClustersSSE(): ClustersStream {
+  const [snapshot, setSnapshot] = useState<ApiClustersResponse | null>(null);
+  const [connection, setConnection] = useState<Connection>("connecting");
+  const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
 
   useEffect(() => {
-    const handleMessage = (newData: ApiClustersResponse) => {
-      setData(newData);
-      setIsLoading(false);
-      setIsError(false);
-      setError(null);
-      setIsConnected(true);
+    let source: EventSource | null = null;
+    let offlineTimer: ReturnType<typeof setTimeout> | undefined;
+    let retryTimer: ReturnType<typeof setTimeout> | undefined;
+    let disposed = false;
+
+    const markDisconnected = () => {
+      setConnection((c) => (c === "offline" ? c : "reconnecting"));
+      offlineTimer ??= setTimeout(() => setConnection("offline"), OFFLINE_AFTER_MS);
     };
 
-    const handleError = (err: Error) => {
-      setIsError(true);
-      setError(err);
-      setIsLoading(false);
-      setIsConnected(false);
+    const connect = () => {
+      source = createClusterEventSource(
+        (data) => {
+          clearTimeout(offlineTimer);
+          offlineTimer = undefined;
+          setSnapshot(data);
+          setLastUpdate(new Date());
+          setConnection("live");
+        },
+        () => {
+          markDisconnected();
+          // EventSource retries on its own unless the server answered with a
+          // non-200 status, which leaves it CLOSED for good.
+          if (source?.readyState === EventSource.CLOSED && !disposed) {
+            retryTimer = setTimeout(connect, RETRY_CLOSED_MS);
+          }
+        },
+      );
     };
 
-    eventSourceRef.current = createClusterEventSource(handleMessage, handleError);
-
-    const eventSource = eventSourceRef.current;
-
-    eventSource.addEventListener("open", () => {
-      setIsConnected(true);
-    });
-
+    connect();
     return () => {
-      eventSource.close();
-      setIsConnected(false);
+      disposed = true;
+      clearTimeout(offlineTimer);
+      clearTimeout(retryTimer);
+      source?.close();
     };
   }, []);
 
-  return {
-    data,
-    isLoading,
-    isError,
-    error,
-    isConnected,
-  };
+  return { snapshot, connection, lastUpdate };
 }

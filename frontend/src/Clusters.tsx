@@ -1,9 +1,8 @@
 import { useState, useMemo, useRef, useEffect } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { OrbitControls, PerspectiveCamera, Stars } from "@react-three/drei";
+import { Stars } from "@react-three/drei";
 import { EffectComposer, Bloom } from "@react-three/postprocessing";
-import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
-import * as THREE from "three";
+import CameraRig, { type CameraRigHandle } from "./components/CameraRig";
 import { useScene } from "./lib/sceneSlot";
 import type { ApiClustersResponse } from "./types/api";
 import { transformClusters } from "./lib/transformClusters";
@@ -30,9 +29,8 @@ function stateColor(state?: State): string {
 }
 
 export default function Clusters({ snapshot: data }: { snapshot: ApiClustersResponse | null }) {
-  const controlsRef = useRef<OrbitControlsImpl | null>(null);
+  const rigRef = useRef<CameraRigHandle>(null);
   const [hovered, setHovered] = useState<ClusterGalaxyNode | null>(null);
-  const [selected, setSelected] = useState<ClusterGalaxyNode | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [filterType, setFilterType] = useState<string>("all");
   const [showFilters, setShowFilters] = useState(false);
@@ -43,6 +41,23 @@ export default function Clusters({ snapshot: data }: { snapshot: ApiClustersResp
     if (!data?.clusters) return null;
     return transformClusters(data);
   }, [data]);
+
+  // Selection follows the object by key across snapshots. An object that
+  // disappears stays in the panel marked deleted until the next snapshot.
+  const [selection, setSelection] = useState<{ node: ClusterGalaxyNode; missing: boolean } | null>(null);
+  const [seenGraph, setSeenGraph] = useState(clustersGraph);
+  if (clustersGraph !== seenGraph) {
+    setSeenGraph(clustersGraph);
+    if (selection) {
+      const live = clustersGraph?.nodes.find((n) => n.id === selection.node.id);
+      if (live) setSelection({ node: live, missing: false });
+      else if (selection.missing) setSelection(null);
+      else setSelection({ ...selection, missing: true });
+    }
+  }
+  const selected = selection?.node ?? null;
+  const selectionMissing = selection?.missing ?? false;
+  const setSelected = (node: ClusterGalaxyNode | null) => setSelection(node ? { node, missing: false } : null);
 
   const filteredNodes = useMemo(() => {
     if (!clustersGraph) return new Set<string>();
@@ -85,66 +100,27 @@ export default function Clusters({ snapshot: data }: { snapshot: ApiClustersResp
   }, [selected]);
 
   const handleDoubleClick = (node: ClusterGalaxyNode) => {
-    if (controlsRef.current) {
-      const controls = controlsRef.current;
-      const distance =
-        node.type === "cluster" ? 400 : node.type === "node" ? 250 : 150;
-      const direction = new THREE.Vector3(1, 0.5, 1).normalize();
-      const newPosition = new THREE.Vector3(
-        node.x + direction.x * distance,
-        node.y + direction.y * distance,
-        node.z + direction.z * distance,
-      );
+    rigRef.current?.flyTo(node.id);
+  };
 
-      controls.target.set(node.x, node.y, node.z);
+  const handleNodeClick = (node: ClusterGalaxyNode) => {
+    setSelected(node);
+    rigRef.current?.flyTo(node.id);
+  };
 
-      const camera = controls.object;
-      const startPosition = camera.position.clone();
-      const duration = 1000;
-      const startTime = Date.now();
-
-      const animate = () => {
-        const elapsed = Date.now() - startTime;
-        const progress = Math.min(elapsed / duration, 1);
-        const eased = THREE.MathUtils.smoothstep(progress, 0, 1);
-
-        camera.position.lerpVectors(startPosition, newPosition, eased);
-
-        if (progress < 1) {
-          requestAnimationFrame(animate);
-        }
-      };
-
-      animate();
+  const handleSearchEnter = () => {
+    if (!searchQuery || !clustersGraph) return;
+    const matches = [...filteredNodes];
+    if (matches.length === 1) {
+      const node = clustersGraph.nodes.find((n) => n.id === matches[0]);
+      if (node) handleNodeClick(node);
+    } else if (matches.length > 1) {
+      rigRef.current?.frame(matches);
     }
   };
 
   const handleResetView = () => {
-    if (controlsRef.current) {
-      const controls = controlsRef.current;
-      const camera = controls.object;
-      const startPosition = camera.position.clone();
-      const startTarget = controls.target.clone();
-      const defaultPosition = new THREE.Vector3(1200, 800, 1200);
-      const defaultTarget = new THREE.Vector3(0, 0, 0);
-      const duration = 1000;
-      const startTime = Date.now();
-
-      const animate = () => {
-        const elapsed = Date.now() - startTime;
-        const progress = Math.min(elapsed / duration, 1);
-        const eased = THREE.MathUtils.smoothstep(progress, 0, 1);
-
-        camera.position.lerpVectors(startPosition, defaultPosition, eased);
-        controls.target.lerpVectors(startTarget, defaultTarget, eased);
-
-        if (progress < 1) {
-          requestAnimationFrame(animate);
-        }
-      };
-
-      animate();
-    }
+    rigRef.current?.frame();
     setSelected(null);
   };
 
@@ -181,31 +157,18 @@ export default function Clusters({ snapshot: data }: { snapshot: ApiClustersResp
 
   const scene = clustersGraph && (
     <>
-      <PerspectiveCamera makeDefault position={[600, 400, 600]} fov={60} near={1} far={5000} />
       <color attach="background" args={["#05050f"]} />
       <fog attach="fog" args={["#05050f", 1200, 3000]} />
       <ClustersScene
         graph={clustersGraph}
         onHover={setHovered}
-        onClick={setSelected}
-        selectedNode={selected}
+        onClick={handleNodeClick}
+        selectedNode={selectionMissing ? null : selected}
         onDoubleClick={handleDoubleClick}
         filteredNodes={filteredNodes}
         errorPods={errorPods}
       />
-      <OrbitControls
-        ref={controlsRef}
-        enableDamping
-        dampingFactor={0.08}
-        rotateSpeed={0.5}
-        zoomSpeed={0.8}
-        minDistance={100}
-        maxDistance={1500}
-        target={[0, 0, 0]}
-        enablePan={true}
-        panSpeed={0.5}
-        screenSpacePanning={true}
-      />
+      <CameraRig ref={rigRef} nodes={clustersGraph.nodes} edges={clustersGraph.edges} azimuth={0.8} polar={0.95} />
       <Stars radius={1500} depth={500} count={3000} factor={3} />
       <EffectComposer>
         <Bloom
@@ -315,6 +278,9 @@ export default function Clusters({ snapshot: data }: { snapshot: ApiClustersResp
                     placeholder="Search resources..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") handleSearchEnter();
+                    }}
                     className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white/90 text-[11px] placeholder-white/40 focus:outline-none focus:border-white/20 focus:bg-white/10 transition-all"
                   />
 
@@ -378,8 +344,9 @@ export default function Clusters({ snapshot: data }: { snapshot: ApiClustersResp
 
                   {(searchQuery || filterType !== "all") && (
                     <div className="mt-2 text-[9px] text-white/50">
-                      {filteredNodes.size}{" "}
-                      {filteredNodes.size === 1 ? "resource" : "resources"} found
+                      {filteredNodes.size === 0
+                        ? "No matches"
+                        : `${filteredNodes.size} ${filteredNodes.size === 1 ? "resource" : "resources"} found`}
                     </div>
                   )}
                 </div>
@@ -558,6 +525,9 @@ export default function Clusters({ snapshot: data }: { snapshot: ApiClustersResp
                   style={{ color: selected.color || "#fff" }}
                 >
                   {TYPE_ICONS[selected.type]} {selected.name}
+                  {selectionMissing && (
+                    <span className="ml-2 text-[10px] font-normal text-red-400">deleted</span>
+                  )}
                 </div>
                 <button
                   type="button"

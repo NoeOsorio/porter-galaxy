@@ -16,7 +16,11 @@ export default function App() {
   return (
     <>
       <div className="fixed inset-0 bg-[#05050f]" style={{ touchAction: "none" }}>
-        <Canvas gl={{ antialias: true }} onPointerMissed={handlePointerMissed}>
+        <Canvas
+          gl={{ antialias: true }}
+          camera={{ fov: 60, near: 1, far: 6000, position: [600, 400, 600] }}
+          onPointerMissed={handlePointerMissed}
+        >
           <SceneSlot />
         </Canvas>
       </div>

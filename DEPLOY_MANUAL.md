@@ -106,13 +106,7 @@ kubectl port-forward svc/galaxy-porter-galaxy-frontend 8080:80 -n porter-galaxy
 
 ### Installing as a Porter add-on
 
-In the Porter dashboard, go to **Add-ons → Custom Helm chart** and fill in:
-
-| Field                 | Value                             |
-| --------------------- | --------------------------------- |
-| Helm Repository URL   | `oci://ghcr.io/noeosorio/charts`  |
-| Chart Name            | `porter-galaxy`                   |
-| Chart Version         | `1.0.0` (no leading `v`)          |
+Step-by-step fields and the values to paste are in the README: **[Deploy on Porter](README.md#deploy-on-porter-no-cli-needed)**. Use the chart version without a leading `v`.
 
 Porter downloads the chart from its own backend, not from your cluster, and without credentials — so the package must be public (Part 2).
 

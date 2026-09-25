@@ -35,6 +35,41 @@ Two views, one model:
 
 ## Install
 
+### Deploy on Porter (no CLI needed)
+
+1. In the Porter dashboard, open **Add-ons → Create add-on → Helm Chart**.
+2. Pick your cluster and name the add-on `porter-galaxy`.
+3. Fill in the chart fields:
+
+   | Field               | Value                            |
+   | ------------------- | -------------------------------- |
+   | Helm Repository URL | `oci://ghcr.io/noeosorio/charts` |
+   | Chart Name          | `porter-galaxy`                  |
+   | Chart Version       | `0.2.0`                          |
+
+4. Paste this into **Values YAML → Custom Values**:
+
+   ```yaml
+   ingress:
+     enabled: true
+     className: nginx
+     host: ""
+   ```
+
+5. Click **Review changes → Deploy changes**. The add-on turns **Deployed** once both pods are running (about a minute).
+6. Get the URL: it's the hostname of the cluster's ingress load balancer.
+
+   ```bash
+   porter kubectl -- get svc -n ingress-nginx ingress-nginx-controller \
+     -o jsonpath='{.status.loadBalancer.ingress[0].hostname}'
+   ```
+
+   Open `http://<that-hostname>/`.
+
+With `host: ""` the app answers on any hostname the ingress doesn't already route, so the load balancer URL works with no DNS setup. To use your own domain, create a CNAME from it to the load balancer hostname and set `host: galaxy.yourdomain.com`.
+
+Newer chart versions are listed on the [package page](https://github.com/noeosorio/porter-galaxy/pkgs/container/charts%2Fporter-galaxy); change **Chart Version** to upgrade. The images are built for `amd64` only, so the pods need x86 nodes.
+
 ### One-liner with Helm
 
 ```bash

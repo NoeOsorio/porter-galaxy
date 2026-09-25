@@ -5,7 +5,7 @@ Only the next spec has a plan and tasks; the rest are planned when they become n
 
 | # | Spec | Status | Depends on |
 | --- | --- | --- | --- |
-| 001 | [Truthful graph and usable camera](001-truthful-graph-and-camera/spec.md) | In progress: US1 shipped in 0.3.0, US2 in 0.4.0 · [tasks](001-truthful-graph-and-camera/tasks.md) | — |
+| 001 | [Truthful graph and usable camera](001-truthful-graph-and-camera/spec.md) | Shipped: US1 0.3.0, US2 0.4.0, US3 0.5.0; polish T029–T030 open · [tasks](001-truthful-graph-and-camera/tasks.md) | — |
 | 002 | [Render engine at scale](002-render-engine-at-scale/spec.md) | Backlog | 001 |
 | 003 | [Workload coverage and health](003-workload-coverage-and-health/spec.md) | Backlog | 001 |
 | 004 | [Multi-cluster hub](004-multi-cluster-hub/spec.md) | Backlog | 001, 005 for public hubs |

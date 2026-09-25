@@ -4,7 +4,7 @@
 
 **Visualize your Kubernetes cluster as a living galaxy.**
 
-A force-directed graph view of every Pod, Service, Deployment, and the relationships between them — rendered with Three.js, served by a Go backend that reads the live cluster state via `client-go`.
+A force-directed graph of every Pod, Service, and Deployment and the relationships between them, rendered with Three.js and served by a Go backend that reads live cluster state through `client-go`.
 
 [![Release](https://img.shields.io/github/v/tag/NoeOsorio/porter-galaxy?label=release&sort=semver)](https://github.com/NoeOsorio/porter-galaxy/releases)
 [![CI](https://github.com/NoeOsorio/porter-galaxy/actions/workflows/publish.yml/badge.svg)](https://github.com/NoeOsorio/porter-galaxy/actions/workflows/publish.yml)
@@ -24,16 +24,51 @@ A force-directed graph view of every Pod, Service, Deployment, and the relations
 
 ## Why
 
-`kubectl get` tells you *what* is in the cluster. Porter Galaxy shows you *how it all connects* — which Pods belong to which ReplicaSet, which Service selects which Deployment, where the dense regions are, and where the lonely dangling object lives. It runs in-cluster, refreshes in near real time, and renders the whole thing on a single canvas you can fly around.
+`kubectl get` tells you *what* is in the cluster. Porter Galaxy shows you *how it all connects*: which Pods belong to which ReplicaSet, which Service selects which Deployment, where the dense regions are, and where the lonely dangling object lives. It runs in-cluster, pushes changes to the browser as they happen, and renders the whole thing on a single canvas you can fly around.
 
-Two views, one model:
+Both views render the same graph:
 
-- **Topology** — every workload and its dependencies, force-laid-out so neighborhoods emerge naturally.
-- **Clusters** — hierarchical view (Namespace → Workload → Pod) for when you want structure instead of physics.
+- **Topology**: every workload and its dependencies, force-laid-out so neighborhoods emerge naturally.
+- **Clusters**: a hierarchical view (Namespace → Workload → Pod) for when you want structure instead of physics.
 
 ---
 
 ## Install
+
+### Deploy on Porter (no CLI needed)
+
+1. In the Porter dashboard, open **Add-ons → Create add-on → Helm Chart**.
+2. Pick your cluster and name the add-on `porter-galaxy`.
+3. Fill in the chart fields:
+
+   | Field               | Value                            |
+   | ------------------- | -------------------------------- |
+   | Helm Repository URL | `oci://ghcr.io/noeosorio/charts` |
+   | Chart Name          | `porter-galaxy`                  |
+   | Chart Version       | `0.2.0`                          |
+
+4. Paste this into **Values YAML → Custom Values**:
+
+   ```yaml
+   ingress:
+     enabled: true
+     className: nginx
+     host: ""
+   ```
+
+5. Click **Review changes → Deploy changes**. The add-on shows **Deployed** once both pods are running.
+6. The app is served on the hostname of the cluster's ingress load balancer. Get it with:
+
+   ```bash
+   porter kubectl -- get svc -n ingress-nginx ingress-nginx-controller \
+     -o jsonpath='{.status.loadBalancer.ingress[0].hostname}'
+   ```
+
+   Open `http://<that-hostname>/`.
+
+With `host: ""` the app answers on any hostname the ingress doesn't already route, so the load balancer URL works with no DNS setup. To use your own domain, create a CNAME from it to the load balancer hostname and set `host: galaxy.yourdomain.com`.
+
+Newer chart versions are listed on the [package page](https://github.com/noeosorio/porter-galaxy/pkgs/container/charts%2Fporter-galaxy); change **Chart Version** to upgrade. The images are built for `amd64` only, so the pods need x86 nodes.
 
 ### One-liner with Helm
 
@@ -73,7 +108,7 @@ helm upgrade galaxy oci://ghcr.io/noeosorio/charts/porter-galaxy \
   --set 'imagePullSecrets[0].name=ghcr-creds'
 ```
 
-Full deploy walkthrough: **[DEPLOY_MANUAL.md](DEPLOY_MANUAL.md)**.
+Full deploy walkthrough: [DEPLOY_MANUAL.md](DEPLOY_MANUAL.md).
 
 ---
 
@@ -124,7 +159,7 @@ make logs-backend
 | Distribution | Multi-stage Docker images on GHCR, Helm chart as OCI on GHCR |
 | RBAC         | ClusterRole + ClusterRoleBinding (read-only across the cluster) |
 
-The backend uses informers to keep an in-memory graph in sync with cluster state, so the frontend gets fast, consistent reads without hitting the API server on every paint.
+The backend uses informers to keep an in-memory graph in sync with the cluster and streams each change to the browser over Server-Sent Events, so the frontend never queries the Kubernetes API server.
 
 ---
 
@@ -179,11 +214,11 @@ Full default values: [`charts/porter-galaxy/values.yaml`](charts/porter-galaxy/v
 
 ## Releasing
 
-> **Releases are tag-driven.** Pushing to `main` does not publish anything — the `Publish` workflow only fires on tags matching `v*.*.*`.
+> **Releases are tag-driven.** Pushing to `main` does not publish anything. The `Publish` workflow only runs on tags matching `v*.*.*`.
 
 ```bash
 make release VERSION=1.1.0
-# equivalent to: git tag v1.1.0 && git push origin v1.1.0
+# bumps Chart.yaml, commits, then creates and pushes the v1.1.0 tag
 ```
 
 CI then:
@@ -192,9 +227,9 @@ CI then:
 2. Rewrites `Chart.yaml` to pin `appVersion: 1.1.0` (matches the image tag).
 3. Packages the chart and pushes it to `oci://ghcr.io/<owner>/charts/porter-galaxy`.
 
-GHCR creates new packages as private. After the first release, set the `charts/porter-galaxy` package (and both images) to **Public** in GitHub → Packages, or anonymous `helm install` and Porter add-ons can't pull them.
+Packages pushed by the workflow inherit the repository's visibility. If your repo is private, set the `charts/porter-galaxy` package and both images to Public in GitHub → Packages, or anonymous `helm install` and Porter add-ons can't pull them.
 
-Full flow: **[DEPLOY_MANUAL.md](DEPLOY_MANUAL.md)**.
+Full flow: [DEPLOY_MANUAL.md](DEPLOY_MANUAL.md).
 
 ---
 
@@ -204,7 +239,7 @@ Full flow: **[DEPLOY_MANUAL.md](DEPLOY_MANUAL.md)**.
 - [x] Topology + Clusters views
 - [x] Helm chart + tag-driven CI
 - [x] In-cluster RBAC for read-only graph access
-- [ ] Live updates over WebSocket (currently polled)
+- [x] Live updates over Server-Sent Events
 - [ ] Search / filter / namespace scoping in the UI
 - [ ] Node-detail side panel for any object kind
 - [ ] Export current view as PNG / share URL

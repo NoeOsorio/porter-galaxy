@@ -1,11 +1,11 @@
 import { useState, useMemo, useRef, useEffect } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { Canvas } from "@react-three/fiber";
-import { OrbitControls } from "@react-three/drei";
+import { OrbitControls, PerspectiveCamera } from "@react-three/drei";
 import { EffectComposer, Bloom } from "@react-three/postprocessing";
 import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
 import * as THREE from "three";
-import { useClustersSSE } from "./hooks/useClustersSSE";
+import { useScene } from "./lib/sceneSlot";
+import type { ApiClustersResponse } from "./types/api";
 import { transformTopology } from "./lib/transformTopology";
 import TopologyScene from "./components/three/TopologyScene";
 import type { TopologyNode } from "./types/topology";
@@ -33,9 +33,8 @@ function stateColor(state?: State): string {
   return state ? STATE_COLORS[state].color : "#ffffff";
 }
 
-export default function Topology() {
+export default function Topology({ snapshot: data }: { snapshot: ApiClustersResponse | null }) {
   const controlsRef = useRef<OrbitControlsImpl | null>(null);
-  const { data, isLoading, isError, error } = useClustersSSE();
   const [hovered, setHovered] = useState<TopologyNode | null>(null);
   const [selected, setSelected] = useState<TopologyNode | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
@@ -166,70 +165,50 @@ export default function Topology() {
     handleResetView();
   }, [selectedClusterIndex]);
 
+  const scene = topologyGraph && (
+    <>
+      <PerspectiveCamera makeDefault position={[300, 200, 300]} fov={60} near={1} far={3000} />
+      <color attach="background" args={["#05050f"]} />
+      <fog attach="fog" args={["#05050f", 900, 2000]} />
+      <TopologyScene
+        graph={topologyGraph}
+        onHover={setHovered}
+        onClick={setSelected}
+        selectedNode={selected}
+        onDoubleClick={handleDoubleClick}
+        filteredNodes={filteredNodes}
+        onEdgeHover={setHoveredEdge}
+        errorPods={errorPods}
+      />
+      <OrbitControls
+        ref={controlsRef}
+        enableDamping
+        dampingFactor={0.08}
+        rotateSpeed={0.5}
+        zoomSpeed={0.8}
+        minDistance={200}
+        maxDistance={900}
+        target={[0, 20, -200]}
+        enablePan={true}
+        panSpeed={0.5}
+        screenSpacePanning={true}
+      />
+      <EffectComposer>
+        <Bloom
+          luminanceThreshold={0.2}
+          intensity={1.5}
+          radius={0.7}
+          mipmapBlur
+        />
+      </EffectComposer>
+    </>
+  );
+  useScene(scene, () => setSelected(null));
+
   return (
     <div
-      className="w-full h-screen bg-[#05050f] relative overflow-hidden font-['JetBrains_Mono','SF_Mono',monospace]"
-      style={{ touchAction: "none" }}
+      className="absolute inset-0 overflow-hidden pointer-events-none font-['JetBrains_Mono','SF_Mono',monospace]"
     >
-      {isLoading && (
-        <div className="absolute inset-0 flex items-center justify-center">
-          <div className="text-white/70 text-sm">Loading topology...</div>
-        </div>
-      )}
-
-      {isError && (
-        <div className="absolute inset-0 flex items-center justify-center">
-          <div className="text-red-400 text-sm">
-            Error loading topology: {error?.message || "Unknown error"}
-          </div>
-        </div>
-      )}
-
-      {topologyGraph && (
-        <Canvas
-          camera={{ position: [300, 200, 300], fov: 60, near: 1, far: 3000 }}
-          gl={{ antialias: true }}
-          onClick={(e) => {
-            if (e.target === e.currentTarget) {
-              setSelected(null);
-            }
-          }}
-        >
-          <color attach="background" args={["#05050f"]} />
-          <fog attach="fog" args={["#05050f", 900, 2000]} />
-          <TopologyScene
-            graph={topologyGraph}
-            onHover={setHovered}
-            onClick={setSelected}
-            selectedNode={selected}
-            onDoubleClick={handleDoubleClick}
-            filteredNodes={filteredNodes}
-            onEdgeHover={setHoveredEdge}
-            errorPods={errorPods}
-          />
-          <OrbitControls
-            ref={controlsRef}
-            enableDamping
-            dampingFactor={0.08}
-            rotateSpeed={0.5}
-            zoomSpeed={0.8}
-            minDistance={200}
-            maxDistance={900}
-            target={[0, 20, -200]}
-            enablePan={true}
-            panSpeed={0.5}
-            screenSpacePanning={true}
-          />
-          <EffectComposer>
-            <Bloom
-              luminanceThreshold={0.2}
-              intensity={1.5}
-              radius={0.7}
-              mipmapBlur
-            />
-          </EffectComposer>
-        </Canvas>
-      )}
 
       <div className="absolute top-20 left-6 flex flex-col gap-3 pointer-events-auto">
         <div className="text-white/70 text-[11px] leading-[1.8] pointer-events-none">

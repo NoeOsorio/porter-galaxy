@@ -1,11 +1,11 @@
 import { useState, useMemo, useRef, useEffect } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { Canvas } from "@react-three/fiber";
-import { OrbitControls, Stars } from "@react-three/drei";
+import { OrbitControls, PerspectiveCamera, Stars } from "@react-three/drei";
 import { EffectComposer, Bloom } from "@react-three/postprocessing";
 import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
 import * as THREE from "three";
-import { useClustersSSE } from "./hooks/useClustersSSE";
+import { useScene } from "./lib/sceneSlot";
+import type { ApiClustersResponse } from "./types/api";
 import { transformClusters } from "./lib/transformClusters";
 import ClustersScene from "./components/three/ClustersScene";
 import type { ClusterGalaxyNode } from "./types/clusters";
@@ -29,9 +29,8 @@ function stateColor(state?: State): string {
   return state ? STATE_COLORS[state].color : "#ffffff";
 }
 
-export default function Clusters() {
+export default function Clusters({ snapshot: data }: { snapshot: ApiClustersResponse | null }) {
   const controlsRef = useRef<OrbitControlsImpl | null>(null);
-  const { data, isLoading, isError, error } = useClustersSSE();
   const [hovered, setHovered] = useState<ClusterGalaxyNode | null>(null);
   const [selected, setSelected] = useState<ClusterGalaxyNode | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
@@ -180,70 +179,50 @@ export default function Clusters() {
     };
   }, [data]);
 
+  const scene = clustersGraph && (
+    <>
+      <PerspectiveCamera makeDefault position={[600, 400, 600]} fov={60} near={1} far={5000} />
+      <color attach="background" args={["#05050f"]} />
+      <fog attach="fog" args={["#05050f", 1200, 3000]} />
+      <ClustersScene
+        graph={clustersGraph}
+        onHover={setHovered}
+        onClick={setSelected}
+        selectedNode={selected}
+        onDoubleClick={handleDoubleClick}
+        filteredNodes={filteredNodes}
+        errorPods={errorPods}
+      />
+      <OrbitControls
+        ref={controlsRef}
+        enableDamping
+        dampingFactor={0.08}
+        rotateSpeed={0.5}
+        zoomSpeed={0.8}
+        minDistance={100}
+        maxDistance={1500}
+        target={[0, 0, 0]}
+        enablePan={true}
+        panSpeed={0.5}
+        screenSpacePanning={true}
+      />
+      <Stars radius={1500} depth={500} count={3000} factor={3} />
+      <EffectComposer>
+        <Bloom
+          luminanceThreshold={0.2}
+          intensity={1.5}
+          radius={0.7}
+          mipmapBlur
+        />
+      </EffectComposer>
+    </>
+  );
+  useScene(scene, () => setSelected(null));
+
   return (
     <div
-      className="w-full h-screen bg-[#05050f] relative overflow-hidden font-['JetBrains_Mono','SF_Mono',monospace]"
-      style={{ touchAction: "none" }}
+      className="absolute inset-0 overflow-hidden pointer-events-none font-['JetBrains_Mono','SF_Mono',monospace]"
     >
-      {isLoading && (
-        <div className="absolute inset-0 flex items-center justify-center">
-          <div className="text-white/70 text-sm">Loading clusters...</div>
-        </div>
-      )}
-
-      {isError && (
-        <div className="absolute inset-0 flex items-center justify-center">
-          <div className="text-red-400 text-sm">
-            Error loading clusters: {error?.message || "Unknown error"}
-          </div>
-        </div>
-      )}
-
-      {clustersGraph && (
-        <Canvas
-          camera={{ position: [600, 400, 600], fov: 60, near: 1, far: 5000 }}
-          gl={{ antialias: true }}
-          onClick={(e) => {
-            if (e.target === e.currentTarget) {
-              setSelected(null);
-            }
-          }}
-        >
-          <color attach="background" args={["#05050f"]} />
-          <fog attach="fog" args={["#05050f", 1200, 3000]} />
-          <ClustersScene
-            graph={clustersGraph}
-            onHover={setHovered}
-            onClick={setSelected}
-            selectedNode={selected}
-            onDoubleClick={handleDoubleClick}
-            filteredNodes={filteredNodes}
-            errorPods={errorPods}
-          />
-          <OrbitControls
-            ref={controlsRef}
-            enableDamping
-            dampingFactor={0.08}
-            rotateSpeed={0.5}
-            zoomSpeed={0.8}
-            minDistance={100}
-            maxDistance={1500}
-            target={[0, 0, 0]}
-            enablePan={true}
-            panSpeed={0.5}
-            screenSpacePanning={true}
-          />
-          <Stars radius={1500} depth={500} count={3000} factor={3} />
-          <EffectComposer>
-            <Bloom
-              luminanceThreshold={0.2}
-              intensity={1.5}
-              radius={0.7}
-              mipmapBlur
-            />
-          </EffectComposer>
-        </Canvas>
-      )}
 
       <div className="absolute top-20 left-6 flex flex-col gap-3 pointer-events-auto">
         <div className="text-white/70 text-[11px] leading-[1.8] pointer-events-none">

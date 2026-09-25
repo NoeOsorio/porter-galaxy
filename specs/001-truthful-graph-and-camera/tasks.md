@@ -75,12 +75,12 @@ errors".
 
 **Independent Test**: quickstart.md §2
 
-- [ ] T016 [US2] Delete the unused views and everything only they import: `frontend/src/GalaxyGraph.tsx`, `K8sGalaxy.tsx`, `ClusterExplorer.tsx`, `K8sMolecule.tsx`, `components/three/{GalaxyScene,K8sScene,K8sMoleculeScene,ClusterScene}.tsx`, `components/{HUD,NodeDetail,ClusterLegend}.tsx`, `lib/{graph,k8sGraph,k8sMoleculeGraph,clusterData,transformApiToMolecule,transformClusterData}.ts`, `hooks/useClusters.ts`, and unused `types/*`; confirm with `npm run build`
-- [ ] T017 [US2] Remove the React Query provider from `frontend/src/main.tsx` and uninstall `@tanstack/react-query` (and `framer-motion` if T016 left no users) from `frontend/package.json`
-- [ ] T018 [US2] Make `frontend/src/hooks/useClustersSSE.ts` expose `{ snapshot, connection: 'connecting'|'live'|'reconnecting'|'offline', lastUpdate }`, switching to `offline` after 30 s without a successful reconnect
-- [ ] T019 [US2] Move the single `<Canvas>` and the single `useClustersSSE` call into `frontend/src/App.tsx`; turn `Topology.tsx` and `Clusters.tsx` into overlay + scene pairs that receive the snapshot as props and render inside the shared Canvas
-- [ ] T020 [P] [US2] Add a loading screen (shown until the first snapshot) and a connection indicator (live / reconnecting / offline + last update time) in `frontend/src/components/ConnectionStatus.tsx`, and remove the old error overlay in `Topology.tsx` and `Clusters.tsx`
-- [ ] T021 [P] [US2] Enable `gzip on` for JS, CSS, JSON, and SVG with `gzip_min_length 1024` in `frontend/nginx.conf.template`, leaving the `/api/` SSE location uncompressed
+- [X] T016 [US2] Delete the unused views (also removed the unused `App.css` and `assets/react.svg`) and everything only they import: `frontend/src/GalaxyGraph.tsx`, `K8sGalaxy.tsx`, `ClusterExplorer.tsx`, `K8sMolecule.tsx`, `components/three/{GalaxyScene,K8sScene,K8sMoleculeScene,ClusterScene}.tsx`, `components/{HUD,NodeDetail,ClusterLegend}.tsx`, `lib/{graph,k8sGraph,k8sMoleculeGraph,clusterData,transformApiToMolecule,transformClusterData}.ts`, `hooks/useClusters.ts`, and unused `types/*`; confirm with `npm run build`
+- [X] T017 [US2] Remove the React Query provider from `frontend/src/main.tsx` and uninstall `@tanstack/react-query` (and `framer-motion` if T016 left no users) from `frontend/package.json`
+- [X] T018 [US2] Make `frontend/src/hooks/useClustersSSE.ts` expose `{ snapshot, connection: 'connecting'|'live'|'reconnecting'|'offline', lastUpdate }`, switching to `offline` after 30 s without a successful reconnect
+- [X] T019 [US2] Move the single `<Canvas>` and the single `useClustersSSE` call into `frontend/src/App.tsx`; turn `Topology.tsx` and `Clusters.tsx` into overlay + scene pairs that receive the snapshot as props and render inside the shared Canvas (views publish their scene through `lib/sceneSlot.ts`, rendered by `components/SceneSlot.tsx`)
+- [X] T020 [P] [US2] Add a loading screen (shown until the first snapshot) and a connection indicator (live / reconnecting / offline + last update time) in `frontend/src/components/ConnectionStatus.tsx`, and remove the old error overlay in `Topology.tsx` and `Clusters.tsx`
+- [X] T021 [P] [US2] Enable `gzip on` for JS, CSS, JSON, and SVG with `gzip_min_length 1024` in `frontend/nginx.conf.template`, leaving the `/api/` SSE location uncompressed
 - [ ] T022 [US2] Run the gates, open PR `001-truthful-graph-and-camera-us2`, merge, `make release VERSION=0.4.0`, upgrade the add-on, and walk quickstart.md §2
 
 **Checkpoint**: ≤ 685 KB compressed JS, 0 context-lost messages over 10 switches (SC-003, SC-004)

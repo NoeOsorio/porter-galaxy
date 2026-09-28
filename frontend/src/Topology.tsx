@@ -3,6 +3,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { EffectComposer, Bloom } from "@react-three/postprocessing";
 import CameraRig, { type CameraRigHandle } from "./components/CameraRig";
 import { useScene } from "./lib/sceneSlot";
+import { useStaticLayout } from "./lib/layout/useStaticLayout";
 import type { ApiClustersResponse } from "./types/api";
 import { transformTopology } from "./lib/transformTopology";
 import TopologyScene from "./components/three/TopologyScene";
@@ -36,7 +37,6 @@ export default function Topology({ snapshot: data }: { snapshot: ApiClustersResp
   const [hovered, setHovered] = useState<TopologyNode | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [filterType, setFilterType] = useState<string>("all");
-  const [hoveredEdge, setHoveredEdge] = useState<{ from: string; to: string; type: string } | null>(null);
   const [showFilters, setShowFilters] = useState(false);
   const [showLegend, setShowLegend] = useState(false);
   const [selectedClusterIndex, setSelectedClusterIndex] = useState(0);
@@ -45,6 +45,7 @@ export default function Topology({ snapshot: data }: { snapshot: ApiClustersResp
     if (!data?.clusters || !data.clusters[selectedClusterIndex]) return null;
     return transformTopology(data.clusters[selectedClusterIndex]);
   }, [data, selectedClusterIndex]);
+  const layout = useStaticLayout(topologyGraph?.nodes);
 
   // Selection follows the object by key across snapshots. An object that
   // disappears stays in the panel marked deleted until the next snapshot.
@@ -143,15 +144,16 @@ export default function Topology({ snapshot: data }: { snapshot: ApiClustersResp
       <fog attach="fog" args={["#05050f", 900, 2000]} />
       <TopologyScene
         graph={topologyGraph}
+        store={layout}
         onHover={setHovered}
+        onMiss={() => setSelected(null)}
         onClick={handleNodeClick}
         selectedNode={selectionMissing ? null : selected}
         onDoubleClick={handleDoubleClick}
         filteredNodes={filteredNodes}
-        onEdgeHover={setHoveredEdge}
         errorPods={errorPods}
       />
-      <CameraRig key={selectedClusterIndex} ref={rigRef} nodes={topologyGraph.nodes} edges={topologyGraph.edges} azimuth={0.7} polar={1.15} />
+      <CameraRig key={selectedClusterIndex} ref={rigRef} store={layout} nodes={topologyGraph.nodes} edges={topologyGraph.edges} azimuth={0.7} polar={1.15} />
       <EffectComposer>
         <Bloom
           luminanceThreshold={0.2}
@@ -162,7 +164,7 @@ export default function Topology({ snapshot: data }: { snapshot: ApiClustersResp
       </EffectComposer>
     </>
   );
-  useScene(scene, () => setSelected(null));
+  useScene(scene);
 
   return (
     <div
@@ -407,34 +409,6 @@ export default function Topology({ snapshot: data }: { snapshot: ApiClustersResp
           </AnimatePresence>
         </div>
       </div>
-
-      <AnimatePresence>
-        {hoveredEdge && (
-          <motion.div
-            key={`edge-${hoveredEdge.from}-${hoveredEdge.to}`}
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 8 }}
-            transition={{ duration: 0.2 }}
-            className="absolute bottom-20 left-6 pointer-events-none min-w-[220px]"
-          >
-            <div className="bg-[rgba(8,8,25,0.9)] border border-white/[0.08] rounded-xl py-3.5 px-[18px] text-white/70 text-[11px] leading-[1.9] backdrop-blur-xl">
-              <div className="font-medium text-[13px] text-white/90 mb-2">
-                Connection
-              </div>
-              <div>
-                from: <span className="text-white/90">{hoveredEdge.from}</span>
-              </div>
-              <div>
-                to: <span className="text-white/90">{hoveredEdge.to}</span>
-              </div>
-              <div>
-                type: <span className="text-white/90 capitalize">{hoveredEdge.type}</span>
-              </div>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
 
       <AnimatePresence>
         {hovered && (

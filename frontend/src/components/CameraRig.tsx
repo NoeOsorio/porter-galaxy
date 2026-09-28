@@ -1,12 +1,10 @@
 import { useCallback, useEffect, useImperativeHandle, useMemo, useRef, type ComponentRef, type Ref } from "react";
 import * as THREE from "three";
 import { CameraControls } from "@react-three/drei";
+import { readPosition, type LayoutStore } from "../lib/layout/layoutStore";
 
 export interface RigNode {
   id: string;
-  x: number;
-  y: number;
-  z: number;
   size: number;
 }
 
@@ -24,6 +22,7 @@ export interface CameraRigHandle {
 
 interface Props {
   ref: Ref<CameraRigHandle>;
+  store: LayoutStore;
   nodes: RigNode[];
   edges: RigEdge[];
   /** Default viewing angles used on first frame and on reset. */
@@ -35,7 +34,7 @@ interface Props {
 // enough for the glow of the outermost nodes.
 const GLOW_PADDING = 1.5;
 
-export default function CameraRig({ ref, nodes, edges, azimuth, polar }: Props) {
+export default function CameraRig({ ref, store, nodes, edges, azimuth, polar }: Props) {
   const controls = useRef<ComponentRef<typeof CameraControls>>(null);
   const framed = useRef(false);
 
@@ -52,11 +51,12 @@ export default function CameraRig({ ref, nodes, edges, azimuth, polar }: Props) 
   const sphereFor = useCallback(
     (ids: Iterable<string>) => {
       const box = new THREE.Box3();
+      const p = new THREE.Vector3();
       let maxSize = 0;
       for (const id of ids) {
         const n = byId.get(id);
-        if (!n) continue;
-        box.expandByPoint(new THREE.Vector3(n.x, n.y, n.z));
+        if (!n || !readPosition(store, id, p)) continue;
+        box.expandByPoint(p);
         maxSize = Math.max(maxSize, n.size);
       }
       if (box.isEmpty()) return null;
@@ -64,7 +64,7 @@ export default function CameraRig({ ref, nodes, edges, azimuth, polar }: Props) 
       sphere.radius = Math.max(sphere.radius + maxSize * GLOW_PADDING, 60);
       return sphere;
     },
-    [byId],
+    [byId, store],
   );
 
   const frame = useCallback(

@@ -26,6 +26,29 @@ Chart Version** `<x.y.z>` → **Review changes → Deploy changes**, and open th
 
 ## §1 Large clusters stay smooth (US1, 0.6.0)
 
+**Baseline (0.5.x renderer, 2026-09-28).** Headless Chrome (ANGLE Metal, Apple M4 Max), 1456×830,
+10 s drag-orbit per view, measured with `requestAnimationFrame`. "CPU ×4" uses CDP CPU throttling to
+approximate a typical laptop; the M4 Max alone hits the 60 Hz cap at 1,000 pods.
+
+| Load | CPU | Topology avg fps / p99 ms | Clusters avg fps / p99 ms |
+| --- | --- | --- | --- |
+| 1,000 pods, no churn | ×1 | 59.5 / 16.8 | 60.1 / 16.8 |
+| 1,000 pods, churn 500 ms | ×1 | 60.0 / 16.8 | 60.1 / 16.8 |
+| 3,000 pods, churn 500 ms | ×1 | 34.9 / 50.1 | 29.1 / 66.6 |
+| 1,000 pods, no churn | ×4 | 23.4 / 83.4 | 21.5 / 83.4 |
+| 1,000 pods, churn 500 ms | ×4 | 21.1 / 83.4 | 17.5 / 100.1 |
+
+**US1 result (instanced renderer, same setup).** Every case holds the 60 Hz cap (avg 60 fps,
+p99 16.8 ms, max 16.8 ms in both views), including the hardest one the baseline could not reach:
+
+| Load | CPU | Topology avg fps / p99 ms | Clusters avg fps / p99 ms |
+| --- | --- | --- | --- |
+| 1,000 pods, churn 500 ms | ×1 | 60.1 / 16.8 | 60.1 / 16.8 |
+| 3,000 pods, churn 500 ms | ×1 | 60.0 / 16.8 | 60.1 / 16.8 |
+| 1,000 pods, churn 500 ms | ×4 | 60.1 / 16.8 | 60.0 / 16.8 |
+| 3,000 pods, churn 500 ms | ×4 | 60.0 / 16.8 | 60.1 / 16.8 |
+
+
 1. Fake stream at 1,000 pods, churn off (`-churn 0`): orbit continuously for 10 s in each view.
    The stats overlay stays ≥ 30 fps (target 60). Record the lowest value in the PR.
 2. Same with `-churn 500ms`: no frame above 50 ms in the stats graph while orbiting.

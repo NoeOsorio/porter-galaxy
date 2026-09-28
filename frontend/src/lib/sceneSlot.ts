@@ -6,7 +6,6 @@ import { useLayoutEffect, useSyncExternalStore, type ReactNode } from "react";
 
 export interface Slot {
   scene: ReactNode;
-  onPointerMissed?: () => void;
   /** True once a frame has been drawn with a scene in the slot. */
   rendered: boolean;
 }
@@ -35,9 +34,9 @@ export function markSceneRendered() {
 }
 
 /** Render `scene` in the shared Canvas while the calling view is mounted. */
-export function useScene(scene: ReactNode, onPointerMissed?: () => void) {
+export function useScene(scene: ReactNode) {
   useLayoutEffect(() => {
-    publish({ scene, onPointerMissed, rendered: current.rendered });
+    publish({ scene, rendered: current.rendered });
   });
   useLayoutEffect(() => () => publish({ scene: null, rendered: current.rendered }), []);
 }
@@ -45,8 +44,4 @@ export function useScene(scene: ReactNode, onPointerMissed?: () => void) {
 /** For DOM components: whether the Canvas has drawn its first scene. */
 export function useSceneRendered() {
   return useSyncExternalStore(subscribeSlot, () => current.rendered);
-}
-
-export function handlePointerMissed() {
-  current.onPointerMissed?.();
 }

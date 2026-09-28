@@ -24,9 +24,9 @@ description: "Task list for 002 Render Engine at Scale"
 
 **Purpose**: Tools to measure scale before changing the renderer
 
-- [ ] T001 [P] Add `backend/cmd/fakestream/main.go` per contracts/fakestream.md (flags, SSE snapshot built from `internal/cluster` types, churn, CORS, `/readyz`)
-- [ ] T002 [P] Show drei `<StatsGl>` inside the Canvas when the URL has `?stats`, in `frontend/src/App.tsx`
-- [ ] T003 Record a baseline: 0.5.x at 1,000 pods via quickstart "Load setup", lowest fps per view, in `specs/002-render-engine-at-scale/quickstart.md` under §1 as "Baseline"
+- [X] T001 [P] Add `backend/cmd/fakestream/main.go` per contracts/fakestream.md (flags, SSE snapshot built from `internal/cluster` types, churn, CORS, `/readyz`)
+- [X] T002 [P] Show drei `<StatsGl>` inside the Canvas when the URL has `?stats`, in `frontend/src/App.tsx`
+- [X] T003 Record a baseline: 0.5.x at 1,000 pods via quickstart "Load setup", lowest fps per view, in `specs/002-render-engine-at-scale/quickstart.md` under §1 as "Baseline"
 
 ---
 
@@ -34,9 +34,9 @@ description: "Task list for 002 Render Engine at Scale"
 
 **Purpose**: Positions outside React state, shared by every story
 
-- [ ] T004 Add `frontend/src/lib/layout/layoutStore.ts` per data-model.md (keys, index, `Float32Array` positions, version, settled; `positionOf(key)`)
-- [ ] T005 Seed the store from the current transforms' ring positions (temporary layout until US2) with a `useStaticLayout(graph)` hook in `frontend/src/lib/layout/useStaticLayout.ts`
-- [ ] T006 Make `frontend/src/components/CameraRig.tsx` read positions through a `positionOf(key)` prop instead of `node.x/y/z`, and pass the store accessor from `Topology.tsx` and `Clusters.tsx`
+- [X] T004 Add `frontend/src/lib/layout/layoutStore.ts` per data-model.md (keys, index, `Float32Array` positions, version, settled; `positionOf(key)`)
+- [X] T005 Seed the store from the current transforms' ring positions (temporary layout until US2) with a `useStaticLayout(graph)` hook in `frontend/src/lib/layout/useStaticLayout.ts`
+- [X] T006 Make `frontend/src/components/CameraRig.tsx` read positions through a `positionOf(key)` prop instead of `node.x/y/z`, and pass the store accessor from `Topology.tsx` and `Clusters.tsx`
 
 **Checkpoint**: App behaves exactly like 0.5.x, but positions come from the store
 
@@ -48,14 +48,14 @@ description: "Task list for 002 Render Engine at Scale"
 
 **Independent Test**: quickstart.md §1
 
-- [ ] T007 [P] [US1] Create `frontend/src/components/three/NodeInstances.tsx`: instanced billboard plane (body + glow layers) with per-instance `instanceColor`, `aRadius`, `aOpacity`, `aBlink` and a time uniform, reading positions from the store in `useFrame` (research R1)
-- [ ] T008 [P] [US1] Create `frontend/src/lib/picking.ts`: project store positions with the camera and return the nearest node under the pointer within its projected radius (research R2)
-- [ ] T009 [P] [US1] Create `frontend/src/components/three/EdgeSegments.tsx` on drei `<Segments>`: base links plus a wider highlight set, endpoints updated from the store in `useFrame` (research R3)
-- [ ] T010 [US1] Wire pointer move / click / double-click on the canvas to `picking.ts` and feed the existing `onHover` / `onClick` / `onDoubleClick` callbacks, in a `usePicking` hook in `frontend/src/lib/picking.ts`
-- [ ] T011 [US1] Rewrite `frontend/src/components/three/TopologyScene.tsx` on `NodeInstances` + `EdgeSegments` + `usePicking`; keep flow particles (5 sprites) reading positions from the store; rebuild attributes only when keys change, patch colors/opacity in place otherwise (research R4)
-- [ ] T012 [US1] Rewrite `frontend/src/components/three/ClustersScene.tsx` the same way, keeping family highlighting through `aOpacity` and the highlight `Segments`
-- [ ] T013 [US1] Delete `frontend/src/components/three/NodeDisc.tsx` and any now-unused helpers in `frontend/src/lib/discTextures.ts`
-- [ ] T014 [US1] Walk quickstart §1 steps 1–4 against the fake stream and record fps values in the PR description
+- [X] T007 [P] [US1] Create `frontend/src/components/three/NodeInstances.tsx`: instanced billboard plane (body + glow layers) with per-instance `instanceColor`, `aRadius`, `aOpacity`, `aBlink` and a time uniform, reading positions from the store in `useFrame` (research R1)
+- [X] T008 [P] [US1] Create `frontend/src/lib/picking.ts`: project store positions with the camera and return the nearest node under the pointer within its projected radius (research R2)
+- [X] T009 [P] [US1] Create `frontend/src/components/three/EdgeSegments.tsx` on drei `<Segments>`: base links plus a wider highlight set, endpoints updated from the store in `useFrame` (research R3)
+- [X] T010 [US1] Wire pointer move / click / double-click on the canvas to `picking.ts` and feed the existing `onHover` / `onClick` / `onDoubleClick` callbacks, in a `usePicking` hook in `frontend/src/lib/picking.ts`
+- [X] T011 [US1] Rewrite `frontend/src/components/three/TopologyScene.tsx` on `NodeInstances` + `EdgeSegments` + `usePicking`; keep flow particles (5 sprites) reading positions from the store; rebuild attributes only when keys change, patch colors/opacity in place otherwise (research R4)
+- [X] T012 [US1] Rewrite `frontend/src/components/three/ClustersScene.tsx` the same way, keeping family highlighting through `aOpacity` and the highlight `Segments`
+- [X] T013 [US1] Delete `frontend/src/components/three/NodeDisc.tsx` and any now-unused helpers in `frontend/src/lib/discTextures.ts`
+- [X] T014 [US1] Walk quickstart §1 steps 1–4 against the fake stream and record fps values in the PR description
 - [ ] T015 [US1] Run the gates, open PR `002-render-engine-at-scale-us1`, merge, `make release VERSION=0.6.0`, upgrade the Porter add-on, and walk quickstart §1 step 5
 
 **Checkpoint**: SC-001 met at 1,000 pods

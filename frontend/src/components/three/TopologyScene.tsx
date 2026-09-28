@@ -1,22 +1,29 @@
-import { useRef, useMemo } from "react";
+import { useMemo, useRef } from "react";
 import * as THREE from "three";
 import { useFrame } from "@react-three/fiber";
 import type { TopologyNode, TopologyGraph, TopologyEdge } from "../../types/topology";
-import { GlowDisc, NodeDisc } from "./NodeDisc";
-import { setCursor, solidDiscTexture } from "../../lib/discTextures";
+import type { LayoutStore } from "../../lib/layout/layoutStore";
+import { readPosition } from "../../lib/layout/layoutStore";
+import { usePicking } from "../../lib/picking";
+import { writeColor } from "../../lib/colorBuffers";
+import { solidDiscTexture } from "../../lib/discTextures";
+import NodeInstances, { type NodeAttributes } from "./NodeInstances";
+import EdgeSegments, { type EdgeList } from "./EdgeSegments";
 
 interface TopologySceneProps {
   graph: TopologyGraph;
+  store: LayoutStore;
   onHover: (node: TopologyNode | null) => void;
   onClick: (node: TopologyNode) => void;
-  selectedNode: TopologyNode | null;
   onDoubleClick: (node: TopologyNode) => void;
+  onMiss: () => void;
+  selectedNode: TopologyNode | null;
   filteredNodes: Set<string>;
-  onEdgeHover: (edge: { from: string; to: string; type: string } | null) => void;
   errorPods: TopologyNode[];
 }
 
 const PARTICLES = 5;
+const PATH_COLOR = "#00d4ff";
 
 function findPathToNode(targetNodeId: string, graph: TopologyGraph): TopologyEdge[] {
   const path: TopologyEdge[] = [];
@@ -39,46 +46,73 @@ function findPathToNode(targetNodeId: string, graph: TopologyGraph): TopologyEdg
   return path;
 }
 
-function edgeTransform(from: TopologyNode, to: TopologyNode) {
-  const start = new THREE.Vector3(from.x, from.y, from.z);
-  const end = new THREE.Vector3(to.x, to.y, to.z);
-  const direction = new THREE.Vector3().subVectors(end, start);
-  const length = direction.length();
-  const midpoint = new THREE.Vector3().addVectors(start, end).multiplyScalar(0.5);
-  const quaternion = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), direction.normalize());
-  return { length, midpoint, quaternion };
-}
-
 export default function TopologyScene({
   graph,
+  store,
   onHover,
   onClick,
-  selectedNode,
   onDoubleClick,
+  onMiss,
+  selectedNode,
   filteredNodes,
-  onEdgeHover,
   errorPods,
 }: TopologySceneProps) {
   const particleRefs = useRef<(THREE.Group | null)[]>([]);
   const progress = useRef(0);
 
   const nodesById = useMemo(() => new Map(graph.nodes.map((n) => [n.id, n])), [graph.nodes]);
-  const errorPodIds = useMemo(() => new Set(errorPods.map((pod) => pod.id)), [errorPods]);
-  const flowPath = useMemo(
-    () => (selectedNode ? findPathToNode(selectedNode.id, graph) : []),
-    [selectedNode, graph],
-  );
-  const nodesInPath = useMemo(() => {
-    const ids = new Set<string>();
-    flowPath.forEach((edge) => {
-      ids.add(edge.from);
-      ids.add(edge.to);
+  const flowPath = useMemo(() => (selectedNode ? findPathToNode(selectedNode.id, graph) : []), [selectedNode, graph]);
+
+  const attributes = useMemo<NodeAttributes>(() => {
+    const n = graph.nodes.length;
+    const inPath = new Set(flowPath.flatMap((e) => [e.from, e.to]));
+    const failing = new Set(errorPods.map((p) => p.id));
+    const attrs: NodeAttributes = {
+      keys: graph.nodes.map((node) => node.id),
+      colors: new Float32Array(n * 3),
+      glowColors: new Float32Array(n * 3),
+      radii: new Float32Array(n),
+      opacities: new Float32Array(n),
+      blink: new Float32Array(n),
+    };
+    graph.nodes.forEach((node, i) => {
+      writeColor(attrs.colors, i, node.color);
+      writeColor(attrs.glowColors, i, inPath.has(node.id) ? PATH_COLOR : node.glow);
+      attrs.radii[i] = node.size;
+      attrs.opacities[i] = filteredNodes.size > 0 && !filteredNodes.has(node.id) ? 0.2 : 1;
+      attrs.blink[i] = failing.has(node.id) ? 1 : 0;
     });
-    return ids;
+    return attrs;
+  }, [graph.nodes, flowPath, filteredNodes, errorPods]);
+
+  const baseEdges = useMemo<EdgeList>(() => {
+    const colors = new Float32Array(graph.edges.length * 3);
+    graph.edges.forEach((e, i) => writeColor(colors, i, e.color, e.active ? 0.6 : 0.25));
+    return { from: graph.edges.map((e) => e.from), to: graph.edges.map((e) => e.to), colors };
+  }, [graph.edges]);
+
+  const pathEdges = useMemo<EdgeList>(() => {
+    const colors = new Float32Array(flowPath.length * 3);
+    flowPath.forEach((_, i) => writeColor(colors, i, PATH_COLOR));
+    return { from: flowPath.map((e) => e.from), to: flowPath.map((e) => e.to), colors };
   }, [flowPath]);
-  const edgesInPath = useMemo(() => new Set(flowPath.map((e) => `${e.from}|${e.to}`)), [flowPath]);
+
+  usePicking(store, attributes.keys, attributes.radii, {
+    onHover: (key) => onHover(key ? (nodesById.get(key) ?? null) : null),
+    onClick: (key) => {
+      const node = nodesById.get(key);
+      if (node) onClick(node);
+    },
+    onDoubleClick: (key) => {
+      const node = nodesById.get(key);
+      if (node) onDoubleClick(node);
+    },
+    onMiss,
+  });
 
   // Particles travel the Internet → selected node path, evenly spaced.
+  const from = useMemo(() => new THREE.Vector3(), []);
+  const to = useMemo(() => new THREE.Vector3(), []);
   useFrame((_, delta) => {
     if (flowPath.length === 0) return;
     progress.current = (progress.current + delta * 0.8) % flowPath.length;
@@ -86,84 +120,19 @@ export default function TopologyScene({
       if (!group) return;
       const p = (progress.current + (i / PARTICLES) * flowPath.length) % flowPath.length;
       const edge = flowPath[Math.floor(p)]!;
-      const from = nodesById.get(edge.from);
-      const to = nodesById.get(edge.to);
-      if (!from || !to) return;
-      const t = p - Math.floor(p);
-      group.position.set(
-        THREE.MathUtils.lerp(from.x, to.x, t),
-        THREE.MathUtils.lerp(from.y, to.y, t),
-        THREE.MathUtils.lerp(from.z, to.z, t),
-      );
+      if (!readPosition(store, edge.from, from) || !readPosition(store, edge.to, to)) return;
+      group.position.lerpVectors(from, to, p - Math.floor(p));
     });
   });
 
   return (
     <group>
-      {graph.nodes.map((node) => {
-        const isInPath = nodesInPath.has(node.id);
-        const isFiltered = filteredNodes.size > 0 && !filteredNodes.has(node.id);
-        const opacity = isFiltered ? 0.2 : 1;
-        return (
-          <group key={node.id} position={[node.x, node.y, node.z]}>
-            <GlowDisc radius={node.size * 1.8} color={isInPath ? "#00d4ff" : node.glow} opacity={(isInPath ? 0.6 : 0.35) * opacity} />
-            <NodeDisc
-              node={node}
-              radius={node.size}
-              color={node.color}
-              opacity={opacity}
-              blink={errorPodIds.has(node.id)}
-              onHover={onHover}
-              onClick={onClick}
-              onDoubleClick={onDoubleClick}
-            />
-          </group>
-        );
-      })}
-
-      {graph.edges.map((edge) => {
-        const from = nodesById.get(edge.from);
-        const to = nodesById.get(edge.to);
-        if (!from || !to) return null;
-
-        const isInPath = edgesInPath.has(`${edge.from}|${edge.to}`);
-        const { length, midpoint, quaternion } = edgeTransform(from, to);
-        const baseWidth = isInPath
-          ? edge.type === "internet" ? 2.5 : edge.type === "lb" ? 2.0 : edge.type === "ingress" ? 1.5 : 1.2
-          : edge.type === "internet" ? 1.5 : edge.type === "lb" ? 1.2 : edge.type === "ingress" ? 1.0 : 0.6;
-
-        return (
-          <mesh
-            key={`${edge.from}|${edge.to}`}
-            position={midpoint}
-            quaternion={quaternion}
-            onPointerOver={(e) => {
-              e.stopPropagation();
-              onEdgeHover({ from: edge.from, to: edge.to, type: edge.type });
-              setCursor("pointer");
-            }}
-            onPointerOut={(e) => {
-              e.stopPropagation();
-              onEdgeHover(null);
-              setCursor("default");
-            }}
-          >
-            <cylinderGeometry args={[baseWidth * 0.3, baseWidth, length, 8]} />
-            <meshBasicMaterial
-              color={isInPath ? "#00d4ff" : edge.color}
-              transparent
-              opacity={isInPath ? 0.7 : edge.active ? 0.5 : 0.2}
-              toneMapped={false}
-              depthWrite={false}
-            />
-          </mesh>
-        );
-      })}
-
+      <EdgeSegments store={store} edges={baseEdges} width={1.5} />
+      <EdgeSegments store={store} edges={pathEdges} width={3} opacity={0.8} />
+      <NodeInstances store={store} attributes={attributes} glowScale={1.8} glowOpacity={0.5} />
       {flowPath.length > 0 &&
         Array.from({ length: PARTICLES }, (_, i) => (
           <group key={`particle-${i}`} ref={(g) => { particleRefs.current[i] = g; }}>
-            <GlowDisc radius={14} color="#00d4ff" opacity={0.8} />
             <sprite scale={[10, 10, 1]} raycast={() => null}>
               <spriteMaterial map={solidDiscTexture()} color="#ffffff" transparent toneMapped={false} />
             </sprite>

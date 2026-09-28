@@ -4,6 +4,7 @@ import { Stars } from "@react-three/drei";
 import { EffectComposer, Bloom } from "@react-three/postprocessing";
 import CameraRig, { type CameraRigHandle } from "./components/CameraRig";
 import { useScene } from "./lib/sceneSlot";
+import { useStaticLayout } from "./lib/layout/useStaticLayout";
 import type { ApiClustersResponse } from "./types/api";
 import { transformClusters } from "./lib/transformClusters";
 import ClustersScene from "./components/three/ClustersScene";
@@ -41,6 +42,7 @@ export default function Clusters({ snapshot: data }: { snapshot: ApiClustersResp
     if (!data?.clusters) return null;
     return transformClusters(data);
   }, [data]);
+  const layout = useStaticLayout(clustersGraph?.nodes);
 
   // Selection follows the object by key across snapshots. An object that
   // disappears stays in the panel marked deleted until the next snapshot.
@@ -161,14 +163,16 @@ export default function Clusters({ snapshot: data }: { snapshot: ApiClustersResp
       <fog attach="fog" args={["#05050f", 1200, 3000]} />
       <ClustersScene
         graph={clustersGraph}
+        store={layout}
         onHover={setHovered}
+        onMiss={() => setSelected(null)}
         onClick={handleNodeClick}
         selectedNode={selectionMissing ? null : selected}
         onDoubleClick={handleDoubleClick}
         filteredNodes={filteredNodes}
         errorPods={errorPods}
       />
-      <CameraRig ref={rigRef} nodes={clustersGraph.nodes} edges={clustersGraph.edges} azimuth={0.8} polar={0.95} />
+      <CameraRig ref={rigRef} store={layout} nodes={clustersGraph.nodes} edges={clustersGraph.edges} azimuth={0.8} polar={0.95} />
       <Stars radius={1500} depth={500} count={3000} factor={3} />
       <EffectComposer>
         <Bloom
@@ -180,7 +184,7 @@ export default function Clusters({ snapshot: data }: { snapshot: ApiClustersResp
       </EffectComposer>
     </>
   );
-  useScene(scene, () => setSelected(null));
+  useScene(scene);
 
   return (
     <div

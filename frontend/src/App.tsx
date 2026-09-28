@@ -1,13 +1,15 @@
 import { useState } from "react";
 import { Canvas } from "@react-three/fiber";
+import { StatsGl } from "@react-three/drei";
 import Topology from "./Topology";
 import Clusters from "./Clusters";
 import ConnectionStatus from "./components/ConnectionStatus";
 import { useClustersSSE } from "./hooks/useClustersSSE";
 import SceneSlot from "./components/SceneSlot";
-import { handlePointerMissed } from "./lib/sceneSlot";
 
 type View = "topology" | "clusters";
+
+const SHOW_STATS = new URLSearchParams(window.location.search).has("stats");
 
 export default function App() {
   const [view, setView] = useState<View>("topology");
@@ -19,9 +21,9 @@ export default function App() {
         <Canvas
           gl={{ antialias: true }}
           camera={{ fov: 60, near: 1, far: 6000, position: [600, 400, 600] }}
-          onPointerMissed={handlePointerMissed}
         >
           <SceneSlot />
+          {SHOW_STATS && <StatsGl className="!left-auto !right-6 !top-16" />}
         </Canvas>
       </div>
       <div className="fixed top-5 left-1/2 -translate-x-1/2 z-50 flex gap-1 rounded-full bg-[rgba(8,8,25,0.85)] border border-white/[0.12] p-1.5 font-['JetBrains_Mono',monospace] text-xs backdrop-blur-xl shadow-lg">

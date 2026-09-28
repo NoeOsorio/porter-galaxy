@@ -127,22 +127,14 @@ func (b *Builder) buildPods() []PodInfo {
 			p.Labels["app.kubernetes.io/version"],
 		)
 
-		owner := b.podOwner(p)
-		var controllerID string
-		if owner.Kind == "Deployment" {
-			controllerID = owner.Name
-		}
-
 		out = append(out, PodInfo{
-			Key:          objectKey("pod", p.Namespace, p.Name),
-			ID:           p.Name,
-			Namespace:    p.Namespace,
-			NodeID:       p.Spec.NodeName,
-			State:        podState(p),
-			Status:       podStatus(p),
-			Version:      version,
-			Owner:        owner,
-			ControllerID: controllerID,
+			Key:       objectKey("pod", p.Namespace, p.Name),
+			ID:        p.Name,
+			Namespace: p.Namespace,
+			NodeID:    p.Spec.NodeName,
+			State:     podState(p),
+			Version:   version,
+			Owner:     b.podOwner(p),
 		})
 	}
 	slices.SortFunc(out, func(a, b PodInfo) int { return cmp.Compare(a.Key, b.Key) })
@@ -200,22 +192,6 @@ func podState(p *corev1.Pod) State {
 		return StateRunning
 	}
 	return StateUnknown
-}
-
-// podStatus returns a human-readable status for a pod, preferring container-level
-// reasons (e.g. CrashLoopBackOff, OOMKilled) over the coarse pod Phase.
-func podStatus(p *corev1.Pod) string {
-	// Check each container's waiting/terminated reason first.
-	for _, cs := range p.Status.ContainerStatuses {
-		if cs.State.Waiting != nil && cs.State.Waiting.Reason != "" {
-			return cs.State.Waiting.Reason
-		}
-		if cs.State.Terminated != nil && cs.State.Terminated.Reason != "" {
-			return cs.State.Terminated.Reason
-		}
-	}
-	// Fall back to pod phase (Pending / Running / Succeeded / Failed / Unknown).
-	return string(p.Status.Phase)
 }
 
 // ── Deployments ───────────────────────────────────────────────────────────────

@@ -24,11 +24,8 @@ export interface ApiPod {
   namespace: string;
   nodeId: string;
   state: State;
-  status: string;
   version?: string;
   owner: ApiOwner;
-  /** @deprecated Read `owner`; removed in spec 001 T030. */
-  controllerId?: string;
 }
 
 export interface ApiDeployment {

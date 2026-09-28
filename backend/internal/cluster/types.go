@@ -33,12 +33,8 @@ type PodInfo struct {
 	Namespace string `json:"namespace"`
 	NodeID    string `json:"nodeId"`
 	State     State  `json:"state"`
-	Status    string `json:"status"`
 	Version   string `json:"version,omitempty"`
 	Owner     Owner  `json:"owner"`
-	// ControllerID is Owner.Name when the owner is a Deployment. Deprecated:
-	// kept until spec 001 T030 removes it; read Owner instead.
-	ControllerID string `json:"controllerId,omitempty"`
 }
 
 // Owner is the workload that controls a pod, resolved through owner

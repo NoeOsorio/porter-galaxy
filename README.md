@@ -24,12 +24,14 @@ A force-directed graph of every Pod, Service, and Deployment and the relationshi
 
 ## Why
 
-`kubectl get` tells you *what* is in the cluster. Porter Galaxy shows you *how it all connects*: which Pods belong to which ReplicaSet, which Service selects which Deployment, where the dense regions are, and where the lonely dangling object lives. It runs in-cluster, pushes changes to the browser as they happen, and renders the whole thing on a single canvas you can fly around.
+`kubectl get` tells you *what* is in the cluster. Porter Galaxy shows you *how it all connects*: which Deployment owns which Pods, which Ingress routes to which Service, where the dense regions are, and where the lonely dangling object lives. It runs in-cluster, pushes changes to the browser as they happen, and renders the whole thing on a single canvas you can fly around.
 
 Both views render the same graph:
 
-- **Topology**: every workload and its dependencies, force-laid-out so neighborhoods emerge naturally.
-- **Clusters**: a hierarchical view (Namespace → Workload → Pod) for when you want structure instead of physics.
+- **Topology**: how traffic reaches your workloads, from Internet → Load Balancer → Ingress → Service → Deployment → Pod.
+- **Clusters**: a hierarchical view (Cluster → Node → Deployment → Pod) that shows where every Pod runs.
+
+Click a node or search for it and the camera flies to it; `R` reframes the whole graph. Pods are colored by their real state (running, pending, completed, failed).
 
 ---
 
@@ -139,13 +141,14 @@ make logs-backend
 ```
                         ┌─────────────────────────────┐
                         │  React 19 + Three.js (Vite) │
-                        │  Force-directed canvas      │
+                        │  Topology + Clusters views  │
                         └──────────────┬──────────────┘
                                        │ /api/*  (nginx proxy)
                         ┌──────────────▼──────────────┐
                         │  Go backend (client-go)     │
-                        │  Watches Pods/Svcs/Deploys  │
-                        │  Builds nodes + edges       │
+                        │  Watches nodes, pods,       │
+                        │  workloads, services,       │
+                        │  ingresses, endpointslices  │
                         └──────────────┬──────────────┘
                                        │ Kubernetes API
                                        ▼
@@ -159,7 +162,7 @@ make logs-backend
 | Distribution | Multi-stage Docker images on GHCR, Helm chart as OCI on GHCR |
 | RBAC         | ClusterRole + ClusterRoleBinding (read-only across the cluster) |
 
-The backend uses informers to keep an in-memory graph in sync with the cluster and streams each change to the browser over Server-Sent Events, so the frontend never queries the Kubernetes API server.
+The backend uses informers to keep an in-memory graph in sync with the cluster and streams each change to the browser over Server-Sent Events, so the frontend never queries the Kubernetes API server. Pods are linked to their Deployment through owner references, and `/readyz` reports ready only after the informer caches have synced.
 
 ---
 
@@ -170,21 +173,22 @@ porter-galaxy/
 ├── backend/                 # Go API server
 │   ├── cmd/server/          # Entry point
 │   └── internal/
-│       ├── api/             # HTTP handlers
-│       ├── cluster/         # Cluster client wiring
+│       ├── api/             # HTTP handlers + SSE hub
+│       ├── cluster/         # Snapshot builder (objects, owners, states, links)
 │       ├── informers/       # client-go informer setup
-│       ├── registry/        # Object registry → graph
-│       └── store/           # In-memory graph store
+│       ├── registry/        # Porter API client for multi-cluster mode
+│       └── store/           # In-memory object cache
 ├── frontend/                # React + Three.js app
 │   ├── src/
-│   │   ├── GalaxyGraph.tsx  # Canvas + state
-│   │   ├── Topology.tsx     # Force-directed view
-│   │   ├── Clusters.tsx     # Hierarchical view
-│   │   ├── components/      # HUD, legend, node detail
-│   │   └── lib/             # Pure graph + render helpers
+│   │   ├── App.tsx          # Shared canvas, live stream, view switch
+│   │   ├── Topology.tsx     # Traffic-flow view
+│   │   ├── Clusters.tsx     # Cluster → Node → Deployment → Pod view
+│   │   ├── components/      # Camera rig, connection status, 3D scenes
+│   │   └── lib/             # Snapshot → graph transforms, helpers
 │   └── nginx.conf.template  # Serves static + proxies /api
 ├── charts/porter-galaxy/    # Helm chart (deployments, svcs, ingress, RBAC)
 ├── .github/workflows/       # publish.yml — tag-driven release
+├── specs/                   # Roadmap and specs (Spec Kit)
 ├── Makefile                 # dev + release commands
 └── DEPLOY_MANUAL.md         # Full deploy guide
 ```
@@ -235,15 +239,17 @@ Full flow: [DEPLOY_MANUAL.md](DEPLOY_MANUAL.md).
 
 ## Roadmap
 
-- [x] Force-directed canvas with Three.js
-- [x] Topology + Clusters views
+- [x] Topology + Clusters views on one Three.js canvas
 - [x] Helm chart + tag-driven CI
 - [x] In-cluster RBAC for read-only graph access
-- [x] Live updates over Server-Sent Events
-- [ ] Search / filter / namespace scoping in the UI
-- [ ] Node-detail side panel for any object kind
-- [ ] Export current view as PNG / share URL
-- [ ] Optional Go → WASM force simulation for large clusters
+- [x] Live updates over Server-Sent Events, with connection status
+- [x] Ownership through owner references and state from Kubernetes status
+- [x] Search, type filters, camera framing and fly-to
+- [ ] Render engine at scale: instancing, force layout, 3D labels ([spec 002](specs/002-render-engine-at-scale/spec.md))
+- [ ] More workload kinds and health signals ([spec 003](specs/003-workload-coverage-and-health/spec.md))
+- [ ] Multi-cluster hub ([spec 004](specs/004-multi-cluster-hub/spec.md))
+- [ ] Access control ([spec 005](specs/005-access-control/spec.md))
+- [ ] Semantic zoom, detail panel, share links, replay ([spec 006](specs/006-explore-and-share/spec.md))
 
 ---
 

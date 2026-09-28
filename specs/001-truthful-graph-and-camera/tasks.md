@@ -106,8 +106,8 @@ errors".
 
 ## Phase 6: Polish
 
-- [ ] T029 [P] Update README (Why, Architecture, Configuration, Roadmap) to match what 0.5.0 draws, including the ownership links and `/readyz`
-- [ ] T030 Remove `controllerId` and `status` from the snapshot contract once 0.5.0 is deployed, in `backend/internal/cluster/types.go`, `backend/internal/cluster/builder.go`, and `frontend/src/types/api.ts`
+- [X] T029 [P] Update README (Why, Architecture, Configuration, Roadmap) to match what 0.5.0 draws, including the ownership links and `/readyz`
+- [X] T030 Remove `controllerId` and `status` from the snapshot contract once 0.5.0 is deployed, in `backend/internal/cluster/types.go`, `backend/internal/cluster/builder.go`, and `frontend/src/types/api.ts`
 
 ---
 

@@ -25,9 +25,7 @@ Fields marked **new** are added; existing fields keep their meaning unless noted
           "namespace": "monitoring",
           "nodeId": "ip-10-78-1-1",
           "state": "running",                            // new
-          "status": "Running",
-          "owner": { "kind": "Deployment", "name": "grafana" },  // new
-          "controllerId": "grafana" }                    // now derived from owner; kept for one release
+          "owner": { "kind": "Deployment", "name": "grafana" } },  // new; replaces controllerId
       ],
       "deployments": [
         { "key": "deployment/monitoring/grafana",        // new
@@ -58,7 +56,7 @@ Fields marked **new** are added; existing fields keep their meaning unless noted
 
 - Every `from`/`to` in `topology` MUST be an ObjectKey that exists in the same cluster's lists, or
   `internet/_/internet`.
-- `controllerId` and `status` are deprecated and removed by task T030. Link endpoints change
-  format in this release, so frontend and backend must run the same version; both ship in one
-  chart release.
+- Pod `controllerId` and `status` were removed (T030); read `owner` and `state`. Link endpoints
+  changed format in this spec, so frontend and backend must run the same version; both ship in
+  one chart release.
 - Endpoints: `GET /healthz` (liveness, always 200), `GET /readyz` (**new**, 503 until caches sync).

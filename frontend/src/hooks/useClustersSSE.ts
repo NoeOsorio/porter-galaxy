@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { applyPatch, createClusterEventSource } from "../lib/api";
+import { fetchSession } from "./useSession";
 import type { ApiClustersResponse } from "../types/api";
 
 export type Connection = "connecting" | "live" | "reconnecting" | "offline";
@@ -15,7 +16,8 @@ const RETRY_CLOSED_MS = 3_000;
 const STATS = new URLSearchParams(window.location.search).has("stats");
 
 // Must be called once, at the app root: each call opens its own stream.
-export function useClustersSSE(): ClustersStream {
+// onUnauthorized fires when the stream fails because the session ended.
+export function useClustersSSE(onUnauthorized: () => void): ClustersStream {
   const [snapshot, setSnapshot] = useState<ApiClustersResponse | null>(null);
   const [connection, setConnection] = useState<Connection>("connecting");
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
@@ -70,6 +72,16 @@ export function useClustersSSE(): ClustersStream {
         },
         onError: () => {
           markDisconnected();
+          // EventSource hides the status of a failed reconnect; the session
+          // endpoint tells an expired session apart from a backend outage.
+          fetchSession()
+            .then((s) => {
+              if (s.status === "signed-out" && !disposed) {
+                source?.close();
+                onUnauthorized();
+              }
+            })
+            .catch(() => undefined);
           // EventSource retries on its own unless the server answered with a
           // non-200 status, which leaves it CLOSED for good.
           if (source?.readyState === EventSource.CLOSED && !disposed) {
@@ -87,7 +99,7 @@ export function useClustersSSE(): ClustersStream {
       clearInterval(statsTimer);
       source?.close();
     };
-  }, []);
+  }, [onUnauthorized]);
 
   return { snapshot, connection, lastUpdate };
 }

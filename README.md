@@ -72,6 +72,13 @@ Deployments, StatefulSets, DaemonSets, Jobs, and CronJobs all appear, each with 
 
 With `host: ""` the app answers on any hostname the ingress doesn't already route, so the load balancer URL works with no DNS setup. To use your own domain, create a CNAME from it to the load balancer hostname and set `host: galaxy.yourdomain.com`.
 
+Galaxy asks for a password when you open it; see [Signing in](#signing-in) to read the generated one. For an add-on named `porter-galaxy`:
+
+```bash
+porter kubectl -- get secret porter-galaxy-auth -n <add-on namespace> \
+  -o jsonpath='{.data.password}' | base64 -d; echo
+```
+
 Newer chart versions are listed on the [package page](https://github.com/noeosorio/porter-galaxy/pkgs/container/charts%2Fporter-galaxy); change **Chart Version** to upgrade. The images are built for `amd64` only, so the pods need x86 nodes.
 
 ### One-liner with Helm
@@ -114,6 +121,21 @@ helm upgrade galaxy oci://ghcr.io/noeosorio/charts/porter-galaxy \
 
 Full deploy walkthrough: [DEPLOY_MANUAL.md](DEPLOY_MANUAL.md).
 
+### Signing in
+
+Galaxy has a built-in login with one shared account, like the Grafana chart. The user is `admin`. If you set no password, the chart generates a random one on install, keeps it on upgrades, and the install notes print how to read it:
+
+```bash
+kubectl get secret <release>-porter-galaxy-auth -n <namespace> \
+  -o jsonpath='{.data.password}' | base64 -d; echo
+```
+
+(When the release name already contains `porter-galaxy`, the Secret is `<release>-auth`.)
+
+To choose the password, set `auth.password`, or point `auth.existingSecret` at a Secret with `username` and `password` keys. Changing the password signs everyone out within about a minute, without a restart. Sessions last 24 hours. Ten wrong passwords from the same address lock sign-in for ten minutes.
+
+Setting `auth.enabled=false` removes the login: do it only when something else already controls who can reach the app.
+
 ---
 
 ## Local development
@@ -140,7 +162,7 @@ make logs-backend
 
 ```bash
 cd backend && go run ./cmd/fakestream -pods 3000 -namespaces 20 -churn 500ms
-cd frontend && VITE_API_URL=http://localhost:4078 npm run dev
+cd frontend && GALAXY_API=http://localhost:4078 npm run dev
 # open http://localhost:5173/?stats  (fps overlay; console logs layout settle time and displacement)
 ```
 
@@ -230,6 +252,10 @@ The chart's most useful values:
 | `ingress.host`                 | `""`                                     | Public DNS name                             |
 | `ingress.tls`                  | `[]`                                     | Standard `tls:` block (cert-manager works)  |
 | `serviceAccount.create`        | `true`                                   | Backend RBAC needs a ServiceAccount         |
+| `auth.enabled`                 | `true`                                   | Require sign-in for the app and API         |
+| `auth.username`                | `admin`                                  | Sign-in name                                |
+| `auth.password`                | `""`                                     | Empty generates one, kept across upgrades   |
+| `auth.existingSecret`          | `""`                                     | Secret with `username` and `password` keys  |
 
 Full default values: [`charts/porter-galaxy/values.yaml`](charts/porter-galaxy/values.yaml).
 

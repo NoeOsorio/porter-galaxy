@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/noeosorio/porter-galaxy/backend/internal/api"
+	"github.com/noeosorio/porter-galaxy/backend/internal/auth"
 	"github.com/noeosorio/porter-galaxy/backend/internal/cluster"
 	"github.com/noeosorio/porter-galaxy/backend/internal/metrics"
 )
@@ -218,6 +219,7 @@ func main() {
 	churnEvery := flag.Duration("churn", 500*time.Millisecond, "interval between updates; 0 disables churn")
 	churnSize := flag.Int("churn-size", 3, "pods replaced per update")
 	withMetrics := flag.Bool("metrics", true, "report usage as if metrics-server were installed")
+	password := flag.String("password", "", "require sign-in as admin with this password")
 	flag.Parse()
 
 	g := newGenerator(*pods, *namespaces, *depsPerNS, *nodes)
@@ -237,7 +239,11 @@ func main() {
 	}
 
 	mux := http.NewServeMux()
-	api.NewHandler(hub, func() bool { return true }, logger).RegisterRoutes(mux)
+	var authn *auth.Auth
+	if *password != "" {
+		authn = auth.Fixed("admin", *password)
+	}
+	api.NewHandler(authn, hub, func() bool { return true }, logger).RegisterRoutes(mux)
 
 	log.Printf("fakestream: %d pods, %d namespaces, churn %s on :%d", *pods, *namespaces, *churnEvery, *port)
 	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%d", *port), mux))

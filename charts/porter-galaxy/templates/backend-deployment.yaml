@@ -34,6 +34,8 @@ spec:
           env:
             - name: PORT
               value: {{ .Values.backend.port | quote }}
+            - name: AUTH_ENABLED
+              value: {{ .Values.auth.enabled | quote }}
             {{- range $key, $val := .Values.backend.env }}
             - name: {{ $key }}
               value: {{ $val | quote }}
@@ -50,10 +52,22 @@ spec:
               port: http
             initialDelaySeconds: 3
             periodSeconds: 10
+          {{- if .Values.auth.enabled }}
+          volumeMounts:
+            - name: auth
+              mountPath: /etc/galaxy/auth
+              readOnly: true
+          {{- end }}
           {{- with .Values.backend.resources }}
           resources:
             {{- toYaml . | nindent 12 }}
           {{- end }}
+      {{- if .Values.auth.enabled }}
+      volumes:
+        - name: auth
+          secret:
+            secretName: {{ include "porter-galaxy.authSecretName" . }}
+      {{- end }}
       {{- with .Values.backend.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}

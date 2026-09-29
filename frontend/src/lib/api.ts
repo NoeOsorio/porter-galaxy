@@ -1,7 +1,5 @@
 import type { ApiCluster, ApiClusterPatch, ApiClustersResponse, ApiPatchEvent, ApiSnapshotEvent } from "../types/api";
 
-const API_URL = import.meta.env.VITE_API_URL ?? "";
-
 export interface ClusterStreamHandlers {
   onSnapshot: (data: ApiSnapshotEvent, bytes: number) => void;
   onPatch: (data: ApiPatchEvent, bytes: number) => void;
@@ -9,7 +7,7 @@ export interface ClusterStreamHandlers {
 }
 
 export function createClusterEventSource({ onSnapshot, onPatch, onError }: ClusterStreamHandlers): EventSource {
-  const eventSource = new EventSource(`${API_URL}/api/v1/clusters`);
+  const eventSource = new EventSource("/api/v1/clusters");
   const listen = <T>(event: string, handle: (data: T, bytes: number) => void) =>
     eventSource.addEventListener(event, (e) => {
       try {

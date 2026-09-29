@@ -31,6 +31,16 @@ frontend:
   tolerations: []
   affinity: {}
 
+# Built-in sign-in: one shared account. With no password and no existingSecret,
+# a random password is generated on install and kept on upgrades; the install
+# notes print how to read it.
+auth:
+  enabled: true
+  username: admin
+  password: ""
+  # Use this Secret (keys `username` and `password`) instead of creating one.
+  existingSecret: ""
+
 serviceAccount:
   create: true
   name: ""

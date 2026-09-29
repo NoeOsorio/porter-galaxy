@@ -5,7 +5,9 @@ import Topology from "./Topology";
 import Clusters from "./Clusters";
 import ConnectionStatus from "./components/ConnectionStatus";
 import { useClustersSSE } from "./hooks/useClustersSSE";
+import { useSession } from "./hooks/useSession";
 import SceneSlot from "./components/SceneSlot";
+import Login from "./components/Login";
 
 type View = "topology" | "clusters";
 
@@ -13,9 +15,7 @@ const SHOW_STATS = new URLSearchParams(window.location.search).has("stats");
 const HAS_WEBGL2 = !!document.createElement("canvas").getContext("webgl2");
 
 export default function App() {
-  const [view, setView] = useState<View>("topology");
-  const [dimension, setDimension] = useState<"3d" | "2d">("3d");
-  const { snapshot, connection, lastUpdate } = useClustersSSE();
+  const { session, signIn, signOut, expire } = useSession();
 
   if (!HAS_WEBGL2) {
     return (
@@ -28,6 +28,16 @@ export default function App() {
       </div>
     );
   }
+  if (session.status === "checking") return <div className="fixed inset-0 bg-[#05050f]" />;
+  if (session.status === "signed-out") return <Login onSignIn={signIn} />;
+  // Mounted only while signed in, so signing out also closes the stream.
+  return <Galaxy onUnauthorized={expire} onSignOut={session.username ? signOut : undefined} />;
+}
+
+function Galaxy({ onUnauthorized, onSignOut }: { onUnauthorized: () => void; onSignOut?: () => void }) {
+  const [view, setView] = useState<View>("topology");
+  const [dimension, setDimension] = useState<"3d" | "2d">("3d");
+  const { snapshot, connection, lastUpdate } = useClustersSSE(onUnauthorized);
 
   return (
     <>
@@ -73,6 +83,18 @@ export default function App() {
         >
           {dimension === "3d" ? "3D" : "2D"}
         </button>
+        {onSignOut && (
+          <>
+            <div className="w-px my-1.5 bg-white/[0.12]" />
+            <button
+              type="button"
+              onClick={onSignOut}
+              className="px-4 py-2.5 rounded-full transition-all duration-200 text-white/60 hover:text-white/90 hover:bg-white/5"
+            >
+              Sign out
+            </button>
+          </>
+        )}
       </div>
       {view === "topology" && <Topology snapshot={snapshot} dimension={dimension} />}
       {view === "clusters" && <Clusters snapshot={snapshot} dimension={dimension} />}

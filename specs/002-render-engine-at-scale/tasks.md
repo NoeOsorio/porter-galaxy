@@ -56,7 +56,7 @@ description: "Task list for 002 Render Engine at Scale"
 - [X] T012 [US1] Rewrite `frontend/src/components/three/ClustersScene.tsx` the same way, keeping family highlighting through `aOpacity` and the highlight `Segments`
 - [X] T013 [US1] Delete `frontend/src/components/three/NodeDisc.tsx` and any now-unused helpers in `frontend/src/lib/discTextures.ts`
 - [X] T014 [US1] Walk quickstart §1 steps 1–4 against the fake stream and record fps values in the PR description
-- [ ] T015 [US1] Run the gates, open PR `002-render-engine-at-scale-us1`, merge, `make release VERSION=0.6.0`, upgrade the Porter add-on, and walk quickstart §1 step 5
+- [X] T015 [US1] Run the gates, open PR `002-render-engine-at-scale-us1`, merge, `make release VERSION=0.6.0`, upgrade the Porter add-on, and walk quickstart §1 step 5
 
 **Checkpoint**: SC-001 met at 1,000 pods
 

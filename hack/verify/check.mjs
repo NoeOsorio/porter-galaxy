@@ -52,7 +52,10 @@ ws.addEventListener("message", (e) => {
     pending.delete(m.id);
   }
   if (m.method === "Runtime.consoleAPICalled") logs.push(m.params.args.map((a) => a.value).join(" "));
-  if (m.method === "Runtime.exceptionThrown") logs.push(`EXCEPTION ${m.params.exceptionDetails.text}`);
+  if (m.method === "Runtime.exceptionThrown") {
+    const d = m.params.exceptionDetails;
+    logs.push(`EXCEPTION ${(d.exception?.description ?? d.text).split("\n").slice(0, 3).join(" | ")}`);
+  }
 });
 const send = (method, params = {}) =>
   new Promise((r) => {

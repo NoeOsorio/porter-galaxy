@@ -10,6 +10,8 @@ import (
 	"log"
 	"math/rand/v2"
 	"net/http"
+	"slices"
+	"strings"
 	"sync"
 	"time"
 
@@ -20,8 +22,10 @@ type generator struct {
 	mu       sync.Mutex
 	rng      *rand.Rand
 	nodes    []string
-	deps     []cluster.DeploymentInfo
+	deps     []cluster.WorkloadInfo // churned: their pods are replaced over time
+	others   []cluster.WorkloadInfo // StatefulSets, a DaemonSet, a CronJob and its Jobs
 	pods     []cluster.PodInfo
+	fixed    []cluster.PodInfo // pods of `others`, never churned
 	serial   int
 	snapshot []byte
 }
@@ -42,28 +46,55 @@ func newGenerator(pods, namespaces, depsPerNS, nodes int) *generator {
 		ns := fmt.Sprintf("ns-%02d", n)
 		for d := range depsPerNS {
 			name := fmt.Sprintf("app-%02d", d)
-			g.deps = append(g.deps, cluster.DeploymentInfo{
-				Key: key("deployment", ns, name), ID: name, Namespace: ns, State: cluster.StateRunning,
-			})
+			g.deps = append(g.deps, workload("Deployment", ns, name, cluster.StateRunning, 0, nil))
+		}
+		if n%4 == 0 {
+			db := workload("StatefulSet", ns, "db", cluster.StateRunning, 3, nil)
+			g.others = append(g.others, db)
+			for range 3 {
+				g.fixed = append(g.fixed, g.newPod(db, cluster.StateRunning, ""))
+			}
 		}
 	}
+	agent := workload("DaemonSet", "ns-00", "agent", cluster.StateRunning, int32(nodes), nil)
+	g.others = append(g.others, agent)
+	for _, node := range g.nodes {
+		g.fixed = append(g.fixed, g.newPod(agent, cluster.StateRunning, node))
+	}
+	g.others = append(g.others, workload("CronJob", "ns-01", "report", cluster.StateCompleted, 0, nil))
+	for i := range 2 {
+		job := workload("Job", "ns-01", fmt.Sprintf("report-%d", 2900+i), cluster.StateCompleted, 1, &cluster.Owner{Kind: "CronJob", Name: "report"})
+		g.others = append(g.others, job)
+		g.fixed = append(g.fixed, g.newPod(job, cluster.StateCompleted, ""))
+	}
 	for range pods {
-		g.pods = append(g.pods, g.newPod(g.deps[g.rng.IntN(len(g.deps))]))
+		g.pods = append(g.pods, g.newPod(g.deps[g.rng.IntN(len(g.deps))], cluster.StateRunning, ""))
 	}
 	g.refreshCounts()
 	return g
 }
 
-func (g *generator) newPod(dep cluster.DeploymentInfo) cluster.PodInfo {
+func workload(kind, ns, name string, state cluster.State, n int32, owner *cluster.Owner) cluster.WorkloadInfo {
+	return cluster.WorkloadInfo{
+		Key: key(strings.ToLower(kind), ns, name), Kind: kind, ID: name, Namespace: ns,
+		State: state, Desired: n, Ready: n, Owner: owner,
+	}
+}
+
+// newPod places a pod of w on node, or on a random node when node is empty.
+func (g *generator) newPod(w cluster.WorkloadInfo, state cluster.State, node string) cluster.PodInfo {
 	g.serial++
-	name := fmt.Sprintf("%s-%06d", dep.ID, g.serial)
+	name := fmt.Sprintf("%s-%06d", w.ID, g.serial)
+	if node == "" {
+		node = g.nodes[g.rng.IntN(len(g.nodes))]
+	}
 	return cluster.PodInfo{
-		Key:       key("pod", dep.Namespace, name),
+		Key:       key("pod", w.Namespace, name),
 		ID:        name,
-		Namespace: dep.Namespace,
-		NodeID:    g.nodes[g.rng.IntN(len(g.nodes))],
-		State:     cluster.StateRunning,
-		Owner:     cluster.Owner{Kind: "Deployment", Name: dep.ID},
+		Namespace: w.Namespace,
+		NodeID:    node,
+		State:     state,
+		Owner:     cluster.Owner{Kind: w.Kind, Name: w.ID},
 	}
 }
 
@@ -74,7 +105,7 @@ func (g *generator) refreshCounts() {
 	}
 	for i := range g.deps {
 		n := count[g.deps[i].Namespace+"/"+g.deps[i].ID]
-		g.deps[i].Desired, g.deps[i].Ready, g.deps[i].Available = n, n, n
+		g.deps[i].Desired, g.deps[i].Ready = n, n
 		g.deps[i].State = cluster.StateRunning
 		if n == 0 {
 			g.deps[i].State = cluster.StateScaledToZero
@@ -89,8 +120,8 @@ func (g *generator) churn(n int) {
 	for range n {
 		i := g.rng.IntN(len(g.pods))
 		old := g.pods[i]
-		dep := cluster.DeploymentInfo{ID: old.Owner.Name, Namespace: old.Namespace}
-		g.pods[i] = g.newPod(dep)
+		dep := cluster.WorkloadInfo{Kind: "Deployment", ID: old.Owner.Name, Namespace: old.Namespace}
+		g.pods[i] = g.newPod(dep, cluster.StateRunning, "")
 	}
 	g.snapshot = nil
 }
@@ -101,7 +132,15 @@ func (g *generator) build() []byte {
 	if g.snapshot != nil {
 		return g.snapshot
 	}
-	c := cluster.Cluster{ID: "fake", Deployments: g.deps, Pods: g.pods, Metrics: map[string]cluster.Metrics{}}
+	c := cluster.Cluster{
+		ID:              "fake",
+		Workloads:       slices.Concat(g.deps, g.others),
+		Pods:            slices.Concat(g.pods, g.fixed),
+		PVCs:            []cluster.PVCInfo{},
+		HPAs:            []cluster.HPAInfo{},
+		NetworkPolicies: []cluster.NetworkPolicyInfo{},
+		Namespaces:      []cluster.NamespaceInfo{},
+	}
 	for _, n := range g.nodes {
 		c.Nodes = append(c.Nodes, cluster.NodeInfo{
 			Key: key("node", "", n), ID: n, State: cluster.StateRunning, Status: "Ready",
@@ -113,7 +152,11 @@ func (g *generator) build() []byte {
 	c.LoadBalancers = []cluster.LoadBalancerInfo{lb}
 	c.Topology = append(c.Topology, cluster.Link{From: "internet/_/internet", To: lb.Key, Active: true, Type: "internet"})
 	routed := map[string]bool{}
-	for _, d := range g.deps {
+	allPods := slices.Concat(g.pods, g.fixed)
+	for _, d := range slices.Concat(g.deps, g.others) {
+		if d.Kind != "Deployment" && d.Kind != "StatefulSet" {
+			continue
+		}
 		svc := key("service", d.Namespace, d.ID)
 		if !routed[d.Namespace] {
 			routed[d.Namespace] = true
@@ -123,8 +166,8 @@ func (g *generator) build() []byte {
 				cluster.Link{From: ing, To: svc, Active: true, Type: "ingress"},
 			)
 		}
-		for _, p := range g.pods {
-			if p.Namespace == d.Namespace && p.Owner.Name == d.ID {
+		for _, p := range allPods {
+			if p.Namespace == d.Namespace && p.Owner.Kind == d.Kind && p.Owner.Name == d.ID {
 				c.Topology = append(c.Topology, cluster.Link{From: svc, To: p.Key, Active: true, Type: "service"})
 			}
 		}

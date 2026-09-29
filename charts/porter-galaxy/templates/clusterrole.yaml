@@ -5,15 +5,22 @@ metadata:
   name: {{ include "porter-galaxy.fullname" . }}
   labels:
     {{- include "porter-galaxy.labels" . | nindent 4 }}
+# Read-only. Secret and ConfigMap names come from Pod specs; their contents are never read.
 rules:
   - apiGroups: [""]
-    resources: ["nodes", "pods", "services"]
+    resources: ["nodes", "pods", "services", "namespaces", "persistentvolumeclaims"]
     verbs: ["get", "list", "watch"]
   - apiGroups: ["apps"]
-    resources: ["deployments", "replicasets"]
+    resources: ["deployments", "replicasets", "statefulsets", "daemonsets"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["batch"]
+    resources: ["jobs", "cronjobs"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["autoscaling"]
+    resources: ["horizontalpodautoscalers"]
     verbs: ["get", "list", "watch"]
   - apiGroups: ["networking.k8s.io"]
-    resources: ["ingresses"]
+    resources: ["ingresses", "networkpolicies"]
     verbs: ["get", "list", "watch"]
   - apiGroups: ["discovery.k8s.io"]
     resources: ["endpointslices"]

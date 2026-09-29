@@ -7,45 +7,117 @@ import (
 	"time"
 
 	appsv1 "k8s.io/api/apps/v1"
-	corev1 "k8s.io/api/core/v1"
-	discoveryv1 "k8s.io/api/discovery/v1"
-	networkingv1 "k8s.io/api/networking/v1"
+	batchv1 "k8s.io/api/batch/v1"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
+	appslisters "k8s.io/client-go/listers/apps/v1"
+	autoscalinglisters "k8s.io/client-go/listers/autoscaling/v2"
+	batchlisters "k8s.io/client-go/listers/batch/v1"
+	corelisters "k8s.io/client-go/listers/core/v1"
+	discoverylisters "k8s.io/client-go/listers/discovery/v1"
+	networkinglisters "k8s.io/client-go/listers/networking/v1"
 	"k8s.io/client-go/tools/cache"
-
-	"github.com/noeosorio/porter-galaxy/backend/internal/store"
 )
 
-// Manager owns the SharedInformerFactory and registers event handlers for the
-// resource types that power the galaxy graph.
+// Listers are the read side of the informer caches the snapshot builder uses.
+type Listers struct {
+	Nodes           corelisters.NodeLister
+	Pods            corelisters.PodLister
+	Services        corelisters.ServiceLister
+	Ingresses       networkinglisters.IngressLister
+	EndpointSlices  discoverylisters.EndpointSliceLister
+	Deployments     appslisters.DeploymentLister
+	ReplicaSets     appslisters.ReplicaSetLister
+	StatefulSets    appslisters.StatefulSetLister
+	DaemonSets      appslisters.DaemonSetLister
+	Jobs            batchlisters.JobLister
+	CronJobs        batchlisters.CronJobLister
+	PVCs            corelisters.PersistentVolumeClaimLister
+	HPAs            autoscalinglisters.HorizontalPodAutoscalerLister
+	NetworkPolicies networkinglisters.NetworkPolicyLister
+	Namespaces      corelisters.NamespaceLister
+}
+
+// Manager owns one SharedInformerFactory per cluster. Every informer shares a
+// single handler that only signals that something changed; the builder then
+// reads the current state through Listers.
 type Manager struct {
 	factory informers.SharedInformerFactory
-	store   *store.Store
+	listers Listers
+	notify  func()
 	logger  *slog.Logger
 	synced  atomic.Bool
 }
 
-func NewManager(client kubernetes.Interface, s *store.Store, resync time.Duration, logger *slog.Logger) *Manager {
-	return &Manager{
-		factory: informers.NewSharedInformerFactory(client, resync),
-		store:   s,
-		logger:  logger,
+func NewManager(client kubernetes.Interface, resync time.Duration, notify func(), logger *slog.Logger) *Manager {
+	f := informers.NewSharedInformerFactory(client, resync)
+	m := &Manager{factory: f, notify: notify, logger: logger}
+
+	// ReplicaSets and Jobs are mostly needed to walk owner references; dropping
+	// their pod templates keeps memory flat as clusters accumulate history.
+	rs := f.Apps().V1().ReplicaSets()
+	jobs := f.Batch().V1().Jobs()
+	for _, inf := range []cache.SharedIndexInformer{rs.Informer(), jobs.Informer()} {
+		if err := inf.SetTransform(trimToOwners); err != nil {
+			logger.Error("informer transform not set", "error", err)
+		}
 	}
+
+	m.listers = Listers{
+		Nodes:           f.Core().V1().Nodes().Lister(),
+		Pods:            f.Core().V1().Pods().Lister(),
+		Services:        f.Core().V1().Services().Lister(),
+		Ingresses:       f.Networking().V1().Ingresses().Lister(),
+		EndpointSlices:  f.Discovery().V1().EndpointSlices().Lister(),
+		Deployments:     f.Apps().V1().Deployments().Lister(),
+		ReplicaSets:     rs.Lister(),
+		StatefulSets:    f.Apps().V1().StatefulSets().Lister(),
+		DaemonSets:      f.Apps().V1().DaemonSets().Lister(),
+		Jobs:            jobs.Lister(),
+		CronJobs:        f.Batch().V1().CronJobs().Lister(),
+		PVCs:            f.Core().V1().PersistentVolumeClaims().Lister(),
+		HPAs:            f.Autoscaling().V2().HorizontalPodAutoscalers().Lister(),
+		NetworkPolicies: f.Networking().V1().NetworkPolicies().Lister(),
+		Namespaces:      f.Core().V1().Namespaces().Lister(),
+	}
+	for _, inf := range []cache.SharedIndexInformer{
+		f.Core().V1().Nodes().Informer(),
+		f.Core().V1().Pods().Informer(),
+		f.Core().V1().Services().Informer(),
+		f.Networking().V1().Ingresses().Informer(),
+		f.Discovery().V1().EndpointSlices().Informer(),
+		f.Apps().V1().Deployments().Informer(),
+		rs.Informer(),
+		f.Apps().V1().StatefulSets().Informer(),
+		f.Apps().V1().DaemonSets().Informer(),
+		jobs.Informer(),
+		f.Batch().V1().CronJobs().Informer(),
+		f.Core().V1().PersistentVolumeClaims().Informer(),
+		f.Autoscaling().V2().HorizontalPodAutoscalers().Informer(),
+		f.Networking().V1().NetworkPolicies().Informer(),
+		f.Core().V1().Namespaces().Informer(),
+	} {
+		if _, err := inf.AddEventHandler(m.onChange()); err != nil {
+			logger.Error("informer handler not registered", "error", err)
+		}
+	}
+	return m
 }
 
-// Start registers all informers, starts the factory, and waits for every cache
-// to complete its initial list. It blocks until ctx is cancelled.
-func (m *Manager) Start(ctx context.Context) error {
-	m.registerNodes()
-	m.registerPods()
-	m.registerDeployments()
-	m.registerReplicaSets()
-	m.registerServices()
-	m.registerIngresses()
-	m.registerEndpointSlices()
+func (m *Manager) Listers() Listers {
+	return m.listers
+}
 
+// Synced reports whether every informer finished its initial list.
+func (m *Manager) Synced() bool {
+	return m.synced.Load()
+}
+
+// Start starts the informers, waits for every cache to complete its initial
+// list, and blocks until ctx is cancelled.
+func (m *Manager) Start(ctx context.Context) error {
 	m.factory.Start(ctx.Done())
 
 	allSynced := true
@@ -58,294 +130,49 @@ func (m *Manager) Start(ctx context.Context) error {
 	if allSynced {
 		m.synced.Store(true)
 		m.logger.Info("all informer caches synced")
+		m.notify()
 	}
 
 	<-ctx.Done()
 	return nil
 }
 
-// Synced reports whether every informer finished its initial list.
-func (m *Manager) Synced() bool {
-	return m.synced.Load()
-}
-
-// ── Nodes ─────────────────────────────────────────────────────────────────────
-
-func (m *Manager) registerNodes() {
-	m.factory.Core().V1().Nodes().Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
-		AddFunc: func(obj any) {
-			if n, ok := obj.(*corev1.Node); ok {
-				m.store.UpsertNode(n)
-				m.logger.Debug("node added", "name", n.Name)
-			}
-		},
-		UpdateFunc: func(_, newObj any) {
-			if n, ok := newObj.(*corev1.Node); ok {
-				m.store.UpsertNode(n)
-			}
-		},
-		DeleteFunc: func(obj any) {
-			n := extractNode(obj)
-			if n == nil {
-				return
-			}
-			m.store.DeleteNode(n.Name)
-			m.logger.Debug("node deleted", "name", n.Name)
-		},
-	})
-}
-
-// ── Pods ──────────────────────────────────────────────────────────────────────
-
-func (m *Manager) registerPods() {
-	m.factory.Core().V1().Pods().Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
-		AddFunc: func(obj any) {
-			if p, ok := obj.(*corev1.Pod); ok {
-				m.store.UpsertPod(p)
-			}
-		},
-		UpdateFunc: func(_, newObj any) {
-			if p, ok := newObj.(*corev1.Pod); ok {
-				m.store.UpsertPod(p)
-			}
-		},
-		DeleteFunc: func(obj any) {
-			p := extractPod(obj)
-			if p == nil {
-				return
-			}
-			m.store.DeletePod(p.Namespace, p.Name)
-		},
-	})
-}
-
-// ── Services ──────────────────────────────────────────────────────────────────
-
-func (m *Manager) registerServices() {
-	m.factory.Core().V1().Services().Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
-		AddFunc: func(obj any) {
-			if svc, ok := obj.(*corev1.Service); ok {
-				m.store.UpsertService(svc)
-			}
-		},
-		UpdateFunc: func(_, newObj any) {
-			if svc, ok := newObj.(*corev1.Service); ok {
-				m.store.UpsertService(svc)
-			}
-		},
-		DeleteFunc: func(obj any) {
-			svc := extractService(obj)
-			if svc == nil {
-				return
-			}
-			m.store.DeleteService(svc.Namespace, svc.Name)
-		},
-	})
-}
-
-// ── Ingresses ─────────────────────────────────────────────────────────────────
-
-func (m *Manager) registerIngresses() {
-	m.factory.Networking().V1().Ingresses().Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
-		AddFunc: func(obj any) {
-			if ing, ok := obj.(*networkingv1.Ingress); ok {
-				m.store.UpsertIngress(ing)
-			}
-		},
-		UpdateFunc: func(_, newObj any) {
-			if ing, ok := newObj.(*networkingv1.Ingress); ok {
-				m.store.UpsertIngress(ing)
-			}
-		},
-		DeleteFunc: func(obj any) {
-			ing := extractIngress(obj)
-			if ing == nil {
-				return
-			}
-			m.store.DeleteIngress(ing.Namespace, ing.Name)
-		},
-	})
-}
-
-// ── EndpointSlices ────────────────────────────────────────────────────────────
-
-func (m *Manager) registerEndpointSlices() {
-	m.factory.Discovery().V1().EndpointSlices().Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
-		AddFunc: func(obj any) {
-			if es, ok := obj.(*discoveryv1.EndpointSlice); ok {
-				m.store.UpsertEndpointSlice(es)
-			}
-		},
-		UpdateFunc: func(_, newObj any) {
-			if es, ok := newObj.(*discoveryv1.EndpointSlice); ok {
-				m.store.UpsertEndpointSlice(es)
-			}
-		},
-		DeleteFunc: func(obj any) {
-			es := extractEndpointSlice(obj)
-			if es == nil {
-				return
-			}
-			m.store.DeleteEndpointSlice(es.Namespace, es.Name)
-		},
-	})
-}
-
-// ── Deployments ───────────────────────────────────────────────────────────────
-
-func (m *Manager) registerDeployments() {
-	m.factory.Apps().V1().Deployments().Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
-		AddFunc: func(obj any) {
-			if d, ok := obj.(*appsv1.Deployment); ok {
-				m.store.UpsertDeployment(d)
-			}
-		},
-		UpdateFunc: func(_, newObj any) {
-			if d, ok := newObj.(*appsv1.Deployment); ok {
-				m.store.UpsertDeployment(d)
-			}
-		},
-		DeleteFunc: func(obj any) {
-			d := extractDeployment(obj)
-			if d == nil {
-				return
-			}
-			m.store.DeleteDeployment(d.Namespace, d.Name)
-		},
-	})
-}
-
-// ── ReplicaSets ───────────────────────────────────────────────────────────────
-
-// registerReplicaSets caches only identity and owner references: the builder
-// needs ReplicaSets solely to map a pod to its Deployment, and dropping spec and
-// status keeps memory flat and ignores the frequent status-only updates.
-func (m *Manager) registerReplicaSets() {
-	inf := m.factory.Apps().V1().ReplicaSets().Informer()
-	if err := inf.SetTransform(trimReplicaSet); err != nil {
-		m.logger.Error("replicaset transform not set", "error", err)
-	}
-	inf.AddEventHandler(cache.ResourceEventHandlerFuncs{
-		AddFunc: func(obj any) {
-			if rs, ok := obj.(*appsv1.ReplicaSet); ok {
-				m.store.UpsertReplicaSet(rs)
-			}
-		},
+func (m *Manager) onChange() cache.ResourceEventHandlerFuncs {
+	return cache.ResourceEventHandlerFuncs{
+		AddFunc: func(any) { m.notify() },
 		UpdateFunc: func(oldObj, newObj any) {
-			oldRS, _ := oldObj.(*appsv1.ReplicaSet)
-			rs, ok := newObj.(*appsv1.ReplicaSet)
-			if !ok || (oldRS != nil && oldRS.ResourceVersion == rs.ResourceVersion) {
-				return
+			// Periodic resyncs replay unchanged objects; they are not changes.
+			if o, err := meta.Accessor(oldObj); err == nil {
+				if n, err := meta.Accessor(newObj); err == nil && o.GetResourceVersion() == n.GetResourceVersion() {
+					return
+				}
 			}
-			m.store.UpsertReplicaSet(rs)
+			m.notify()
 		},
-		DeleteFunc: func(obj any) {
-			rs := extractReplicaSet(obj)
-			if rs == nil {
-				return
-			}
-			m.store.DeleteReplicaSet(rs.Namespace, rs.Name)
-		},
-	})
+		DeleteFunc: func(any) { m.notify() },
+	}
 }
 
-func trimReplicaSet(obj any) (any, error) {
-	rs, ok := obj.(*appsv1.ReplicaSet)
-	if !ok {
-		return obj, nil
+func trimToOwners(obj any) (any, error) {
+	switch o := obj.(type) {
+	case *appsv1.ReplicaSet:
+		return &appsv1.ReplicaSet{ObjectMeta: ownersOnly(o.ObjectMeta)}, nil
+	case *batchv1.Job:
+		// A Job's state comes from its status and completions, so those stay.
+		return &batchv1.Job{
+			ObjectMeta: ownersOnly(o.ObjectMeta),
+			Spec:       batchv1.JobSpec{Completions: o.Spec.Completions, Suspend: o.Spec.Suspend},
+			Status:     o.Status,
+		}, nil
 	}
-	return &appsv1.ReplicaSet{ObjectMeta: metav1.ObjectMeta{
-		Name:            rs.Name,
-		Namespace:       rs.Namespace,
-		ResourceVersion: rs.ResourceVersion,
-		OwnerReferences: rs.OwnerReferences,
-	}}, nil
+	return obj, nil
 }
 
-// ── Tombstone helpers ─────────────────────────────────────────────────────────
-// When a watch connection drops and the informer misses a delete event, the
-// cache replays it as a DeletedFinalStateUnknown tombstone. We must unwrap it.
-
-func extractNode(obj any) *corev1.Node {
-	if n, ok := obj.(*corev1.Node); ok {
-		return n
+func ownersOnly(m metav1.ObjectMeta) metav1.ObjectMeta {
+	return metav1.ObjectMeta{
+		Name:            m.Name,
+		Namespace:       m.Namespace,
+		ResourceVersion: m.ResourceVersion,
+		OwnerReferences: m.OwnerReferences,
 	}
-	if ts, ok := obj.(cache.DeletedFinalStateUnknown); ok {
-		if n, ok := ts.Obj.(*corev1.Node); ok {
-			return n
-		}
-	}
-	return nil
-}
-
-func extractPod(obj any) *corev1.Pod {
-	if p, ok := obj.(*corev1.Pod); ok {
-		return p
-	}
-	if ts, ok := obj.(cache.DeletedFinalStateUnknown); ok {
-		if p, ok := ts.Obj.(*corev1.Pod); ok {
-			return p
-		}
-	}
-	return nil
-}
-
-func extractService(obj any) *corev1.Service {
-	if svc, ok := obj.(*corev1.Service); ok {
-		return svc
-	}
-	if ts, ok := obj.(cache.DeletedFinalStateUnknown); ok {
-		if svc, ok := ts.Obj.(*corev1.Service); ok {
-			return svc
-		}
-	}
-	return nil
-}
-
-func extractIngress(obj any) *networkingv1.Ingress {
-	if ing, ok := obj.(*networkingv1.Ingress); ok {
-		return ing
-	}
-	if ts, ok := obj.(cache.DeletedFinalStateUnknown); ok {
-		if ing, ok := ts.Obj.(*networkingv1.Ingress); ok {
-			return ing
-		}
-	}
-	return nil
-}
-
-func extractEndpointSlice(obj any) *discoveryv1.EndpointSlice {
-	if es, ok := obj.(*discoveryv1.EndpointSlice); ok {
-		return es
-	}
-	if ts, ok := obj.(cache.DeletedFinalStateUnknown); ok {
-		if es, ok := ts.Obj.(*discoveryv1.EndpointSlice); ok {
-			return es
-		}
-	}
-	return nil
-}
-
-func extractDeployment(obj any) *appsv1.Deployment {
-	if d, ok := obj.(*appsv1.Deployment); ok {
-		return d
-	}
-	if ts, ok := obj.(cache.DeletedFinalStateUnknown); ok {
-		if d, ok := ts.Obj.(*appsv1.Deployment); ok {
-			return d
-		}
-	}
-	return nil
-}
-
-func extractReplicaSet(obj any) *appsv1.ReplicaSet {
-	if rs, ok := obj.(*appsv1.ReplicaSet); ok {
-		return rs
-	}
-	if ts, ok := obj.(cache.DeletedFinalStateUnknown); ok {
-		if rs, ok := ts.Obj.(*appsv1.ReplicaSet); ok {
-			return rs
-		}
-	}
-	return nil
 }

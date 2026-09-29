@@ -1,11 +1,22 @@
-import type { State } from "../lib/objectKey";
+import type { State, WorkloadKind } from "../lib/objectKey";
 
-export type TopologyNodeType = "internet" | "loadbalancer" | "ingress" | "service" | "deployment" | "pod";
+export type TopologyNodeType =
+  | "internet"
+  | "loadbalancer"
+  | "ingress"
+  | "service"
+  | "workload"
+  | "pod"
+  | "pvc"
+  | "configmap"
+  | "secret";
 
 export interface TopologyNode {
   /** Object key (kind/namespace/name). */
   id: string;
   type: TopologyNodeType;
+  /** Set on workload nodes. */
+  kind?: WorkloadKind;
   name: string;
   namespace?: string;
   /** Namespace, or "_" for Internet and load balancers; groups the layout. */
@@ -23,7 +34,6 @@ export interface TopologyNode {
     address?: string;
     desired?: number;
     ready?: number;
-    available?: number;
     version?: string;
     nodeId?: string;
     connections?: number;
@@ -33,7 +43,7 @@ export interface TopologyNode {
 export interface TopologyEdge {
   from: string;
   to: string;
-  type: "internet" | "lb" | "ingress" | "service" | "owns";
+  type: "internet" | "lb" | "ingress" | "service" | "owns" | "ref";
   active: boolean;
   color: string;
 }

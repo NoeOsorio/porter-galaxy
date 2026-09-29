@@ -21,7 +21,6 @@ import (
 	"github.com/noeosorio/porter-galaxy/backend/internal/cluster"
 	"github.com/noeosorio/porter-galaxy/backend/internal/informers"
 	"github.com/noeosorio/porter-galaxy/backend/internal/registry"
-	"github.com/noeosorio/porter-galaxy/backend/internal/store"
 )
 
 func main() {
@@ -244,9 +243,8 @@ func fromRestConfig(clusterID string, cfg *rest.Config, notify func(), logger *s
 		return nil, nil, err
 	}
 
-	s := store.New(notify)
-	mgr := informers.NewManager(client, s, 30*time.Second, logger)
-	b := cluster.NewBuilder(s, clusterID)
+	mgr := informers.NewManager(client, 30*time.Second, notify, logger)
+	b := cluster.NewBuilder(mgr.Listers(), clusterID)
 
 	logger.Info("registered cluster", "id", clusterID)
 	return []*cluster.Builder{b}, []*informers.Manager{mgr}, nil

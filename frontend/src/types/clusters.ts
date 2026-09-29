@@ -1,15 +1,17 @@
-import type { State } from "../lib/objectKey";
+import type { RefKind, State, WorkloadKind } from "../lib/objectKey";
 
 export interface ClusterGalaxyNode {
   /** `<clusterId>::<object key>`; the cluster node itself uses the cluster ID. */
   id: string;
-  type: "cluster" | "node" | "deployment" | "pod";
+  type: "cluster" | "node" | "workload" | "pod" | RefKind;
+  /** Set on workload nodes. */
+  kind?: WorkloadKind;
   name: string;
   namespace?: string;
   /** Namespace, or "_" for clusters and nodes; groups the layout. */
   group: string;
   cluster: string;
-  /** Vertical band: cluster 0, node 1, deployment 2, pod 3. */
+  /** Vertical band: cluster 0, node 1, workload 2, pod 3, references 4. */
   tier: number;
   /** Node a new node is placed next to. */
   parent?: string;
@@ -34,7 +36,7 @@ export interface ClusterGalaxyNode {
 export interface ClusterGalaxyEdge {
   from: string;
   to: string;
-  type: "cluster-node" | "node-deployment" | "deployment-pod" | "node-pod";
+  type: "cluster-node" | "node-workload" | "workload-workload" | "workload-pod" | "node-pod" | "ref";
   color: string;
 }
 

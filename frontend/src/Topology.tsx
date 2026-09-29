@@ -5,29 +5,13 @@ import CameraRig, { type CameraRigHandle } from "./components/CameraRig";
 import { useScene } from "./lib/sceneSlot";
 import { useForceLayout } from "./lib/layout/useForceLayout";
 import type { ApiClustersResponse } from "./types/api";
-import { transformTopology, topologyLayoutInput, topologyLabels } from "./lib/transformTopology";
+import { transformTopology, topologyLayoutInput, topologyLabels, topologyWithRefs } from "./lib/transformTopology";
+import DetailPanel from "./components/DetailPanel";
+import { describeNode, objectDetails } from "./lib/objectDetails";
 import Labels from "./components/Labels";
 import TopologyScene from "./components/three/TopologyScene";
 import type { TopologyNode } from "./types/topology";
-import { STATE_COLORS, type State } from "./lib/objectKey";
-
-const TYPE_ICONS: Record<string, string> = {
-  internet: "🌐",
-  loadbalancer: "⚖️",
-  ingress: "🚪",
-  service: "🔀",
-  deployment: "📦",
-  pod: "⚛️",
-};
-
-const TYPE_LABELS: Record<string, string> = {
-  internet: "Internet",
-  loadbalancer: "Load Balancer",
-  ingress: "Ingress",
-  service: "Service",
-  deployment: "Deployment",
-  pod: "Pod",
-};
+import { STATE_COLORS, WORKLOAD_KINDS, WORKLOAD_STYLE, type State } from "./lib/objectKey";
 
 function stateColor(state?: State): string {
   return state ? STATE_COLORS[state].color : "#ffffff";
@@ -46,18 +30,22 @@ export default function Topology({ snapshot: data, dimension }: { snapshot: ApiC
     if (!data?.clusters || !data.clusters[selectedClusterIndex]) return null;
     return transformTopology(data.clusters[selectedClusterIndex]);
   }, [data, selectedClusterIndex]);
-  const layoutInput = useMemo(() => (topologyGraph ? topologyLayoutInput(topologyGraph) : { nodes: [], links: [] }), [topologyGraph]);
-  const labels = useMemo(() => (topologyGraph ? topologyLabels(topologyGraph) : []), [topologyGraph]);
+  // References are drawn for one pod at a time: the last selected pod, kept
+  // while one of its references is selected.
+  const [refsFor, setRefsFor] = useState<string | null>(null);
+  const graph = useMemo(() => topologyGraph && topologyWithRefs(topologyGraph, data?.clusters[selectedClusterIndex], refsFor), [topologyGraph, data, refsFor, selectedClusterIndex]);
+  const layoutInput = useMemo(() => (graph ? topologyLayoutInput(graph) : { nodes: [], links: [] }), [graph]);
+  const labels = useMemo(() => (graph ? topologyLabels(graph) : []), [graph]);
   const layout = useForceLayout("topology", layoutInput.nodes, layoutInput.links);
 
   // Selection follows the object by key across snapshots. An object that
   // disappears stays in the panel marked deleted until the next snapshot.
   const [selection, setSelection] = useState<{ node: TopologyNode; missing: boolean } | null>(null);
-  const [seenGraph, setSeenGraph] = useState(topologyGraph);
-  if (topologyGraph !== seenGraph) {
-    setSeenGraph(topologyGraph);
+  const [seenGraph, setSeenGraph] = useState(graph);
+  if (graph !== seenGraph) {
+    setSeenGraph(graph);
     if (selection) {
-      const live = topologyGraph?.nodes.find((n) => n.id === selection.node.id);
+      const live = graph?.nodes.find((n) => n.id === selection.node.id);
       if (live) setSelection({ node: live, missing: false });
       else if (selection.missing) setSelection(null);
       else setSelection({ ...selection, missing: true });
@@ -65,14 +53,17 @@ export default function Topology({ snapshot: data, dimension }: { snapshot: ApiC
   }
   const selected = selection?.node ?? null;
   const selectionMissing = selection?.missing ?? false;
-  const setSelected = (node: TopologyNode | null) => setSelection(node ? { node, missing: false } : null);
+  const setSelected = (node: TopologyNode | null) => {
+    setSelection(node ? { node, missing: false } : null);
+    if (!node || !["pvc", "configmap", "secret"].includes(node.type)) setRefsFor(node?.type === "pod" ? node.id : null);
+  };
 
   const filteredNodes = useMemo(() => {
-    if (!topologyGraph) return new Set<string>();
+    if (!graph) return new Set<string>();
     
     const matchingNodes = new Set<string>();
     
-    topologyGraph.nodes.forEach(node => {
+    graph.nodes.forEach(node => {
       const matchesSearch = searchQuery === "" || 
         node.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         node.id.toLowerCase().includes(searchQuery.toLowerCase());
@@ -85,14 +76,14 @@ export default function Topology({ snapshot: data, dimension }: { snapshot: ApiC
     });
     
     return matchingNodes;
-  }, [topologyGraph, searchQuery, filterType]);
+  }, [graph, searchQuery, filterType]);
 
   const errorPods = useMemo(() => {
-    if (!topologyGraph) return [];
-    return topologyGraph.nodes.filter(
+    if (!graph) return [];
+    return graph.nodes.filter(
       node => node.type === "pod" && node.state === "failed"
     );
-  }, [topologyGraph]);
+  }, [graph]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -115,10 +106,10 @@ export default function Topology({ snapshot: data, dimension }: { snapshot: ApiC
   };
 
   const handleSearchEnter = () => {
-    if (!searchQuery || !topologyGraph) return;
+    if (!searchQuery || !graph) return;
     const matches = [...filteredNodes];
     if (matches.length === 1) {
-      const node = topologyGraph.nodes.find((n) => n.id === matches[0]);
+      const node = graph.nodes.find((n) => n.id === matches[0]);
       if (node) handleNodeClick(node);
     } else if (matches.length > 1) {
       rigRef.current?.frame(matches);
@@ -141,13 +132,13 @@ export default function Topology({ snapshot: data, dimension }: { snapshot: ApiC
   };
 
 
-  const scene = topologyGraph && (
+  const scene = graph && (
     <>
       <color attach="background" args={["#05050f"]} />
       <fog attach="fog" args={["#05050f", 900, 2000]} />
       <Labels store={layout} candidates={labels} />
       <TopologyScene
-        graph={topologyGraph}
+        graph={graph}
         store={layout}
         onHover={setHovered}
         onMiss={() => setSelected(null)}
@@ -157,7 +148,7 @@ export default function Topology({ snapshot: data, dimension }: { snapshot: ApiC
         filteredNodes={filteredNodes}
         errorPods={errorPods}
       />
-      <CameraRig key={selectedClusterIndex} ref={rigRef} store={layout} nodes={topologyGraph.nodes} edges={topologyGraph.edges} azimuth={0.7} polar={1.15} mode={dimension} plane2d="front" />
+      <CameraRig key={selectedClusterIndex} ref={rigRef} store={layout} nodes={graph.nodes} edges={graph.edges} azimuth={0.7} polar={1.15} mode={dimension} plane2d="front" />
       <EffectComposer>
         <Bloom
           luminanceThreshold={0.2}
@@ -298,14 +289,14 @@ export default function Topology({ snapshot: data, dimension }: { snapshot: ApiC
                     </button>
                     <button
                       type="button"
-                      onClick={() => setFilterType("deployment")}
+                      onClick={() => setFilterType("workload")}
                       className={`px-2.5 py-1 rounded text-[9px] font-medium transition-all ${
-                        filterType === "deployment"
+                        filterType === "workload"
                           ? "bg-[#fb923c]/20 text-[#fb923c] border border-[#fb923c]/30"
                           : "bg-white/5 text-white/50 border border-white/10 hover:bg-white/10"
                       }`}
                     >
-                      Deploy
+                      Workload
                     </button>
                     <button
                       type="button"
@@ -399,10 +390,12 @@ export default function Topology({ snapshot: data, dimension }: { snapshot: ApiC
                     <div className="w-2.5 h-2.5 rounded-full bg-[#38bdf8] shadow-[0_0_8px_rgba(56,189,248,0.6)]" />
                     <span className="text-white/60">Service</span>
                   </div>
-                  <div className="flex items-center gap-2.5 text-[10px]">
-                    <div className="w-2.5 h-2.5 rounded-full bg-[#fb923c] shadow-[0_0_8px_rgba(251,146,60,0.6)]" />
-                    <span className="text-white/60">Deployment</span>
-                  </div>
+                  {WORKLOAD_KINDS.map((kind) => (
+                    <div key={kind} className="flex items-center gap-2.5 text-[10px]">
+                      <div className="w-2.5 h-2.5 rounded-full" style={{ background: WORKLOAD_STYLE[kind].color, boxShadow: `0 0 8px ${WORKLOAD_STYLE[kind].glow}` }} />
+                      <span className="text-white/60">{kind}</span>
+                    </div>
+                  ))}
                   <div className="flex items-center gap-2.5 text-[10px]">
                     <div className="w-2.5 h-2.5 rounded-full bg-[#5bffb0] shadow-[0_0_8px_rgba(91,255,176,0.6)]" />
                     <span className="text-white/60">Pod</span>
@@ -426,7 +419,7 @@ export default function Topology({ snapshot: data, dimension }: { snapshot: ApiC
           >
             <div className="bg-[rgba(8,8,25,0.9)] border border-white/[0.08] rounded-xl py-3.5 px-[18px] text-white/70 text-[11px] leading-[1.9] backdrop-blur-xl">
               <div className="flex items-center gap-2 mb-1.5">
-                <span className="text-base">{TYPE_ICONS[hovered.type]}</span>
+                <span className="text-base">{describeNode(hovered.type, hovered.kind).icon}</span>
                 <div>
                   <div
                     className="font-medium text-[13px]"
@@ -435,7 +428,7 @@ export default function Topology({ snapshot: data, dimension }: { snapshot: ApiC
                     {hovered.name}
                   </div>
                   <div className="opacity-40 text-[9px] mt-0.5">
-                    {TYPE_LABELS[hovered.type]}
+                    {describeNode(hovered.type, hovered.kind).label}
                   </div>
                 </div>
               </div>
@@ -468,153 +461,16 @@ export default function Topology({ snapshot: data, dimension }: { snapshot: ApiC
 
       <AnimatePresence>
         {selected && (
-          <motion.div
-            initial={{ opacity: 0, x: -12 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: -12 }}
-            transition={{ duration: 0.2 }}
-            className={`absolute left-6 pointer-events-auto min-w-[260px] max-w-[320px] ${showFilters ? "top-[290px]" : "top-[200px]"}`}
-          >
-            <div
-              className="bg-[rgba(8,8,25,0.92)] rounded-xl py-4 px-5 text-white/75 text-[11px] leading-[1.8] backdrop-blur-xl border"
-              style={{
-                borderColor: (selected.color || "rgba(255,255,255,0.1)") + "33",
-              }}
-            >
-              <div className="flex justify-between items-start mb-3">
-                <div
-                  className="font-semibold text-[15px]"
-                  style={{ color: selected.color || "#fff" }}
-                >
-                  {TYPE_ICONS[selected.type]} {selected.name}
-                  {selectionMissing && (
-                    <span className="ml-2 text-[10px] font-normal text-red-400">deleted</span>
-                  )}
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setSelected(null)}
-                  className="bg-transparent border-none text-white/30 cursor-pointer text-base p-0 hover:text-white/50"
-                  aria-label="Close"
-                >
-                  ×
-                </button>
-              </div>
-
-              <div className="border-t border-white/[0.06] pt-2 space-y-1">
-                <div className="text-[10px] font-semibold opacity-60 mb-1.5">
-                  DETAILS
-                </div>
-
-                <div>
-                  type:{" "}
-                  <span className="text-white/90">
-                    {TYPE_LABELS[selected.type]}
-                  </span>
-                </div>
-
-                <div>
-                  id:{" "}
-                  <span className="text-white/60 text-[10px] font-mono break-all">
-                    {selected.id}
-                  </span>
-                </div>
-
-                {selected.namespace && (
-                  <div>
-                    namespace:{" "}
-                    <span className="text-white/90">{selected.namespace}</span>
-                  </div>
-                )}
-
-                {selected.status && (
-                  <div>
-                    status:{" "}
-                    <span style={{ color: stateColor(selected.state) }}>
-                      {selected.status}
-                    </span>
-                  </div>
-                )}
-
-                {selected.metadata?.connections !== undefined && (
-                  <div>
-                    connections:{" "}
-                    <span className="text-white/90">
-                      {selected.metadata.connections}
-                    </span>
-                  </div>
-                )}
-              </div>
-
-              {selected.type === "deployment" && selected.metadata && (
-                <div className="border-t border-white/[0.06] pt-2 mt-2 space-y-1">
-                  <div className="text-[10px] font-semibold opacity-60 mb-1.5">
-                    REPLICAS
-                  </div>
-                  {selected.metadata.desired !== undefined && (
-                    <div>
-                      desired:{" "}
-                      <span className="text-white/90">
-                        {selected.metadata.desired}
-                      </span>
-                    </div>
-                  )}
-                  {selected.metadata.ready !== undefined && (
-                    <div>
-                      ready:{" "}
-                      <span className="text-[#5bffb0]">
-                        {selected.metadata.ready}
-                      </span>
-                    </div>
-                  )}
-                  {selected.metadata.available !== undefined && (
-                    <div>
-                      available:{" "}
-                      <span className="text-white/90">
-                        {selected.metadata.available}
-                      </span>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {selected.type === "loadbalancer" && selected.metadata?.address && (
-                <div className="border-t border-white/[0.06] pt-2 mt-2 space-y-1">
-                  <div className="text-[10px] font-semibold opacity-60 mb-1.5">
-                    ADDRESS
-                  </div>
-                  <div className="text-white/60 text-[10px] font-mono break-all">
-                    {selected.metadata.address}
-                  </div>
-                </div>
-              )}
-
-              {selected.type === "pod" && selected.metadata && (
-                <div className="border-t border-white/[0.06] pt-2 mt-2 space-y-1">
-                  <div className="text-[10px] font-semibold opacity-60 mb-1.5">
-                    POD INFO
-                  </div>
-                  {selected.metadata.version && (
-                    <div>
-                      version:{" "}
-                      <span className="text-white/90">
-                        {selected.metadata.version}
-                      </span>
-                    </div>
-                  )}
-                  {selected.metadata.nodeId && (
-                    <div>
-                      node:{" "}
-                      <span className="text-white/60 text-[10px] font-mono">
-                        {selected.metadata.nodeId}
-                      </span>
-                    </div>
-                  )}
-                </div>
-              )}
-
-            </div>
-          </motion.div>
+          <DetailPanel
+            key="detail"
+            node={selected}
+            icon={describeNode(selected.type, selected.kind).icon}
+            typeLabel={describeNode(selected.type, selected.kind).label}
+            details={objectDetails(data?.clusters[selectedClusterIndex], selected.id)}
+            deleted={selectionMissing}
+            onClose={() => setSelected(null)}
+            className={showFilters ? "top-[290px]" : "top-[200px]"}
+          />
         )}
       </AnimatePresence>
     </div>

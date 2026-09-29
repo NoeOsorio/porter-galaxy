@@ -36,8 +36,8 @@ const TICKS_PER_POST = 2;
 const GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5));
 
 const TIER_Y: Record<LayoutMode, number[]> = {
-  topology: [260, 180, 100, 20, -60, -140],
-  clusters: [260, 140, 20, -100],
+  topology: [260, 180, 100, 20, -60, -140, -210],
+  clusters: [260, 140, 20, -100, -170],
 };
 
 const byKey = new Map<string, SimNode>();

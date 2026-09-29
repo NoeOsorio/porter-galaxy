@@ -82,6 +82,21 @@ change, which is why settled displacement is zero; larger changes re-relax the w
 
 ## §3 Labels and 2D mode (US3, 0.8.0)
 
+**US3 result (2026-09-29, same headless setup, 1,000 pods).** Overlaps are counted from the real
+DOM rectangles of every visible label.
+
+| State | Labels shown | Namespaces | Deployments | Pods | Overlaps |
+| --- | --- | --- | --- | --- | --- |
+| Topology, default framing | 60 | 20 | 35 | 0 | 0 |
+| Topology, zoomed onto one Deployment | 60 | 0 | 40 | 20 | 0 |
+| Clusters 3D, default framing | 58 | 20 | 37 | 0 | 0 |
+| Clusters 2D (top view) | 60 | 20 | 40 | 0 | 0 |
+
+2D: the toggle locks Topology to the front view and Clusters to the top view; left-drag pans.
+`--disable-webgl` shows "GALAXY NEEDS WEBGL2". With labels on, 3,000 pods + churn at CPU ×4 orbit
+at 57.8 / 58.5 fps (p99 33 ms); 1,000 pods stay at 60 fps.
+
+
 1. Full view at 1,000 pods: namespace labels and at least the 20 largest Deployments are
    labeled; no two labels overlap.
 2. Zoom into one namespace: Pod names appear once close enough, still without overlaps.

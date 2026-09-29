@@ -26,16 +26,22 @@ interface Props {
   store: LayoutStore;
   nodes: RigNode[];
   edges: RigEdge[];
-  /** Default viewing angles used on first frame and on reset. */
+  /** Default viewing angles used on first frame and on reset in 3D. */
   azimuth: number;
   polar: number;
+  mode: "3d" | "2d";
+  /** Plane the 2D mode looks at: the view's front (x/y) or top (x/z). */
+  plane2d: "front" | "top";
 }
 
-// The bounding sphere of a flat layout already leaves side room; only add
-// enough for the glow of the outermost nodes.
+// A polar angle of exactly 0 makes camera-controls' up vector degenerate.
+const TOP_POLAR = 0.0001;
+
+// Room for the glow of the outermost nodes.
 const GLOW_PADDING = 1.5;
 
-export default function CameraRig({ ref, store, nodes, edges, azimuth, polar }: Props) {
+export default function CameraRig({ ref, store, nodes, edges, azimuth, polar, mode, plane2d }: Props) {
+  const [viewAzimuth, viewPolar] = mode === "2d" ? [0, plane2d === "top" ? TOP_POLAR : Math.PI / 2] : [azimuth, polar];
   const controls = useRef<ComponentRef<typeof CameraControls>>(null);
   const framing = useRef<{ first: boolean; settled: boolean; limitsVersion: number }>({ first: false, settled: false, limitsVersion: -1 });
 
@@ -61,9 +67,11 @@ export default function CameraRig({ ref, store, nodes, edges, azimuth, polar }: 
         maxSize = Math.max(maxSize, n.size);
       }
       if (box.isEmpty()) return null;
-      const sphere = box.getBoundingSphere(new THREE.Sphere());
-      sphere.radius = Math.max(sphere.radius + maxSize * GLOW_PADDING, 60);
-      return sphere;
+      // Layouts are much flatter in one axis than the others, so the largest
+      // half-extent fits them far better than the box's half-diagonal.
+      const extent = box.getSize(new THREE.Vector3());
+      const radius = Math.max(extent.x, extent.y, extent.z) / 2;
+      return new THREE.Sphere(box.getCenter(new THREE.Vector3()), Math.max(radius + maxSize * GLOW_PADDING, 60));
     },
     [byId, store],
   );
@@ -73,10 +81,10 @@ export default function CameraRig({ ref, store, nodes, edges, azimuth, polar }: 
       const cc = controls.current;
       const sphere = sphereFor(ids ?? byId.keys());
       if (!cc || !sphere) return;
-      if (!ids) void cc.rotateTo(azimuth, polar, animate);
+      if (!ids) void cc.rotateTo(viewAzimuth, viewPolar, animate);
       void cc.fitToSphere(sphere, animate);
     },
-    [sphereFor, byId, azimuth, polar],
+    [sphereFor, byId, viewAzimuth, viewPolar],
   );
 
   useImperativeHandle(
@@ -112,6 +120,27 @@ export default function CameraRig({ ref, store, nodes, edges, azimuth, polar }: 
       cc.maxDistance = sphere.radius * 6;
     }
   });
+
+  const latestFrame = useRef(frame);
+  useEffect(() => {
+    latestFrame.current = frame;
+  }, [frame]);
+
+  // 2D locks both angles to the plane and turns left-drag into panning. Only a
+  // mode change reframes; snapshots must not move the camera.
+  useEffect(() => {
+    const cc = controls.current;
+    if (!cc) return;
+    const { ACTION } = cc.constructor as unknown as { ACTION: Record<"ROTATE" | "TRUCK" | "TOUCH_ROTATE" | "TOUCH_TRUCK", number> };
+    const flat = mode === "2d";
+    cc.mouseButtons.left = (flat ? ACTION.TRUCK : ACTION.ROTATE) as typeof cc.mouseButtons.left;
+    cc.touches.one = (flat ? ACTION.TOUCH_TRUCK : ACTION.TOUCH_ROTATE) as typeof cc.touches.one;
+    cc.minAzimuthAngle = flat ? viewAzimuth : -Infinity;
+    cc.maxAzimuthAngle = flat ? viewAzimuth : Infinity;
+    cc.minPolarAngle = flat ? viewPolar : 0;
+    cc.maxPolarAngle = flat ? viewPolar : Math.PI;
+    if (store.keys.length > 0) latestFrame.current();
+  }, [mode, viewAzimuth, viewPolar, store]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {

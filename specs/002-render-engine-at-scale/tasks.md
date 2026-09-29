@@ -101,8 +101,8 @@ description: "Task list for 002 Render Engine at Scale"
 
 ## Phase 6: Polish
 
-- [ ] T031 [P] Update README (Why, Architecture, Roadmap) and `specs/README.md` status for 002
-- [ ] T032 Document `fakestream` and `?stats` in the README's Local development section
+- [X] T031 [P] Update README (Why, Architecture, Roadmap) and `specs/README.md` status for 002
+- [X] T032 Document `fakestream` and `?stats` in the README's Local development section
 
 ---
 

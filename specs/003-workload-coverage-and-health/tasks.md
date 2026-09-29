@@ -64,7 +64,7 @@ description: "Task list for 003 Workload Coverage and Health"
 - [X] T018 [P] [STREAM] Make `backend/cmd/fakestream` stream snapshot + patches through the same encoder
 - [X] T019 [STREAM] Apply `snapshot` and `patch` events in `frontend/src/hooks/useClustersSSE.ts`, reconnecting on a base mismatch; with `?stats`, log bytes received per minute
 - [X] T020 [STREAM] Add a `stream` scenario to `hack/verify/check.mjs` (patch applies, reconnect resyncs) and record bytes/minute for full vs patch in the PR
-- [ ] T021 [STREAM] `make verify`, PR, merge, `make release VERSION=0.10.0`, upgrade, walk quickstart §2
+- [X] T021 [STREAM] `make verify`, PR, merge, `make release VERSION=0.10.0`, upgrade, walk quickstart §2 (0.10.0 on the reference cluster, 180 s each: 0.9.0 sent 503,740 bytes for 14 changes; 0.10.0 sent 70,505 decoded, −86%, and 6,441 on the wire with gzip, −98.7%, for 54 changes; after a backend restart the client resynced to matching counts)
 
 ---
 

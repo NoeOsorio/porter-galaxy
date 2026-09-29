@@ -94,7 +94,7 @@ description: "Task list for 003 Workload Coverage and Health"
 - [X] T030 [P] [US3] Emit synthetic usage from `backend/cmd/fakestream`
 - [X] T031 [US3] Scale radius (≤ 1.6×) and glow (≤ 2×) by usage / request in both scenes; show usage in `DetailPanel`
 - [X] T032 [US3] Legend hint when `metricsAvailable` is false, in both views
-- [ ] T033 [US3] `make verify`, PR, merge, `make release VERSION=0.12.0`, upgrade, walk quickstart §4
+- [X] T033 [US3] `make verify`, PR, merge, `make release VERSION=0.12.0`, upgrade, walk quickstart §4 (0.12.0 on the reference cluster: metricsAvailable true, usage on 71/72 pods and 6/6 nodes, pods sized by usage over requests, panel shows usage; §4.2 covered by the `nometrics` verify scenario instead of a kind cluster; 180 s stream with usage is 71 KB, the same as 0.10.0)
 
 ---
 

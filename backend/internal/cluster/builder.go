@@ -11,6 +11,7 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 
 	"github.com/noeosorio/porter-galaxy/backend/internal/informers"
+	"github.com/noeosorio/porter-galaxy/backend/internal/metrics"
 )
 
 // SnapshotBuilder is the common interface for single- and multi-cluster builders.
@@ -41,10 +42,12 @@ func (m *MultiBuilder) Build() Snapshot {
 type Builder struct {
 	listers   informers.Listers
 	clusterID string
+	usage     *metrics.Poller
 }
 
-func NewBuilder(listers informers.Listers, clusterID string) *Builder {
-	return &Builder{listers: listers, clusterID: clusterID}
+// NewBuilder reads usage from poller; a nil poller means no metrics.
+func NewBuilder(listers informers.Listers, clusterID string, poller *metrics.Poller) *Builder {
+	return &Builder{listers: listers, clusterID: clusterID, usage: poller}
 }
 
 // all lists every object of a kind; a lister error only happens for invalid
@@ -61,16 +64,17 @@ func (b *Builder) Build() Snapshot {
 	return Snapshot{
 		Clusters: []Cluster{
 			{
-				ID:              b.clusterID,
-				Nodes:           b.buildNodes(warnings),
-				Pods:            b.buildPods(now, warnings),
-				Workloads:       b.buildWorkloads(warnings),
-				LoadBalancers:   lbs,
-				PVCs:            b.buildPVCs(),
-				HPAs:            b.buildHPAs(),
-				NetworkPolicies: b.buildNetworkPolicies(),
-				Namespaces:      b.buildNamespaces(),
-				Topology:        links,
+				ID:               b.clusterID,
+				MetricsAvailable: b.usage != nil && b.usage.Available(),
+				Nodes:            b.buildNodes(warnings),
+				Pods:             b.buildPods(now, warnings),
+				Workloads:        b.buildWorkloads(warnings),
+				LoadBalancers:    lbs,
+				PVCs:             b.buildPVCs(),
+				HPAs:             b.buildHPAs(),
+				NetworkPolicies:  b.buildNetworkPolicies(),
+				Namespaces:       b.buildNamespaces(),
+				Topology:         links,
 			},
 		},
 	}
@@ -118,13 +122,15 @@ func (b *Builder) buildNodes(warnings map[string][]Warning) []NodeInfo {
 
 		key := objectKey("node", "", n.Name)
 		out = append(out, NodeInfo{
-			Key:        key,
-			ID:         n.Name,
-			State:      state,
-			Capacity:   capacity,
-			Status:     status,
-			Conditions: pressures,
-			Warnings:   warnings[key],
+			Key:         key,
+			ID:          n.Name,
+			State:       state,
+			Capacity:    capacity,
+			Status:      status,
+			Conditions:  pressures,
+			Warnings:    warnings[key],
+			Allocatable: resources(n.Status.Allocatable),
+			Usage:       b.nodeUsage(n.Name),
 		})
 	}
 	slices.SortFunc(out, func(a, b NodeInfo) int { return cmp.Compare(a.ID, b.ID) })
@@ -162,6 +168,8 @@ func (b *Builder) buildPods(now time.Time, warnings map[string][]Warning) []PodI
 			LastTermination: last,
 			RecentRestart:   recent,
 			Warnings:        warnings[key],
+			Requests:        podRequests(p),
+			Usage:           b.podUsage(p.Namespace, p.Name),
 		})
 	}
 	slices.SortFunc(out, func(a, b PodInfo) int { return cmp.Compare(a.Key, b.Key) })

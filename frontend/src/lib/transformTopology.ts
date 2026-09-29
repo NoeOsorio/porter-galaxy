@@ -14,6 +14,7 @@ import {
   workloadKey,
   type RefKind,
   workloadStatus,
+  loadRatio,
 } from "./objectKey";
 
 const COLORS: Record<Exclude<TopologyNodeType, "pod" | "workload" | RefKind>, { color: string; glow: string }> = {
@@ -128,6 +129,7 @@ export function transformTopology(apiCluster: ApiCluster): TopologyGraph {
       ...STATE_COLORS[pod.state],
       state: pod.state,
       pulse: pod.recentRestart,
+      load: loadRatio(pod.usage, pod.requests),
       status: STATE_LABELS[pod.state],
       metadata: { version: pod.version, nodeId: pod.nodeId },
     });

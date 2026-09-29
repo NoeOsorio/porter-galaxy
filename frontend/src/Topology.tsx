@@ -7,6 +7,7 @@ import { useForceLayout } from "./lib/layout/useForceLayout";
 import type { ApiClustersResponse } from "./types/api";
 import { transformTopology, topologyLayoutInput, topologyLabels, topologyWithRefs } from "./lib/transformTopology";
 import DetailPanel from "./components/DetailPanel";
+import UsageLegend from "./components/UsageLegend";
 import { describeNode, objectDetails } from "./lib/objectDetails";
 import Labels from "./components/Labels";
 import TopologyScene from "./components/three/TopologyScene";
@@ -400,6 +401,9 @@ export default function Topology({ snapshot: data, dimension }: { snapshot: ApiC
                     <div className="w-2.5 h-2.5 rounded-full bg-[#5bffb0] shadow-[0_0_8px_rgba(91,255,176,0.6)]" />
                     <span className="text-white/60">Pod</span>
                   </div>
+                  {data?.clusters[selectedClusterIndex] && (
+                    <UsageLegend missing={data.clusters[selectedClusterIndex].metricsAvailable ? [] : [data.clusters[selectedClusterIndex].id]} total={1} />
+                  )}
                 </div>
               </motion.div>
             )}

@@ -20,6 +20,7 @@ import (
 	"github.com/noeosorio/porter-galaxy/backend/internal/api"
 	"github.com/noeosorio/porter-galaxy/backend/internal/cluster"
 	"github.com/noeosorio/porter-galaxy/backend/internal/informers"
+	"github.com/noeosorio/porter-galaxy/backend/internal/metrics"
 	"github.com/noeosorio/porter-galaxy/backend/internal/registry"
 )
 
@@ -250,7 +251,9 @@ func fromRestConfig(clusterID string, cfg *rest.Config, notify func(), logger *s
 	}
 
 	mgr := informers.NewManager(client, 30*time.Second, notify, logger)
-	b := cluster.NewBuilder(mgr.Listers(), clusterID)
+	poller := metrics.NewPoller(client, notify, logger.With("cluster", clusterID))
+	mgr.Go(poller.Run)
+	b := cluster.NewBuilder(mgr.Listers(), clusterID, poller)
 
 	logger.Info("registered cluster", "id", clusterID)
 	return []*cluster.Builder{b}, []*informers.Manager{mgr}, nil

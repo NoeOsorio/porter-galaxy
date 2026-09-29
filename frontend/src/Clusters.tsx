@@ -8,6 +8,7 @@ import { useForceLayout } from "./lib/layout/useForceLayout";
 import type { ApiClustersResponse } from "./types/api";
 import { transformClusters, clustersLayoutInput, clustersLabels, clustersWithRefs } from "./lib/transformClusters";
 import DetailPanel from "./components/DetailPanel";
+import UsageLegend from "./components/UsageLegend";
 import { describeNode, objectDetails } from "./lib/objectDetails";
 import Labels from "./components/Labels";
 import ClustersScene from "./components/three/ClustersScene";
@@ -428,6 +429,9 @@ export default function Clusters({ snapshot: data, dimension }: { snapshot: ApiC
                     <div className="w-2.5 h-2.5 rounded-full bg-[#5bffb0] shadow-[0_0_8px_rgba(91,255,176,0.6)]" />
                     <span className="text-white/60">Pod</span>
                   </div>
+                  {data?.clusters && (
+                    <UsageLegend missing={data.clusters.filter((c) => !c.metricsAvailable).map((c) => c.id)} total={data.clusters.length} />
+                  )}
                 </div>
               </motion.div>
             )}

@@ -11,6 +11,8 @@ export interface NodeAttributes {
   glowColors: Float32Array;
   radii: Float32Array;
   opacities: Float32Array;
+  /** Halo opacity; brighter than the body for busy nodes. */
+  glowOpacities: Float32Array;
   /** 1 for nodes that blink (failed pods), else 0. */
   blink: Float32Array;
   /** 1 for nodes that pulse in size (recently restarted pods), else 0. */
@@ -136,7 +138,7 @@ export default function NodeInstances({ store, attributes, glowScale, glowOpacit
     glowGeometry.setAttribute("aOffset", geometry.getAttribute("aOffset"));
     glowGeometry.setAttribute("aColor", new THREE.InstancedBufferAttribute(attributes.glowColors, 3));
     glowGeometry.setAttribute("aRadius", new THREE.InstancedBufferAttribute(attributes.radii, 1));
-    glowGeometry.setAttribute("aOpacity", new THREE.InstancedBufferAttribute(attributes.opacities, 1));
+    glowGeometry.setAttribute("aOpacity", new THREE.InstancedBufferAttribute(attributes.glowOpacities, 1));
     glowGeometry.setAttribute("aBlink", new THREE.InstancedBufferAttribute(attributes.blink, 1));
     glowGeometry.setAttribute("aPulse", new THREE.InstancedBufferAttribute(attributes.pulse, 1));
   }, [glowGeometry, geometry, attributes]);

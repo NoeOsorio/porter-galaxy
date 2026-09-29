@@ -89,11 +89,11 @@ description: "Task list for 003 Workload Coverage and Health"
 
 **Independent Test**: quickstart.md §4
 
-- [ ] T028 [US3] Poll pod and node metrics every 15 s via the REST client, detect absence via discovery, in `backend/internal/metrics/poller.go`; add `metrics.k8s.io` get/list to the ClusterRole
-- [ ] T029 [US3] Emit `requests`, `usage`, and `metricsAvailable` in `backend/internal/cluster/builder.go`; notify on each poll that changes usage
-- [ ] T030 [P] [US3] Emit synthetic usage from `backend/cmd/fakestream`
-- [ ] T031 [US3] Scale radius (≤ 1.6×) and glow (≤ 2×) by usage / request in both scenes; show usage in `DetailPanel`
-- [ ] T032 [US3] Legend hint when `metricsAvailable` is false, in both views
+- [X] T028 [US3] Poll pod and node metrics every 15 s via the REST client, detect absence via discovery, in `backend/internal/metrics/poller.go`; add `metrics.k8s.io` get/list to the ClusterRole
+- [X] T029 [US3] Emit `requests`, `usage`, and `metricsAvailable` in `backend/internal/cluster/builder.go`; notify on each poll that changes usage
+- [X] T030 [P] [US3] Emit synthetic usage from `backend/cmd/fakestream`
+- [X] T031 [US3] Scale radius (≤ 1.6×) and glow (≤ 2×) by usage / request in both scenes; show usage in `DetailPanel`
+- [X] T032 [US3] Legend hint when `metricsAvailable` is false, in both views
 - [ ] T033 [US3] `make verify`, PR, merge, `make release VERSION=0.12.0`, upgrade, walk quickstart §4
 
 ---

@@ -19,6 +19,7 @@ import (
 
 	"github.com/noeosorio/porter-galaxy/backend/internal/api"
 	"github.com/noeosorio/porter-galaxy/backend/internal/cluster"
+	"github.com/noeosorio/porter-galaxy/backend/internal/metrics"
 )
 
 type generator struct {
@@ -30,6 +31,8 @@ type generator struct {
 	pods   []cluster.PodInfo
 	fixed  []cluster.PodInfo // pods of `others`, never churned
 	serial int
+	// metrics is false to emulate a cluster without metrics-server.
+	metrics bool
 }
 
 func key(kind, ns, name string) string {
@@ -105,6 +108,8 @@ func (g *generator) newPod(w cluster.WorkloadInfo, state cluster.State, node str
 	if node == "" {
 		node = g.nodes[g.rng.IntN(len(g.nodes))]
 	}
+	// Usage from 5% to 120% of the request, so the size encoding has range.
+	load := 0.05 + g.rng.Float64()*1.15
 	return cluster.PodInfo{
 		Key:       key("pod", w.Namespace, name),
 		ID:        name,
@@ -112,6 +117,8 @@ func (g *generator) newPod(w cluster.WorkloadInfo, state cluster.State, node str
 		NodeID:    node,
 		State:     state,
 		Owner:     cluster.Owner{Kind: w.Kind, Name: w.ID},
+		Requests:  &metrics.Resources{CPUMillis: 250, MemoryBytes: 256 << 20},
+		Usage:     &metrics.Resources{CPUMillis: int64(250 * load), MemoryBytes: int64(float64(256<<20) * load)},
 	}
 }
 
@@ -148,18 +155,21 @@ func (g *generator) Build() cluster.Snapshot {
 	g.mu.Lock()
 	defer g.mu.Unlock()
 	c := cluster.Cluster{
-		ID:              "fake",
-		Workloads:       slices.Concat(g.deps, g.others),
-		Pods:            slices.Concat(g.pods, g.fixed),
-		PVCs:            []cluster.PVCInfo{},
-		HPAs:            []cluster.HPAInfo{},
-		NetworkPolicies: []cluster.NetworkPolicyInfo{},
-		Namespaces:      []cluster.NamespaceInfo{},
+		ID:               "fake",
+		MetricsAvailable: g.metrics,
+		Workloads:        slices.Concat(g.deps, g.others),
+		Pods:             slices.Concat(g.pods, g.fixed),
+		PVCs:             []cluster.PVCInfo{},
+		HPAs:             []cluster.HPAInfo{},
+		NetworkPolicies:  []cluster.NetworkPolicyInfo{},
+		Namespaces:       []cluster.NamespaceInfo{},
 	}
-	for _, n := range g.nodes {
+	for i, n := range g.nodes {
 		c.Nodes = append(c.Nodes, cluster.NodeInfo{
 			Key: key("node", "", n), ID: n, State: cluster.StateRunning, Status: "Ready",
-			Capacity: map[string]string{"cpu": "8", "memory": "32Gi"},
+			Capacity:    map[string]string{"cpu": "8", "memory": "32Gi"},
+			Allocatable: &metrics.Resources{CPUMillis: 8000, MemoryBytes: 32 << 30},
+			Usage:       &metrics.Resources{CPUMillis: int64(1000 + i*500), MemoryBytes: int64(4+i*2) << 30},
 		})
 	}
 
@@ -188,6 +198,14 @@ func (g *generator) Build() cluster.Snapshot {
 		}
 	}
 
+	if !g.metrics {
+		for i := range c.Nodes {
+			c.Nodes[i].Usage = nil
+		}
+		for i := range c.Pods {
+			c.Pods[i].Usage = nil
+		}
+	}
 	return cluster.Snapshot{Clusters: []cluster.Cluster{c}}
 }
 
@@ -199,9 +217,11 @@ func main() {
 	nodes := flag.Int("nodes", 12, "cluster nodes")
 	churnEvery := flag.Duration("churn", 500*time.Millisecond, "interval between updates; 0 disables churn")
 	churnSize := flag.Int("churn-size", 3, "pods replaced per update")
+	withMetrics := flag.Bool("metrics", true, "report usage as if metrics-server were installed")
 	flag.Parse()
 
 	g := newGenerator(*pods, *namespaces, *depsPerNS, *nodes)
+	g.metrics = *withMetrics
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelWarn}))
 	hub := api.NewHub(g, logger)
 	notify := make(chan struct{}, 1)

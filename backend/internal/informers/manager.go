@@ -55,6 +55,13 @@ type Manager struct {
 	notify  func()
 	logger  *slog.Logger
 	synced  atomic.Bool
+	extra   []func(context.Context)
+}
+
+// Go runs f alongside the informers once Start is called; f must return when
+// its context is cancelled.
+func (m *Manager) Go(f func(context.Context)) {
+	m.extra = append(m.extra, f)
 }
 
 func NewManager(client kubernetes.Interface, resync time.Duration, notify func(), logger *slog.Logger) *Manager {
@@ -130,6 +137,9 @@ func (m *Manager) Synced() bool {
 // Start starts the informers, waits for every cache to complete its initial
 // list, and blocks until ctx is cancelled.
 func (m *Manager) Start(ctx context.Context) error {
+	for _, f := range m.extra {
+		go f(ctx)
+	}
 	allSynced := true
 	for _, f := range []informers.SharedInformerFactory{m.factory, m.events} {
 		f.Start(ctx.Done())

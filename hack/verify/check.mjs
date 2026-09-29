@@ -3,7 +3,7 @@
 // fake stream and preview server.
 //
 // Usage: node check.mjs <scenario> <url> <out-dir>
-// Scenarios: functional | labels | layout | perf | webgl | stream
+// Scenarios: functional | labels | layout | perf | webgl | stream | nometrics
 // Env: THROTTLE (CPU slowdown factor for perf), CHROME (browser binary),
 // FAKE_BIN/FAKE_PID/FAKE_ARGS (stream: the fake stream to restart).
 
@@ -161,13 +161,17 @@ if (scenario === "functional") {
   await ev(`[...document.querySelectorAll('button')].find(b => b.textContent.includes('ERRORS'))?.click(); 1`);
   await sleep(1500);
   await shot("crashy");
-  result.crashyPanel = await ev(`(() => { const t = document.body.innerText; return ['HEALTH', 'restarts: 7', 'WARNINGS', 'BackOff'].filter(s => !t.includes(s)); })()`);
+  result.crashyPanel = await ev(`(() => { const t = document.body.innerText; return ['HEALTH', 'restarts: 7', 'WARNINGS', 'BackOff', 'USAGE', 'requested'].filter(s => !t.includes(s)); })()`);
   await clickButton("RESET VIEW");
   if (!result.hover) failures.push("no node found under the pointer");
   if (!result.clickPanel) failures.push("click did not open the detail panel");
   if (result.panelAfterEmptyClick) failures.push("empty click did not close the panel");
   if (!result.searchPanel?.includes("app-02")) failures.push("search + Enter did not select app-02");
   if (result.panelAfterReset) failures.push("reset did not clear the selection");
+  await ev(`[...document.querySelectorAll('button')].find(b => b.textContent.includes('LEGEND'))?.click(); 1`);
+  await sleep(500);
+  result.usageLegend = await ev(`document.body.innerText.includes('Size and glow: usage over requests')`);
+  if (!result.usageLegend) failures.push("legend does not describe the usage encoding");
   if (result.crashyPanel?.length) failures.push(`crash-looping pod panel is missing: ${result.crashyPanel.join(", ")}`);
 }
 
@@ -272,6 +276,13 @@ if (scenario === "stream") {
   if (result.snapshots < 2) failures.push("no new snapshot after the connection dropped");
   if (!resyncedPod || !result.resyncedPodPanel?.includes(resyncedPod.split("/").at(-1))) failures.push(`pod added after the resync (${resyncedPod}) is not selectable`);
   if (result.gaps.length) failures.push(`patches out of sequence: ${result.gaps.join(", ")}`);
+}
+
+if (scenario === "nometrics") {
+  await ev(`[...document.querySelectorAll('button')].find(b => b.textContent.includes('LEGEND'))?.click(); 1`);
+  await sleep(500);
+  result.hint = await ev(`document.body.innerText.includes('install metrics-server')`);
+  if (!result.hint) failures.push("no metrics-server hint in the legend without metrics");
 }
 
 if (scenario === "webgl") {

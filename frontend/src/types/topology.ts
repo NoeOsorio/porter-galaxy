@@ -8,9 +8,12 @@ export interface TopologyNode {
   type: TopologyNodeType;
   name: string;
   namespace?: string;
-  x: number;
-  y: number;
-  z: number;
+  /** Namespace, or "_" for Internet and load balancers; groups the layout. */
+  group: string;
+  /** Vertical band from Internet (0) down to Pod (5). */
+  tier: number;
+  /** Upstream node a new node is placed next to. */
+  parent?: string;
   color: string;
   glow: string;
   size: number;

@@ -4,9 +4,9 @@ import { Stars } from "@react-three/drei";
 import { EffectComposer, Bloom } from "@react-three/postprocessing";
 import CameraRig, { type CameraRigHandle } from "./components/CameraRig";
 import { useScene } from "./lib/sceneSlot";
-import { useStaticLayout } from "./lib/layout/useStaticLayout";
+import { useForceLayout } from "./lib/layout/useForceLayout";
 import type { ApiClustersResponse } from "./types/api";
-import { transformClusters } from "./lib/transformClusters";
+import { transformClusters, clustersLayoutInput } from "./lib/transformClusters";
 import ClustersScene from "./components/three/ClustersScene";
 import type { ClusterGalaxyNode } from "./types/clusters";
 import { STATE_COLORS, type State } from "./lib/objectKey";
@@ -42,7 +42,8 @@ export default function Clusters({ snapshot: data }: { snapshot: ApiClustersResp
     if (!data?.clusters) return null;
     return transformClusters(data);
   }, [data]);
-  const layout = useStaticLayout(clustersGraph?.nodes);
+  const layoutInput = useMemo(() => (clustersGraph ? clustersLayoutInput(clustersGraph) : { nodes: [], links: [] }), [clustersGraph]);
+  const layout = useForceLayout("clusters", layoutInput.nodes, layoutInput.links);
 
   // Selection follows the object by key across snapshots. An object that
   // disappears stays in the panel marked deleted until the next snapshot.

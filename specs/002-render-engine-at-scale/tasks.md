@@ -68,14 +68,14 @@ description: "Task list for 002 Render Engine at Scale"
 
 **Independent Test**: quickstart.md §2
 
-- [ ] T016 [US2] `npm install d3-force-3d` in `frontend/` and add minimal types in `frontend/src/types/d3-force-3d.d.ts` for the functions used
-- [ ] T017 [US2] Implement `frontend/src/lib/layout/layout.worker.ts` per contracts/layout-worker.md: link, many-body, namespace anchor (golden-angle spiral by namespace hash), Topology tier `forceY`, Clusters cluster anchors, collide; warm start and seeding from `parent` (research R5)
-- [ ] T018 [US2] Implement `frontend/src/lib/layout/useForceLayout.ts`: one worker per mounted view, posts `update` on key/link changes, applies `positions` messages to the store, `stop` on unmount
-- [ ] T019 [US2] Replace ring positions in `frontend/src/lib/transformTopology.ts` and `frontend/src/lib/transformClusters.ts` with layout hints (`group`, `cluster`, `tier`, `radius`, `parent`) and link strengths per data-model.md
-- [ ] T020 [US2] Switch `Topology.tsx` and `Clusters.tsx` from `useStaticLayout` to `useForceLayout`; delete `frontend/src/lib/layout/useStaticLayout.ts`
-- [ ] T021 [US2] Make `CameraRig` frame after the first `settled` (not on first positions) so the initial framing matches the settled layout, in `frontend/src/components/CameraRig.tsx`
-- [ ] T022 [US2] With `?stats`, log `max unrelated displacement` (largest move of a node not added and not a direct neighbor of an added/removed node, as % of view width) after each update settles, in `frontend/src/lib/layout/useForceLayout.ts`
-- [ ] T023 [US2] Walk quickstart §2 steps 1–4 against the fake stream; record settle time and displacement in the PR
+- [X] T016 [US2] `npm install d3-force-3d` in `frontend/` and add minimal types in `frontend/src/types/d3-force-3d.d.ts` for the functions used
+- [X] T017 [US2] Implement `frontend/src/lib/layout/layout.worker.ts` per contracts/layout-worker.md: link, many-body, namespace anchor (golden-angle spiral by namespace hash), Topology tier `forceY`, Clusters cluster anchors, collide; warm start and seeding from `parent` (research R5)
+- [X] T018 [US2] Implement `frontend/src/lib/layout/useForceLayout.ts`: one worker per mounted view, posts `update` on key/link changes, applies `positions` messages to the store, `stop` on unmount
+- [X] T019 [US2] Replace ring positions in `frontend/src/lib/transformTopology.ts` and `frontend/src/lib/transformClusters.ts` with layout hints (`group`, `cluster`, `tier`, `radius`, `parent`) and link strengths per data-model.md
+- [X] T020 [US2] Switch `Topology.tsx` and `Clusters.tsx` from `useStaticLayout` to `useForceLayout`; delete `frontend/src/lib/layout/useStaticLayout.ts`
+- [X] T021 [US2] Make `CameraRig` frame after the first `settled` (not on first positions) so the initial framing matches the settled layout, in `frontend/src/components/CameraRig.tsx` (frames instantly on the first positions too, then animates to the settled framing)
+- [X] T022 [US2] With `?stats`, log `max unrelated displacement` (largest move of a node not added and not a direct neighbor of an added/removed node, as % of view width) after each update settles, in `frontend/src/lib/layout/useForceLayout.ts`
+- [X] T023 [US2] Walk quickstart §2 steps 1–4 against the fake stream; record settle time and displacement in the PR
 - [ ] T024 [US2] Run the gates, open PR `002-render-engine-at-scale-us2`, merge, `make release VERSION=0.7.0`, upgrade the add-on, and walk quickstart §2 step 5
 
 **Checkpoint**: SC-002 met; namespaces keep their places across reloads

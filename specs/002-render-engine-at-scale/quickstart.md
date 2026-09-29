@@ -58,6 +58,20 @@ p99 16.8 ms, max 16.8 ms in both views), including the hardest one the baseline 
 
 ## §2 Stable, meaningful layout (US2, 0.7.0)
 
+**US2 result (2026-09-29, same headless setup as §1).**
+
+| Check | Topology | Clusters |
+| --- | --- | --- |
+| Settle time, 1,000 pods | 1.76 s | 1.60 s |
+| Settle time, 3,000 pods | 4.6 s | 4.2 s |
+| Unrelated displacement per update, 1,000 pods, 1 pod replaced every 500 ms, while the first layout is still relaxing | 2.2%, 0.5%, 0.2% | 4.9%, 1.2%, 0.1% |
+| Same, after the layout has settled (44 updates) | 0.00% | 0.00% |
+| fps orbiting 3,000 pods, churn 500 ms, CPU ×4 | 59.8 (max frame 33 ms) | 59.9 (max frame 33 ms) |
+
+Small updates (≤ 20% of nodes changed) pin every node that is not new or a direct neighbor of a
+change, which is why settled displacement is zero; larger changes re-relax the whole layout.
+
+
 1. Fake stream at 1,000 pods, churn off: the layout settles in < 3 s after load.
 2. Namespaces form visually separate groups in both views.
 3. Restart the fake stream with `-churn 500ms -churn-size 1`. With `?stats`, the console logs

@@ -7,7 +7,7 @@ Only the next spec has a plan and tasks; the rest are planned when they become n
 | --- | --- | --- | --- |
 | 001 | [Truthful graph and usable camera](001-truthful-graph-and-camera/spec.md) | Done: US1 0.3.0, US2 0.4.0, US3 0.5.0, polish 0.5.1 · [tasks](001-truthful-graph-and-camera/tasks.md) | — |
 | 002 | [Render engine at scale](002-render-engine-at-scale/spec.md) | Done: US1 0.6.0, US2 0.7.0, US3 0.8.0, polish · [tasks](002-render-engine-at-scale/tasks.md) | 001 |
-| 003 | [Workload coverage and health](003-workload-coverage-and-health/spec.md) | In progress: US1 in 0.9.0, stream patches in 0.10.0 · [tasks](003-workload-coverage-and-health/tasks.md) | 001 |
+| 003 | [Workload coverage and health](003-workload-coverage-and-health/spec.md) | In progress: US1 in 0.9.0, stream patches in 0.10.0, US2 in 0.11.1 · [tasks](003-workload-coverage-and-health/tasks.md) | 001 |
 | 004 | [Multi-cluster hub](004-multi-cluster-hub/spec.md) | Backlog | 001, 005 for public hubs |
 | 005 | [Access control](005-access-control/spec.md) | Backlog | — |
 | 006 | [Explore and share](006-explore-and-share/spec.md) | Backlog | 002, 003 |

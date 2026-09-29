@@ -79,7 +79,7 @@ description: "Task list for 003 Workload Coverage and Health"
 - [X] T024 [P] [US2] Emit crash-looping Pods with warnings from `backend/cmd/fakestream`
 - [X] T025 [US2] Add an `aPulse` attribute to `frontend/src/components/three/NodeInstances.tsx` and set it for `recentRestart` in both scenes
 - [X] T026 [US2] Show restarts, last termination, and the latest warnings (age, reason, count) in `frontend/src/components/DetailPanel.tsx`
-- [ ] T027 [US2] `make verify`, PR, merge, `make release VERSION=0.11.0`, upgrade, walk quickstart §3
+- [X] T027 [US2] `make verify`, PR, merge, `make release VERSION=0.11.0`, upgrade, walk quickstart §3 (shipped as 0.11.1 after §3 found crash-back-off terminations read one restart late; on the reference cluster galaxy-crash and galaxy-oom stayed failed and pulsed, an OOM kill reached the stream within 1 s (SC-002), and the panel showed OOMKilled, exit 137, and BackOff warnings)
 
 ---
 

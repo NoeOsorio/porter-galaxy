@@ -62,6 +62,7 @@ export default function ClustersScene({
       glowColors: new Float32Array(n * 3),
       radii: new Float32Array(n),
       opacities: new Float32Array(n),
+      glowOpacities: new Float32Array(n),
       blink: new Float32Array(n),
       pulse: new Float32Array(n),
     };
@@ -69,10 +70,12 @@ export default function ClustersScene({
       const inFamily = family?.nodes.has(node.id) ?? false;
       writeColor(attrs.colors, i, node.color);
       writeColor(attrs.glowColors, i, inFamily ? FAMILY_COLOR : node.glow);
-      attrs.radii[i] = node.size;
+      const load = Math.min(node.load ?? 0, 1);
+      attrs.radii[i] = node.size * (1 + 0.6 * load);
       attrs.opacities[i] = filteredNodes.size > 0 && !filteredNodes.has(node.id) ? 0.2 : family && !inFamily ? 0.3 : 1;
       attrs.blink[i] = failing.has(node.id) ? 1 : 0;
       attrs.pulse[i] = node.pulse ? 1 : 0;
+      attrs.glowOpacities[i] = attrs.opacities[i]! * (1 + load);
     });
     return attrs;
   }, [graph.nodes, family, filteredNodes, errorPods]);

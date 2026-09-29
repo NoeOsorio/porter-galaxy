@@ -22,6 +22,8 @@ export interface ClusterGalaxyNode {
   state?: State;
   /** A container restarted within the last 10 minutes. */
   pulse?: boolean;
+  /** Usage over requests (pods) or allocatable (nodes); drives size and glow. */
+  load?: number;
   metadata?: {
     cpu?: string;
     memory?: string;

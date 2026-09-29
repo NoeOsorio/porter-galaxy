@@ -1,6 +1,10 @@
 package cluster
 
-import "time"
+import (
+	"time"
+
+	"github.com/noeosorio/porter-galaxy/backend/internal/metrics"
+)
 
 // Snapshot is the root payload broadcast to clients over SSE.
 type Snapshot struct {
@@ -9,16 +13,19 @@ type Snapshot struct {
 
 // Cluster represents a single Kubernetes cluster with its full observed topology.
 type Cluster struct {
-	ID              string              `json:"id"`
-	Nodes           []NodeInfo          `json:"nodes"`
-	Pods            []PodInfo           `json:"pods"`
-	Workloads       []WorkloadInfo      `json:"workloads"`
-	LoadBalancers   []LoadBalancerInfo  `json:"loadBalancers"`
-	PVCs            []PVCInfo           `json:"pvcs"`
-	HPAs            []HPAInfo           `json:"hpas"`
-	NetworkPolicies []NetworkPolicyInfo `json:"networkPolicies"`
-	Namespaces      []NamespaceInfo     `json:"namespaces"`
-	Topology        []Link              `json:"topology"`
+	ID string `json:"id"`
+	// MetricsAvailable is false when the cluster does not serve metrics.k8s.io;
+	// usage fields are then absent everywhere.
+	MetricsAvailable bool                `json:"metricsAvailable"`
+	Nodes            []NodeInfo          `json:"nodes"`
+	Pods             []PodInfo           `json:"pods"`
+	Workloads        []WorkloadInfo      `json:"workloads"`
+	LoadBalancers    []LoadBalancerInfo  `json:"loadBalancers"`
+	PVCs             []PVCInfo           `json:"pvcs"`
+	HPAs             []HPAInfo           `json:"hpas"`
+	NetworkPolicies  []NetworkPolicyInfo `json:"networkPolicies"`
+	Namespaces       []NamespaceInfo     `json:"namespaces"`
+	Topology         []Link              `json:"topology"`
 }
 
 // NodeInfo is the physical host that pods are scheduled onto.
@@ -30,6 +37,9 @@ type NodeInfo struct {
 	Status     string            `json:"status"`
 	Conditions []string          `json:"conditions,omitempty"` // DiskPressure, MemoryPressure, PIDPressure
 	Warnings   []Warning         `json:"warnings,omitempty"`
+	// Allocatable is what pods can use of the node; the reference for Usage.
+	Allocatable *metrics.Resources `json:"allocatable,omitempty"`
+	Usage       *metrics.Resources `json:"usage,omitempty"`
 }
 
 // PodInfo is a running container workload.
@@ -48,6 +58,9 @@ type PodInfo struct {
 	// RecentRestart is true when a container terminated within RecentRestartWindow.
 	RecentRestart bool      `json:"recentRestart,omitempty"`
 	Warnings      []Warning `json:"warnings,omitempty"`
+	// Requests sums the containers' requests; the reference for Usage.
+	Requests *metrics.Resources `json:"requests,omitempty"`
+	Usage    *metrics.Resources `json:"usage,omitempty"`
 }
 
 // Termination is the most recent terminated state among a pod's containers.

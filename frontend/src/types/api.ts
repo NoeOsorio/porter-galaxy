@@ -12,6 +12,9 @@ export interface ApiNode {
   };
   status: string;
   warnings?: ApiWarning[];
+  /** What pods can use of the node; the reference for usage. */
+  allocatable?: ApiResources;
+  usage?: ApiResources;
 }
 
 export interface ApiOwner {
@@ -33,6 +36,15 @@ export interface ApiPod {
   /** A container terminated within the last 10 minutes. */
   recentRestart?: boolean;
   warnings?: ApiWarning[];
+  /** Sum of the containers' requests; the reference for usage. */
+  requests?: ApiResources;
+  /** Absent when the cluster has no metrics API or the pod has no sample yet. */
+  usage?: ApiResources;
+}
+
+export interface ApiResources {
+  cpuMillis: number;
+  memoryBytes: number;
 }
 
 export interface ApiTermination {
@@ -119,6 +131,8 @@ export interface ApiTopology {
 
 export interface ApiCluster {
   id: string;
+  /** False when the cluster does not serve metrics.k8s.io; no usage is sent. */
+  metricsAvailable: boolean;
   nodes: ApiNode[];
   pods: ApiPod[];
   workloads: ApiWorkload[];

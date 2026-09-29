@@ -13,6 +13,7 @@ import {
   workloadKey,
   type RefKind,
   workloadStatus,
+  loadRatio,
 } from "./objectKey";
 
 const CLUSTER_COLORS = [
@@ -79,6 +80,7 @@ export function transformClusters(apiData: ApiClustersResponse): ClusterGalaxyGr
         ...(n.state === "running" ? TYPE_COLORS.node : STATE_COLORS[n.state]),
         size: 25,
         state: n.state,
+        load: loadRatio(n.usage, n.allocatable),
         status: STATE_LABELS[n.state],
         metadata: { cpu: n.capacity.cpu, memory: n.capacity.memory, clusterId },
       });
@@ -111,6 +113,7 @@ export function transformClusters(apiData: ApiClustersResponse): ClusterGalaxyGr
         size: 8,
         state: pod.state,
         pulse: pod.recentRestart,
+        load: loadRatio(pod.usage, pod.requests),
         status: STATE_LABELS[pod.state],
         metadata: {
           version: pod.version,

@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { motion } from "framer-motion";
 import { STATE_COLORS, type State } from "../lib/objectKey";
-import { age, type ObjectDetails } from "../lib/objectDetails";
+import { age, formatBytes, formatCPU, type ObjectDetails } from "../lib/objectDetails";
 
 export interface PanelNode {
   id: string;
@@ -50,9 +50,23 @@ function Row({ label, children, mono = false }: { label: string; children: React
   );
 }
 
+function UsageRow({ label, now, base, format, baseLabel }: { label: string; now: number; base?: number; format: (n: number) => string; baseLabel: string }) {
+  return (
+    <Row label={label}>
+      {format(now)}
+      {base ? (
+        <span className="text-white/45">
+          {" "}
+          of {format(base)} {baseLabel} ({Math.round((now / base) * 100)}%)
+        </span>
+      ) : null}
+    </Row>
+  );
+}
+
 /** Shared detail panel for the selected object in both views. */
 export default function DetailPanel({ node, icon, typeLabel, details, deleted, onClose, className }: Props) {
-  const { owners, hpa, policies, refs, pvc, pod, warnings } = details;
+  const { owners, hpa, policies, refs, pvc, pod, warnings, usage } = details;
   const meta = node.metadata ?? {};
   const refRows: [string, string[] | undefined][] = [
     ["pvc", refs?.pvcs],
@@ -129,6 +143,13 @@ export default function DetailPanel({ node, icon, typeLabel, details, deleted, o
         {meta.address && (
           <Section title="ADDRESS">
             <div className="text-white/60 text-[10px] font-mono break-all">{meta.address}</div>
+          </Section>
+        )}
+
+        {usage && (
+          <Section title="USAGE">
+            <UsageRow label="cpu" now={usage.now.cpuMillis} base={usage.base?.cpuMillis} format={formatCPU} baseLabel={usage.baseLabel} />
+            <UsageRow label="memory" now={usage.now.memoryBytes} base={usage.base?.memoryBytes} format={formatBytes} baseLabel={usage.baseLabel} />
           </Section>
         )}
 

@@ -6,6 +6,8 @@ import (
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
+
+	"github.com/noeosorio/porter-galaxy/backend/internal/metrics"
 )
 
 const (
@@ -65,4 +67,52 @@ func eventLastSeen(e *corev1.Event) time.Time {
 		}
 	}
 	return seen
+}
+
+func resources(list corev1.ResourceList) *metrics.Resources {
+	r := metrics.Resources{}
+	if q, ok := list[corev1.ResourceCPU]; ok {
+		r.CPUMillis = q.MilliValue()
+	}
+	if q, ok := list[corev1.ResourceMemory]; ok {
+		r.MemoryBytes = q.Value()
+	}
+	if r == (metrics.Resources{}) {
+		return nil
+	}
+	return &r
+}
+
+func podRequests(p *corev1.Pod) *metrics.Resources {
+	total := metrics.Resources{}
+	for _, c := range p.Spec.Containers {
+		if r := resources(c.Resources.Requests); r != nil {
+			total.CPUMillis += r.CPUMillis
+			total.MemoryBytes += r.MemoryBytes
+		}
+	}
+	if total == (metrics.Resources{}) {
+		return nil
+	}
+	return &total
+}
+
+func (b *Builder) podUsage(namespace, name string) *metrics.Resources {
+	if b.usage == nil {
+		return nil
+	}
+	if r, ok := b.usage.Pod(namespace, name); ok {
+		return &r
+	}
+	return nil
+}
+
+func (b *Builder) nodeUsage(name string) *metrics.Resources {
+	if b.usage == nil {
+		return nil
+	}
+	if r, ok := b.usage.Node(name); ok {
+		return &r
+	}
+	return nil
 }

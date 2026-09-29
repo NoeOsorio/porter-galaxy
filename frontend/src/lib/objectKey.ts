@@ -80,3 +80,16 @@ export function podDisplayName(pod: ApiPod): string {
   const suffix = pod.id.slice(pod.id.lastIndexOf("-") + 1);
   return `${pod.owner.name}-${suffix}`;
 }
+
+/** Usage over its reference (requests or allocatable), the larger of CPU and memory; undefined without both. */
+export function loadRatio(
+  usage: { cpuMillis: number; memoryBytes: number } | undefined,
+  base: { cpuMillis: number; memoryBytes: number } | undefined,
+): number | undefined {
+  if (!usage || !base) return undefined;
+  const ratios = [
+    base.cpuMillis > 0 ? usage.cpuMillis / base.cpuMillis : undefined,
+    base.memoryBytes > 0 ? usage.memoryBytes / base.memoryBytes : undefined,
+  ].filter((r): r is number => r !== undefined);
+  return ratios.length ? Math.max(...ratios) : undefined;
+}

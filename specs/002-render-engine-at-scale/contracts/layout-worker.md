@@ -18,7 +18,11 @@ type ToWorker =
 
 - `update` replaces the node and link sets. Nodes whose `key` already exists keep their position;
   new nodes are seeded at `parent`'s position plus jitter (or at their group anchor if the parent
-  is unknown); removed nodes are dropped. The simulation restarts with `alpha = first ? 1 : 0.15`.
+  is unknown); removed nodes are dropped. Each `LayoutLink` carries `strength` and `distance`.
+- Restart energy: the first update starts at `alpha = 1`. Later updates that change ≤ 20% of the
+  nodes pin every node that is not new or a direct neighbor of a change and run a short local
+  relaxation (`alpha = 0.3`, faster decay). Larger changes re-relax everything from `alpha = 0.15`.
+  An update that arrives during a global relaxation joins it without raising its energy.
 - `stop` halts ticking (view unmounted).
 
 ## Worker → main

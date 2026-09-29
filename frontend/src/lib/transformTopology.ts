@@ -1,5 +1,6 @@
 import type { ApiCluster, ApiPod } from "../types/api";
 import type { TopologyNode, TopologyEdge, TopologyGraph, TopologyNodeType } from "../types/topology";
+import type { LayoutLink, LayoutNode } from "./layout/types";
 import { INTERNET_KEY, STATE_COLORS, STATE_LABELS, objectKey, parseKey, podDisplayName } from "./objectKey";
 
 const COLORS: Record<Exclude<TopologyNodeType, "pod">, { color: string; glow: string }> = {
@@ -18,17 +19,35 @@ const EDGE_COLORS: Record<TopologyEdge["type"], string> = {
   owns: "#5bffb0",
 };
 
-// One ring per tier, stepping down and back so the flow reads top to bottom.
-const TIERS: Record<TopologyNodeType, { y: number; z: number; radius: number; size: number }> = {
-  internet: { y: 200, z: 0, radius: 0, size: 30 },
-  loadbalancer: { y: 120, z: -100, radius: 120, size: 20 },
-  ingress: { y: 40, z: -180, radius: 160, size: 18 },
-  service: { y: -40, z: -260, radius: 200, size: 15 },
-  deployment: { y: -120, z: -340, radius: 240, size: 16 },
-  pod: { y: -200, z: -420, radius: 300, size: 12 },
+const TIER: Record<TopologyNodeType, number> = {
+  internet: 0,
+  loadbalancer: 1,
+  ingress: 2,
+  service: 3,
+  deployment: 4,
+  pod: 5,
 };
 
-type PartialNode = Omit<TopologyNode, "x" | "y" | "z" | "size">;
+const SIZE: Record<TopologyNodeType, number> = {
+  internet: 30,
+  loadbalancer: 20,
+  ingress: 18,
+  service: 15,
+  deployment: 16,
+  pod: 12,
+};
+
+// Short, strong links keep a Deployment's pods tight around it; routing links
+// are looser so namespaces can spread.
+const LINK: Record<TopologyEdge["type"], { distance: number; strength: number }> = {
+  internet: { distance: 120, strength: 0.05 },
+  lb: { distance: 90, strength: 0.1 },
+  ingress: { distance: 60, strength: 0.3 },
+  service: { distance: 45, strength: 0.5 },
+  owns: { distance: 28, strength: 0.8 },
+};
+
+type PartialNode = Omit<TopologyNode, "size" | "group" | "tier" | "parent">;
 
 export function transformTopology(apiCluster: ApiCluster): TopologyGraph {
   const podsByKey = new Map(apiCluster.pods.map((p) => [p.key, p]));
@@ -132,30 +151,26 @@ export function transformTopology(apiCluster: ApiCluster): TopologyGraph {
   const outgoing = new Map<string, number>();
   for (const e of edges.values()) outgoing.set(e.from, (outgoing.get(e.from) ?? 0) + 1);
 
-  const byTier = new Map<TopologyNodeType, PartialNode[]>();
-  for (const n of nodes.values()) {
-    const list = byTier.get(n.type) ?? [];
-    list.push(n);
-    byTier.set(n.type, list);
-  }
+  const parentOf = new Map<string, string>();
+  for (const e of edges.values()) if (!parentOf.has(e.to)) parentOf.set(e.to, e.from);
 
-  const placed: TopologyNode[] = [];
-  for (const [type, list] of byTier) {
-    const tier = TIERS[type];
-    list.sort((a, b) => a.id.localeCompare(b.id));
-    const step = (Math.PI * 2) / list.length;
-    list.forEach((n, i) => {
-      const angle = i * step;
-      placed.push({
-        ...n,
-        x: Math.cos(angle) * tier.radius,
-        y: tier.y,
-        z: tier.z + Math.sin(angle) * tier.radius,
-        size: tier.size,
-        metadata: { ...n.metadata, connections: Math.max(1, outgoing.get(n.id) ?? 0) },
-      });
-    });
-  }
+  const placed: TopologyNode[] = [...nodes.values()]
+    .sort((a, b) => a.id.localeCompare(b.id))
+    .map((n) => ({
+      ...n,
+      group: n.namespace ?? "_",
+      tier: TIER[n.type],
+      parent: parentOf.get(n.id),
+      size: SIZE[n.type],
+      metadata: { ...n.metadata, connections: Math.max(1, outgoing.get(n.id) ?? 0) },
+    }));
 
   return { nodes: placed, edges: [...edges.values()] };
+}
+
+export function topologyLayoutInput(graph: TopologyGraph): { nodes: LayoutNode[]; links: LayoutLink[] } {
+  return {
+    nodes: graph.nodes.map((n) => ({ key: n.id, group: n.group, cluster: "_", tier: n.tier, radius: n.size, parent: n.parent })),
+    links: graph.edges.map((e) => ({ source: e.from, target: e.to, ...LINK[e.type] })),
+  };
 }

@@ -6,9 +6,13 @@ export interface ClusterGalaxyNode {
   type: "cluster" | "node" | "deployment" | "pod";
   name: string;
   namespace?: string;
-  x: number;
-  y: number;
-  z: number;
+  /** Namespace, or "_" for clusters and nodes; groups the layout. */
+  group: string;
+  cluster: string;
+  /** Vertical band: cluster 0, node 1, deployment 2, pod 3. */
+  tier: number;
+  /** Node a new node is placed next to. */
+  parent?: string;
   color: string;
   glow: string;
   size: number;

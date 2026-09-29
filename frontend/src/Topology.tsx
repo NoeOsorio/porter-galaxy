@@ -3,9 +3,9 @@ import { AnimatePresence, motion } from "framer-motion";
 import { EffectComposer, Bloom } from "@react-three/postprocessing";
 import CameraRig, { type CameraRigHandle } from "./components/CameraRig";
 import { useScene } from "./lib/sceneSlot";
-import { useStaticLayout } from "./lib/layout/useStaticLayout";
+import { useForceLayout } from "./lib/layout/useForceLayout";
 import type { ApiClustersResponse } from "./types/api";
-import { transformTopology } from "./lib/transformTopology";
+import { transformTopology, topologyLayoutInput } from "./lib/transformTopology";
 import TopologyScene from "./components/three/TopologyScene";
 import type { TopologyNode } from "./types/topology";
 import { STATE_COLORS, type State } from "./lib/objectKey";
@@ -45,7 +45,8 @@ export default function Topology({ snapshot: data }: { snapshot: ApiClustersResp
     if (!data?.clusters || !data.clusters[selectedClusterIndex]) return null;
     return transformTopology(data.clusters[selectedClusterIndex]);
   }, [data, selectedClusterIndex]);
-  const layout = useStaticLayout(topologyGraph?.nodes);
+  const layoutInput = useMemo(() => (topologyGraph ? topologyLayoutInput(topologyGraph) : { nodes: [], links: [] }), [topologyGraph]);
+  const layout = useForceLayout("topology", layoutInput.nodes, layoutInput.links);
 
   // Selection follows the object by key across snapshots. An object that
   // disappears stays in the panel marked deleted until the next snapshot.

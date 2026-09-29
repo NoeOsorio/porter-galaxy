@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useImperativeHandle, useMemo, useRef, type ComponentRef, type Ref } from "react";
 import * as THREE from "three";
+import { useFrame } from "@react-three/fiber";
 import { CameraControls } from "@react-three/drei";
 import { readPosition, type LayoutStore } from "../lib/layout/layoutStore";
 
@@ -36,7 +37,7 @@ const GLOW_PADDING = 1.5;
 
 export default function CameraRig({ ref, store, nodes, edges, azimuth, polar }: Props) {
   const controls = useRef<ComponentRef<typeof CameraControls>>(null);
-  const framed = useRef(false);
+  const framing = useRef<{ first: boolean; settled: boolean; limitsVersion: number }>({ first: false, settled: false, limitsVersion: -1 });
 
   const byId = useMemo(() => new Map(nodes.map((n) => [n.id, n])), [nodes]);
   const neighbors = useMemo(() => {
@@ -87,22 +88,30 @@ export default function CameraRig({ ref, store, nodes, edges, azimuth, polar }: 
     [frame, neighbors],
   );
 
-  // Frame once when the first graph arrives (and again after a view switch,
-  // which remounts the rig); later snapshots must not move the camera.
-  useEffect(() => {
-    if (framed.current || byId.size === 0) return;
-    framed.current = true;
-    frame(undefined, false);
-  }, [byId, frame]);
-
-  // Zoom limits follow the graph so the wheel always has room in both directions.
-  useEffect(() => {
+  // Positions arrive from the layout worker after mount: frame instantly on the
+  // first positions, then once more (animated) when the layout first settles.
+  // Later updates never move the camera. A view switch remounts the rig.
+  useFrame(() => {
+    const f = framing.current;
+    if (store.keys.length === 0 || store.version === f.limitsVersion) return;
+    if (!f.first) {
+      f.first = true;
+      frame(undefined, false);
+    }
+    if (!store.settled) return;
+    f.limitsVersion = store.version;
+    if (!f.settled) {
+      f.settled = true;
+      frame();
+    }
+    // Zoom limits follow the settled graph so the wheel always has room both ways.
     const cc = controls.current;
     const sphere = sphereFor(byId.keys());
-    if (!cc || !sphere) return;
-    cc.minDistance = 20;
-    cc.maxDistance = sphere.radius * 6;
-  }, [byId, sphereFor]);
+    if (cc && sphere) {
+      cc.minDistance = 20;
+      cc.maxDistance = sphere.radius * 6;
+    }
+  });
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {

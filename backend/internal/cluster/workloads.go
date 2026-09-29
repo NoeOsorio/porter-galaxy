@@ -12,11 +12,12 @@ import (
 
 // ── Workloads ─────────────────────────────────────────────────────────────────
 
-func (b *Builder) buildWorkloads() []WorkloadInfo {
+func (b *Builder) buildWorkloads(warnings map[string][]Warning) []WorkloadInfo {
 	out := []WorkloadInfo{}
 	add := func(kind, ns, name string, state State, desired, ready int32, owner *Owner) {
+		key := objectKey(strings.ToLower(kind), ns, name)
 		out = append(out, WorkloadInfo{
-			Key:       objectKey(strings.ToLower(kind), ns, name),
+			Key:       key,
 			Kind:      kind,
 			ID:        name,
 			Namespace: ns,
@@ -24,6 +25,7 @@ func (b *Builder) buildWorkloads() []WorkloadInfo {
 			Desired:   desired,
 			Ready:     ready,
 			Owner:     owner,
+			Warnings:  warnings[key],
 		})
 	}
 

@@ -8,6 +8,7 @@ import (
 
 	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/informers"
@@ -38,6 +39,8 @@ type Listers struct {
 	HPAs            autoscalinglisters.HorizontalPodAutoscalerLister
 	NetworkPolicies networkinglisters.NetworkPolicyLister
 	Namespaces      corelisters.NamespaceLister
+	// Events holds Warning events only.
+	Events corelisters.EventLister
 }
 
 // Manager owns one SharedInformerFactory per cluster. Every informer shares a
@@ -45,6 +48,9 @@ type Listers struct {
 // reads the current state through Listers.
 type Manager struct {
 	factory informers.SharedInformerFactory
+	// events is separate because its field selector would filter every
+	// other informer of a shared factory too.
+	events  informers.SharedInformerFactory
 	listers Listers
 	notify  func()
 	logger  *slog.Logger
@@ -53,14 +59,18 @@ type Manager struct {
 
 func NewManager(client kubernetes.Interface, resync time.Duration, notify func(), logger *slog.Logger) *Manager {
 	f := informers.NewSharedInformerFactory(client, resync)
-	m := &Manager{factory: f, notify: notify, logger: logger}
+	ev := informers.NewSharedInformerFactoryWithOptions(client, resync, informers.WithTweakListOptions(func(o *metav1.ListOptions) {
+		o.FieldSelector = "type=" + corev1.EventTypeWarning
+	}))
+	m := &Manager{factory: f, events: ev, notify: notify, logger: logger}
 
-	// ReplicaSets and Jobs are mostly needed to walk owner references; dropping
-	// their pod templates keeps memory flat as clusters accumulate history.
+	// ReplicaSets, Jobs and Events accumulate as history; keeping only the fields
+	// the builder reads keeps memory flat.
 	rs := f.Apps().V1().ReplicaSets()
 	jobs := f.Batch().V1().Jobs()
-	for _, inf := range []cache.SharedIndexInformer{rs.Informer(), jobs.Informer()} {
-		if err := inf.SetTransform(trimToOwners); err != nil {
+	events := ev.Core().V1().Events()
+	for _, inf := range []cache.SharedIndexInformer{rs.Informer(), jobs.Informer(), events.Informer()} {
+		if err := inf.SetTransform(trimCached); err != nil {
 			logger.Error("informer transform not set", "error", err)
 		}
 	}
@@ -81,6 +91,7 @@ func NewManager(client kubernetes.Interface, resync time.Duration, notify func()
 		HPAs:            f.Autoscaling().V2().HorizontalPodAutoscalers().Lister(),
 		NetworkPolicies: f.Networking().V1().NetworkPolicies().Lister(),
 		Namespaces:      f.Core().V1().Namespaces().Lister(),
+		Events:          events.Lister(),
 	}
 	for _, inf := range []cache.SharedIndexInformer{
 		f.Core().V1().Nodes().Informer(),
@@ -98,6 +109,7 @@ func NewManager(client kubernetes.Interface, resync time.Duration, notify func()
 		f.Autoscaling().V2().HorizontalPodAutoscalers().Informer(),
 		f.Networking().V1().NetworkPolicies().Informer(),
 		f.Core().V1().Namespaces().Informer(),
+		events.Informer(),
 	} {
 		if _, err := inf.AddEventHandler(m.onChange()); err != nil {
 			logger.Error("informer handler not registered", "error", err)
@@ -118,13 +130,14 @@ func (m *Manager) Synced() bool {
 // Start starts the informers, waits for every cache to complete its initial
 // list, and blocks until ctx is cancelled.
 func (m *Manager) Start(ctx context.Context) error {
-	m.factory.Start(ctx.Done())
-
 	allSynced := true
-	for t, ok := range m.factory.WaitForCacheSync(ctx.Done()) {
-		if !ok {
-			allSynced = false
-			m.logger.Error("cache sync failed", "informer", t)
+	for _, f := range []informers.SharedInformerFactory{m.factory, m.events} {
+		f.Start(ctx.Done())
+		for t, ok := range f.WaitForCacheSync(ctx.Done()) {
+			if !ok {
+				allSynced = false
+				m.logger.Error("cache sync failed", "informer", t)
+			}
 		}
 	}
 	if allSynced {
@@ -153,7 +166,7 @@ func (m *Manager) onChange() cache.ResourceEventHandlerFuncs {
 	}
 }
 
-func trimToOwners(obj any) (any, error) {
+func trimCached(obj any) (any, error) {
 	switch o := obj.(type) {
 	case *appsv1.ReplicaSet:
 		return &appsv1.ReplicaSet{ObjectMeta: ownersOnly(o.ObjectMeta)}, nil
@@ -163,6 +176,21 @@ func trimToOwners(obj any) (any, error) {
 			ObjectMeta: ownersOnly(o.ObjectMeta),
 			Spec:       batchv1.JobSpec{Completions: o.Spec.Completions, Suspend: o.Spec.Suspend},
 			Status:     o.Status,
+		}, nil
+	case *corev1.Event:
+		// Only what the detail panel shows; the rest of an event is never read.
+		meta := ownersOnly(o.ObjectMeta)
+		meta.CreationTimestamp = o.CreationTimestamp
+		return &corev1.Event{
+			ObjectMeta:     meta,
+			InvolvedObject: corev1.ObjectReference{Kind: o.InvolvedObject.Kind, Namespace: o.InvolvedObject.Namespace, Name: o.InvolvedObject.Name},
+			Reason:         o.Reason,
+			Message:        o.Message,
+			Count:          o.Count,
+			Series:         o.Series,
+			EventTime:      o.EventTime,
+			FirstTimestamp: o.FirstTimestamp,
+			LastTimestamp:  o.LastTimestamp,
 		}, nil
 	}
 	return obj, nil

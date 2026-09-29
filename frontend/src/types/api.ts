@@ -11,6 +11,7 @@ export interface ApiNode {
     memory: string;
   };
   status: string;
+  warnings?: ApiWarning[];
 }
 
 export interface ApiOwner {
@@ -27,6 +28,27 @@ export interface ApiPod {
   version?: string;
   owner: ApiOwner;
   refs?: ApiRefs;
+  restarts?: number;
+  lastTermination?: ApiTermination;
+  /** A container terminated within the last 10 minutes. */
+  recentRestart?: boolean;
+  warnings?: ApiWarning[];
+}
+
+export interface ApiTermination {
+  reason: string;
+  exitCode: number;
+  /** RFC 3339 time. */
+  at: string;
+}
+
+/** A Warning event; at most 10 per object, newest first, none older than 1 hour. */
+export interface ApiWarning {
+  reason: string;
+  message: string;
+  count: number;
+  /** RFC 3339 time. */
+  lastSeen: string;
 }
 
 /** Names of objects a pod mounts or reads env from; contents are never sent. */
@@ -46,6 +68,7 @@ export interface ApiWorkload {
   ready: number;
   /** Set for Jobs created by a CronJob. */
   owner?: ApiOwner;
+  warnings?: ApiWarning[];
 }
 
 export interface ApiPVC {

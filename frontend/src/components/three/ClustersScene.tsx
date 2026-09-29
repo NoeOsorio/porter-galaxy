@@ -63,6 +63,7 @@ export default function ClustersScene({
       radii: new Float32Array(n),
       opacities: new Float32Array(n),
       blink: new Float32Array(n),
+      pulse: new Float32Array(n),
     };
     graph.nodes.forEach((node, i) => {
       const inFamily = family?.nodes.has(node.id) ?? false;
@@ -71,6 +72,7 @@ export default function ClustersScene({
       attrs.radii[i] = node.size;
       attrs.opacities[i] = filteredNodes.size > 0 && !filteredNodes.has(node.id) ? 0.2 : family && !inFamily ? 0.3 : 1;
       attrs.blink[i] = failing.has(node.id) ? 1 : 0;
+      attrs.pulse[i] = node.pulse ? 1 : 0;
     });
     return attrs;
   }, [graph.nodes, family, filteredNodes, errorPods]);

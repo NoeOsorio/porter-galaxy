@@ -13,6 +13,7 @@ import {
   podDisplayName,
   workloadKey,
   type RefKind,
+  workloadStatus,
 } from "./objectKey";
 
 const COLORS: Record<Exclude<TopologyNodeType, "pod" | "workload" | RefKind>, { color: string; glow: string }> = {
@@ -112,8 +113,8 @@ export function transformTopology(apiCluster: ApiCluster): TopologyGraph {
       color: WORKLOAD_STYLE[w.kind].color,
       glow: WORKLOAD_STYLE[w.kind].glow,
       state: w.state,
-      status: `${w.ready}/${w.desired} ready`,
-      metadata: { desired: w.desired, ready: w.ready },
+      status: workloadStatus(w).status,
+      metadata: workloadStatus(w).replicas,
     });
   };
 
@@ -126,6 +127,7 @@ export function transformTopology(apiCluster: ApiCluster): TopologyGraph {
       namespace: pod.namespace,
       ...STATE_COLORS[pod.state],
       state: pod.state,
+      pulse: pod.recentRestart,
       status: STATE_LABELS[pod.state],
       metadata: { version: pod.version, nodeId: pod.nodeId },
     });

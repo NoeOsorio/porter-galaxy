@@ -1,5 +1,7 @@
 package cluster
 
+import "time"
+
 // Snapshot is the root payload broadcast to clients over SSE.
 type Snapshot struct {
 	Clusters []Cluster `json:"clusters"`
@@ -27,6 +29,7 @@ type NodeInfo struct {
 	Capacity   map[string]string `json:"capacity"`
 	Status     string            `json:"status"`
 	Conditions []string          `json:"conditions,omitempty"` // DiskPressure, MemoryPressure, PIDPressure
+	Warnings   []Warning         `json:"warnings,omitempty"`
 }
 
 // PodInfo is a running container workload.
@@ -39,6 +42,28 @@ type PodInfo struct {
 	Version   string `json:"version,omitempty"`
 	Owner     Owner  `json:"owner"`
 	Refs      *Refs  `json:"refs,omitempty"`
+	// Restarts sums the restart counts of the pod's containers.
+	Restarts        int32        `json:"restarts,omitempty"`
+	LastTermination *Termination `json:"lastTermination,omitempty"`
+	// RecentRestart is true when a container terminated within RecentRestartWindow.
+	RecentRestart bool      `json:"recentRestart,omitempty"`
+	Warnings      []Warning `json:"warnings,omitempty"`
+}
+
+// Termination is the most recent terminated state among a pod's containers.
+type Termination struct {
+	Reason   string    `json:"reason"`
+	ExitCode int32     `json:"exitCode"`
+	At       time.Time `json:"at"`
+}
+
+// Warning is a Warning event about an object: at most MaxWarnings per object,
+// newest first, none older than WarningTTL.
+type Warning struct {
+	Reason   string    `json:"reason"`
+	Message  string    `json:"message"`
+	Count    int32     `json:"count"`
+	LastSeen time.Time `json:"lastSeen"`
 }
 
 // Refs are the names of objects a pod mounts or reads environment from.
@@ -70,7 +95,8 @@ type WorkloadInfo struct {
 	Desired int32 `json:"desired"`
 	Ready   int32 `json:"ready"`
 	// Owner is set for Jobs created by a CronJob.
-	Owner *Owner `json:"owner,omitempty"`
+	Owner    *Owner    `json:"owner,omitempty"`
+	Warnings []Warning `json:"warnings,omitempty"`
 }
 
 type PVCInfo struct {

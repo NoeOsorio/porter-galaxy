@@ -157,11 +157,18 @@ if (scenario === "functional") {
   await clickButton("RESET VIEW");
   await sleep(1500);
   result.panelAfterReset = await detailPanel();
+  // The only failed pods in the fake stream are the crash-looping ones.
+  await ev(`[...document.querySelectorAll('button')].find(b => b.textContent.includes('ERRORS'))?.click(); 1`);
+  await sleep(1500);
+  await shot("crashy");
+  result.crashyPanel = await ev(`(() => { const t = document.body.innerText; return ['HEALTH', 'restarts: 7', 'WARNINGS', 'BackOff'].filter(s => !t.includes(s)); })()`);
+  await clickButton("RESET VIEW");
   if (!result.hover) failures.push("no node found under the pointer");
   if (!result.clickPanel) failures.push("click did not open the detail panel");
   if (result.panelAfterEmptyClick) failures.push("empty click did not close the panel");
   if (!result.searchPanel?.includes("app-02")) failures.push("search + Enter did not select app-02");
   if (result.panelAfterReset) failures.push("reset did not clear the selection");
+  if (result.crashyPanel?.length) failures.push(`crash-looping pod panel is missing: ${result.crashyPanel.join(", ")}`);
 }
 
 if (scenario === "labels") {

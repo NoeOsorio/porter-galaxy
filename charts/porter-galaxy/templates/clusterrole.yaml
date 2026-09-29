@@ -8,7 +8,7 @@ metadata:
 # Read-only. Secret and ConfigMap names come from Pod specs; their contents are never read.
 rules:
   - apiGroups: [""]
-    resources: ["nodes", "pods", "services", "namespaces", "persistentvolumeclaims"]
+    resources: ["nodes", "pods", "services", "namespaces", "persistentvolumeclaims", "events"]
     verbs: ["get", "list", "watch"]
   - apiGroups: ["apps"]
     resources: ["deployments", "replicasets", "statefulsets", "daemonsets"]

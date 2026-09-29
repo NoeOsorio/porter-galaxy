@@ -13,6 +13,8 @@ export interface NodeAttributes {
   opacities: Float32Array;
   /** 1 for nodes that blink (failed pods), else 0. */
   blink: Float32Array;
+  /** 1 for nodes that pulse in size (recently restarted pods), else 0. */
+  pulse: Float32Array;
 }
 
 // Billboards are expanded in view space so every node faces the camera and
@@ -23,6 +25,7 @@ const vertexShader = /* glsl */ `
   attribute float aRadius;
   attribute float aOpacity;
   attribute float aBlink;
+  attribute float aPulse;
   uniform float uTime;
   uniform float uScale;
   varying vec2 vUv;
@@ -30,7 +33,8 @@ const vertexShader = /* glsl */ `
   varying float vAlpha;
   void main() {
     vec4 mv = modelViewMatrix * vec4(aOffset, 1.0);
-    mv.xy += position.xy * aRadius * 2.0 * uScale;
+    float pulse = 1.0 + aPulse * 0.35 * (0.5 + 0.5 * sin(uTime * 3.0));
+    mv.xy += position.xy * aRadius * 2.0 * uScale * pulse;
     gl_Position = projectionMatrix * mv;
     vUv = uv;
     vColor = aColor;
@@ -119,6 +123,7 @@ export default function NodeInstances({ store, attributes, glowScale, glowOpacit
     geometry.setAttribute("aRadius", new THREE.InstancedBufferAttribute(attributes.radii, 1));
     geometry.setAttribute("aOpacity", new THREE.InstancedBufferAttribute(attributes.opacities, 1));
     geometry.setAttribute("aBlink", new THREE.InstancedBufferAttribute(attributes.blink, 1));
+    geometry.setAttribute("aPulse", new THREE.InstancedBufferAttribute(attributes.pulse, 1));
   }, [geometry, attributes]);
 
   // The glow layer shares positions and radii but uses its own colors.
@@ -133,6 +138,7 @@ export default function NodeInstances({ store, attributes, glowScale, glowOpacit
     glowGeometry.setAttribute("aRadius", new THREE.InstancedBufferAttribute(attributes.radii, 1));
     glowGeometry.setAttribute("aOpacity", new THREE.InstancedBufferAttribute(attributes.opacities, 1));
     glowGeometry.setAttribute("aBlink", new THREE.InstancedBufferAttribute(attributes.blink, 1));
+    glowGeometry.setAttribute("aPulse", new THREE.InstancedBufferAttribute(attributes.pulse, 1));
   }, [glowGeometry, geometry, attributes]);
 
   useEffect(

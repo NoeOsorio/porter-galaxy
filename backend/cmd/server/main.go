@@ -69,6 +69,12 @@ func main() {
 
 	// ── Start hub ─────────────────────────────────────────────────────────────
 	go hub.Run(ctx, notifyCh, 500*time.Millisecond)
+	// recentRestart and warnings expire with time, not with a watch event.
+	go func() {
+		for range time.Tick(30 * time.Second) {
+			notify()
+		}
+	}()
 
 	// ── Start one informer manager per cluster ────────────────────────────────
 	for _, mgr := range managers {

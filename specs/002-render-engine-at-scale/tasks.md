@@ -93,7 +93,7 @@ description: "Task list for 002 Render Engine at Scale"
 - [X] T027 [US3] Add a 2D toggle next to the view switch in `frontend/src/App.tsx` and a `mode: "3d" | "2d"` prop on `CameraRig` that locks rotation and aligns to the view's plane (Topology front, Clusters top) (research R8)
 - [X] T028 [US3] Show "Galaxy needs WebGL2" instead of the Canvas when WebGL2 is unavailable, in `frontend/src/App.tsx` (research R10)
 - [X] T029 [US3] Walk quickstart §3 steps 1–4 against the fake stream
-- [ ] T030 [US3] Run the gates, open PR `002-render-engine-at-scale-us3`, merge, `make release VERSION=0.8.0`, upgrade the add-on, and check labels on the real cluster
+- [X] T030 [US3] Run the gates, open PR `002-render-engine-at-scale-us3`, merge, `make release VERSION=0.8.0`, upgrade the add-on, and check labels on the real cluster
 
 **Checkpoint**: SC-003 met
 

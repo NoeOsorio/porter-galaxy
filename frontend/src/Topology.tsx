@@ -5,7 +5,8 @@ import CameraRig, { type CameraRigHandle } from "./components/CameraRig";
 import { useScene } from "./lib/sceneSlot";
 import { useForceLayout } from "./lib/layout/useForceLayout";
 import type { ApiClustersResponse } from "./types/api";
-import { transformTopology, topologyLayoutInput } from "./lib/transformTopology";
+import { transformTopology, topologyLayoutInput, topologyLabels } from "./lib/transformTopology";
+import Labels from "./components/Labels";
 import TopologyScene from "./components/three/TopologyScene";
 import type { TopologyNode } from "./types/topology";
 import { STATE_COLORS, type State } from "./lib/objectKey";
@@ -32,7 +33,7 @@ function stateColor(state?: State): string {
   return state ? STATE_COLORS[state].color : "#ffffff";
 }
 
-export default function Topology({ snapshot: data }: { snapshot: ApiClustersResponse | null }) {
+export default function Topology({ snapshot: data, dimension }: { snapshot: ApiClustersResponse | null; dimension: "3d" | "2d" }) {
   const rigRef = useRef<CameraRigHandle>(null);
   const [hovered, setHovered] = useState<TopologyNode | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
@@ -46,6 +47,7 @@ export default function Topology({ snapshot: data }: { snapshot: ApiClustersResp
     return transformTopology(data.clusters[selectedClusterIndex]);
   }, [data, selectedClusterIndex]);
   const layoutInput = useMemo(() => (topologyGraph ? topologyLayoutInput(topologyGraph) : { nodes: [], links: [] }), [topologyGraph]);
+  const labels = useMemo(() => (topologyGraph ? topologyLabels(topologyGraph) : []), [topologyGraph]);
   const layout = useForceLayout("topology", layoutInput.nodes, layoutInput.links);
 
   // Selection follows the object by key across snapshots. An object that
@@ -143,6 +145,7 @@ export default function Topology({ snapshot: data }: { snapshot: ApiClustersResp
     <>
       <color attach="background" args={["#05050f"]} />
       <fog attach="fog" args={["#05050f", 900, 2000]} />
+      <Labels store={layout} candidates={labels} />
       <TopologyScene
         graph={topologyGraph}
         store={layout}
@@ -154,7 +157,7 @@ export default function Topology({ snapshot: data }: { snapshot: ApiClustersResp
         filteredNodes={filteredNodes}
         errorPods={errorPods}
       />
-      <CameraRig key={selectedClusterIndex} ref={rigRef} store={layout} nodes={topologyGraph.nodes} edges={topologyGraph.edges} azimuth={0.7} polar={1.15} />
+      <CameraRig key={selectedClusterIndex} ref={rigRef} store={layout} nodes={topologyGraph.nodes} edges={topologyGraph.edges} azimuth={0.7} polar={1.15} mode={dimension} plane2d="front" />
       <EffectComposer>
         <Bloom
           luminanceThreshold={0.2}
@@ -180,7 +183,7 @@ export default function Topology({ snapshot: data }: { snapshot: ApiClustersResp
             </div>
           </div>
           <div className="opacity-40 text-[10px]">
-            network flow visualization · drag to rotate · scroll to zoom
+            network flow visualization · {dimension === "2d" ? "drag to pan" : "drag to rotate"} · scroll to zoom
           </div>
         </div>
 

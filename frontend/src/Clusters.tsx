@@ -6,7 +6,8 @@ import CameraRig, { type CameraRigHandle } from "./components/CameraRig";
 import { useScene } from "./lib/sceneSlot";
 import { useForceLayout } from "./lib/layout/useForceLayout";
 import type { ApiClustersResponse } from "./types/api";
-import { transformClusters, clustersLayoutInput } from "./lib/transformClusters";
+import { transformClusters, clustersLayoutInput, clustersLabels } from "./lib/transformClusters";
+import Labels from "./components/Labels";
 import ClustersScene from "./components/three/ClustersScene";
 import type { ClusterGalaxyNode } from "./types/clusters";
 import { STATE_COLORS, type State } from "./lib/objectKey";
@@ -29,7 +30,7 @@ function stateColor(state?: State): string {
   return state ? STATE_COLORS[state].color : "#ffffff";
 }
 
-export default function Clusters({ snapshot: data }: { snapshot: ApiClustersResponse | null }) {
+export default function Clusters({ snapshot: data, dimension }: { snapshot: ApiClustersResponse | null; dimension: "3d" | "2d" }) {
   const rigRef = useRef<CameraRigHandle>(null);
   const [hovered, setHovered] = useState<ClusterGalaxyNode | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
@@ -43,6 +44,7 @@ export default function Clusters({ snapshot: data }: { snapshot: ApiClustersResp
     return transformClusters(data);
   }, [data]);
   const layoutInput = useMemo(() => (clustersGraph ? clustersLayoutInput(clustersGraph) : { nodes: [], links: [] }), [clustersGraph]);
+  const labels = useMemo(() => (clustersGraph ? clustersLabels(clustersGraph) : []), [clustersGraph]);
   const layout = useForceLayout("clusters", layoutInput.nodes, layoutInput.links);
 
   // Selection follows the object by key across snapshots. An object that
@@ -162,6 +164,7 @@ export default function Clusters({ snapshot: data }: { snapshot: ApiClustersResp
     <>
       <color attach="background" args={["#05050f"]} />
       <fog attach="fog" args={["#05050f", 1200, 3000]} />
+      <Labels store={layout} candidates={labels} />
       <ClustersScene
         graph={clustersGraph}
         store={layout}
@@ -173,7 +176,7 @@ export default function Clusters({ snapshot: data }: { snapshot: ApiClustersResp
         filteredNodes={filteredNodes}
         errorPods={errorPods}
       />
-      <CameraRig ref={rigRef} store={layout} nodes={clustersGraph.nodes} edges={clustersGraph.edges} azimuth={0.8} polar={0.95} />
+      <CameraRig ref={rigRef} store={layout} nodes={clustersGraph.nodes} edges={clustersGraph.edges} azimuth={0.8} polar={0.95} mode={dimension} plane2d="top" />
       <Stars radius={1500} depth={500} count={3000} factor={3} />
       <EffectComposer>
         <Bloom
@@ -200,7 +203,7 @@ export default function Clusters({ snapshot: data }: { snapshot: ApiClustersResp
             </div>
           </div>
           <div className="opacity-40 text-[10px]">
-            multicluster galaxy view · drag to rotate · scroll to zoom
+            multicluster galaxy view · {dimension === "2d" ? "drag to pan" : "drag to rotate"} · scroll to zoom
           </div>
         </div>
 

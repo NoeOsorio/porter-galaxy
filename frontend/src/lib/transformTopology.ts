@@ -1,6 +1,7 @@
 import type { ApiCluster, ApiPod } from "../types/api";
 import type { TopologyNode, TopologyEdge, TopologyGraph, TopologyNodeType } from "../types/topology";
 import type { LayoutLink, LayoutNode } from "./layout/types";
+import type { LabelCandidate } from "../components/Labels";
 import { INTERNET_KEY, STATE_COLORS, STATE_LABELS, objectKey, parseKey, podDisplayName } from "./objectKey";
 
 const COLORS: Record<Exclude<TopologyNodeType, "pod">, { color: string; glow: string }> = {
@@ -173,4 +174,29 @@ export function topologyLayoutInput(graph: TopologyGraph): { nodes: LayoutNode[]
     nodes: graph.nodes.map((n) => ({ key: n.id, group: n.group, cluster: "_", tier: n.tier, radius: n.size, parent: n.parent })),
     links: graph.edges.map((e) => ({ source: e.from, target: e.to, ...LINK[e.type] })),
   };
+}
+
+/** Namespaces first, then Deployments by pod count, then the rest; Pods only up close. */
+export function topologyLabels(graph: TopologyGraph): LabelCandidate[] {
+  const podsPer = new Map<string, number>();
+  for (const e of graph.edges) if (e.type === "owns") podsPer.set(e.from, (podsPer.get(e.from) ?? 0) + 1);
+  const maxPods = Math.max(1, ...podsPer.values());
+  const groups = new Map<string, string[]>();
+  for (const n of graph.nodes) if (n.group !== "_") groups.set(n.group, [...(groups.get(n.group) ?? []), n.id]);
+  const maxGroup = Math.max(1, ...[...groups.values()].map((k) => k.length));
+
+  const out: LabelCandidate[] = [...groups].map(([group, keys]) => ({
+    id: `group:${group}`,
+    text: group,
+    rank: 1 - keys.length / maxGroup,
+    keys,
+    style: "group",
+  }));
+  for (const n of graph.nodes) {
+    const base = { id: n.id, text: n.name, keys: [n.id], radius: n.size };
+    if (n.type === "deployment") out.push({ ...base, rank: 2 - (podsPer.get(n.id) ?? 0) / maxPods, style: "primary" });
+    else if (n.type === "pod") out.push({ ...base, rank: 5, style: "detail", maxDistance: 260 });
+    else out.push({ ...base, rank: n.type === "internet" ? 2 : 3, style: "secondary" });
+  }
+  return out;
 }

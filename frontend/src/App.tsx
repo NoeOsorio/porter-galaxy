@@ -10,10 +10,24 @@ import SceneSlot from "./components/SceneSlot";
 type View = "topology" | "clusters";
 
 const SHOW_STATS = new URLSearchParams(window.location.search).has("stats");
+const HAS_WEBGL2 = !!document.createElement("canvas").getContext("webgl2");
 
 export default function App() {
   const [view, setView] = useState<View>("topology");
+  const [dimension, setDimension] = useState<"3d" | "2d">("3d");
   const { snapshot, connection, lastUpdate } = useClustersSSE();
+
+  if (!HAS_WEBGL2) {
+    return (
+      <div className="fixed inset-0 flex flex-col items-center justify-center gap-2 bg-[#05050f] font-['JetBrains_Mono',monospace] text-center px-6">
+        <div className="text-white/80 text-sm tracking-[2px]">GALAXY NEEDS WEBGL2</div>
+        <div className="text-white/45 text-xs max-w-md">
+          This browser has WebGL2 turned off or unsupported. Enable hardware acceleration, or open Galaxy in a
+          recent Chrome, Firefox, Safari, or Edge.
+        </div>
+      </div>
+    );
+  }
 
   return (
     <>
@@ -49,9 +63,19 @@ export default function App() {
         >
           Clusters
         </button>
+        <div className="w-px my-1.5 bg-white/[0.12]" />
+        <button
+          type="button"
+          onClick={() => setDimension((d) => (d === "3d" ? "2d" : "3d"))}
+          aria-pressed={dimension === "2d"}
+          title={dimension === "3d" ? "Switch to a flat 2D view" : "Switch back to 3D"}
+          className="px-4 py-2.5 rounded-full transition-all duration-200 text-white/60 hover:text-white/90 hover:bg-white/5"
+        >
+          {dimension === "3d" ? "3D" : "2D"}
+        </button>
       </div>
-      {view === "topology" && <Topology snapshot={snapshot} />}
-      {view === "clusters" && <Clusters snapshot={snapshot} />}
+      {view === "topology" && <Topology snapshot={snapshot} dimension={dimension} />}
+      {view === "clusters" && <Clusters snapshot={snapshot} dimension={dimension} />}
       <ConnectionStatus connection={connection} lastUpdate={lastUpdate} hasSnapshot={snapshot !== null} />
     </>
   );

@@ -1,6 +1,7 @@
 import type { ApiClustersResponse, ApiPod } from "../types/api";
 import type { ClusterGalaxyNode, ClusterGalaxyEdge, ClusterGalaxyGraph } from "../types/clusters";
 import type { LayoutLink, LayoutNode } from "./layout/types";
+import type { LabelCandidate } from "../components/Labels";
 import { STATE_COLORS, STATE_LABELS, objectKey, podDisplayName } from "./objectKey";
 
 const CLUSTER_COLORS = [
@@ -150,4 +151,34 @@ export function clustersLayoutInput(graph: ClusterGalaxyGraph): { nodes: LayoutN
     nodes: graph.nodes.map((n) => ({ key: n.id, group: n.group, cluster: n.cluster, tier: n.tier, radius: n.size, parent: n.parent })),
     links: graph.edges.map((e) => ({ source: e.from, target: e.to, ...LINK[e.type] })),
   };
+}
+
+/** Clusters and namespaces first, then Deployments by pod count, nodes; Pods only up close. */
+export function clustersLabels(graph: ClusterGalaxyGraph): LabelCandidate[] {
+  const podsPer = new Map<string, number>();
+  for (const e of graph.edges) if (e.type === "deployment-pod") podsPer.set(e.from, (podsPer.get(e.from) ?? 0) + 1);
+  const maxPods = Math.max(1, ...podsPer.values());
+  const groups = new Map<string, string[]>();
+  for (const n of graph.nodes) {
+    if (n.group === "_") continue;
+    const id = `${n.cluster}/${n.group}`;
+    groups.set(id, [...(groups.get(id) ?? []), n.id]);
+  }
+  const maxGroup = Math.max(1, ...[...groups.values()].map((k) => k.length));
+
+  const out: LabelCandidate[] = [...groups].map(([id, keys]) => ({
+    id: `group:${id}`,
+    text: id.slice(id.indexOf("/") + 1),
+    rank: 1 - keys.length / maxGroup,
+    keys,
+    style: "group",
+  }));
+  for (const n of graph.nodes) {
+    const base = { id: n.id, text: n.name, keys: [n.id], radius: n.size };
+    if (n.type === "cluster") out.push({ ...base, rank: 0, style: "primary" });
+    else if (n.type === "deployment") out.push({ ...base, rank: 2 - (podsPer.get(n.id) ?? 0) / maxPods, style: "primary" });
+    else if (n.type === "node") out.push({ ...base, rank: 3, style: "secondary" });
+    else out.push({ ...base, rank: 5, style: "detail", maxDistance: 220 });
+  }
+  return out;
 }

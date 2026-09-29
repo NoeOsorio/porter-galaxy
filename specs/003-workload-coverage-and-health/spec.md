@@ -4,7 +4,7 @@
 
 **Created**: 2026-09-25
 
-**Status**: Backlog
+**Status**: Planned
 
 **Input**: User description: "Make it a first-class app to represent your cluster."
 

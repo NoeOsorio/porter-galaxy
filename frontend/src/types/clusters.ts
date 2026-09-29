@@ -20,6 +20,8 @@ export interface ClusterGalaxyNode {
   size: number;
   status?: string;
   state?: State;
+  /** A container restarted within the last 10 minutes. */
+  pulse?: boolean;
   metadata?: {
     cpu?: string;
     memory?: string;

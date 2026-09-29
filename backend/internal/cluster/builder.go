@@ -3,6 +3,7 @@ package cluster
 import (
 	"cmp"
 	"slices"
+	"time"
 
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
@@ -54,14 +55,16 @@ func all[T any](list func(labels.Selector) ([]T, error)) []T {
 }
 
 func (b *Builder) Build() Snapshot {
+	now := time.Now()
+	warnings := b.buildWarnings(now)
 	links, lbs := b.buildTopology()
 	return Snapshot{
 		Clusters: []Cluster{
 			{
 				ID:              b.clusterID,
-				Nodes:           b.buildNodes(),
-				Pods:            b.buildPods(),
-				Workloads:       b.buildWorkloads(),
+				Nodes:           b.buildNodes(warnings),
+				Pods:            b.buildPods(now, warnings),
+				Workloads:       b.buildWorkloads(warnings),
 				LoadBalancers:   lbs,
 				PVCs:            b.buildPVCs(),
 				HPAs:            b.buildHPAs(),
@@ -75,7 +78,7 @@ func (b *Builder) Build() Snapshot {
 
 // ── Nodes ─────────────────────────────────────────────────────────────────────
 
-func (b *Builder) buildNodes() []NodeInfo {
+func (b *Builder) buildNodes(warnings map[string][]Warning) []NodeInfo {
 	k8sNodes := all(b.listers.Nodes.List)
 	out := make([]NodeInfo, 0, len(k8sNodes))
 
@@ -113,13 +116,15 @@ func (b *Builder) buildNodes() []NodeInfo {
 			capacity["memory"] = mem.String()
 		}
 
+		key := objectKey("node", "", n.Name)
 		out = append(out, NodeInfo{
-			Key:        objectKey("node", "", n.Name),
+			Key:        key,
 			ID:         n.Name,
 			State:      state,
 			Capacity:   capacity,
 			Status:     status,
 			Conditions: pressures,
+			Warnings:   warnings[key],
 		})
 	}
 	slices.SortFunc(out, func(a, b NodeInfo) int { return cmp.Compare(a.ID, b.ID) })
@@ -128,7 +133,7 @@ func (b *Builder) buildNodes() []NodeInfo {
 
 // ── Pods ──────────────────────────────────────────────────────────────────────
 
-func (b *Builder) buildPods() []PodInfo {
+func (b *Builder) buildPods(now time.Time, warnings map[string][]Warning) []PodInfo {
 	k8sPods := all(b.listers.Pods.List)
 	out := make([]PodInfo, 0, len(k8sPods))
 	for _, p := range k8sPods {
@@ -138,15 +143,25 @@ func (b *Builder) buildPods() []PodInfo {
 			p.Labels["app.kubernetes.io/version"],
 		)
 
+		key := objectKey("pod", p.Namespace, p.Name)
+		restarts, last, recent := podHealth(p, now)
+		state := podState(p)
+		if recent && last.Reason == "OOMKilled" {
+			state = StateFailed
+		}
 		out = append(out, PodInfo{
-			Key:       objectKey("pod", p.Namespace, p.Name),
-			ID:        p.Name,
-			Namespace: p.Namespace,
-			NodeID:    p.Spec.NodeName,
-			State:     podState(p),
-			Version:   version,
-			Owner:     b.podOwner(p),
-			Refs:      podRefs(p),
+			Key:             key,
+			ID:              p.Name,
+			Namespace:       p.Namespace,
+			NodeID:          p.Spec.NodeName,
+			State:           state,
+			Version:         version,
+			Owner:           b.podOwner(p),
+			Refs:            podRefs(p),
+			Restarts:        restarts,
+			LastTermination: last,
+			RecentRestart:   recent,
+			Warnings:        warnings[key],
 		})
 	}
 	slices.SortFunc(out, func(a, b PodInfo) int { return cmp.Compare(a.Key, b.Key) })

@@ -58,6 +58,21 @@ func newGenerator(pods, namespaces, depsPerNS, nodes int) *generator {
 			}
 		}
 	}
+	crashy := workload("Deployment", "ns-02", "crashy", cluster.StateFailed, 2, nil)
+	crashy.Ready = 0
+	crashy.Warnings = []cluster.Warning{{Reason: "BackOff", Message: "Back-off restarting failed container", Count: 12, LastSeen: time.Now()}}
+	g.others = append(g.others, crashy)
+	for range 2 {
+		p := g.newPod(crashy, cluster.StateFailed, "")
+		p.Restarts = 7
+		p.RecentRestart = true
+		p.LastTermination = &cluster.Termination{Reason: "Error", ExitCode: 1, At: time.Now()}
+		p.Warnings = []cluster.Warning{
+			{Reason: "BackOff", Message: "Back-off restarting failed container app in pod " + p.ID, Count: 12, LastSeen: time.Now()},
+			{Reason: "Unhealthy", Message: "Liveness probe failed: connection refused", Count: 3, LastSeen: time.Now().Add(-2 * time.Minute)},
+		}
+		g.fixed = append(g.fixed, p)
+	}
 	agent := workload("DaemonSet", "ns-00", "agent", cluster.StateRunning, int32(nodes), nil)
 	g.others = append(g.others, agent)
 	for _, node := range g.nodes {

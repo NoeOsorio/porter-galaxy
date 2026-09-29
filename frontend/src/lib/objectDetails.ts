@@ -1,4 +1,4 @@
-import type { ApiCluster, ApiHPA, ApiPod, ApiRefs, ApiWorkload, ApiPVC } from "../types/api";
+import type { ApiCluster, ApiHPA, ApiPod, ApiRefs, ApiWorkload, ApiPVC, ApiWarning } from "../types/api";
 import { REF_STYLE, WORKLOAD_STYLE, isWorkloadKind, parseKey, workloadKey, type RefKind, type WorkloadKind } from "./objectKey";
 
 export interface ObjectDetails {
@@ -11,6 +11,7 @@ export interface ObjectDetails {
   policies: string[];
   refs?: ApiRefs;
   pvc?: ApiPVC;
+  warnings: ApiWarning[];
 }
 
 const TYPE_ICONS: Record<string, string> = {
@@ -42,7 +43,7 @@ export function describeNode(type: string, kind?: WorkloadKind): { icon: string;
 
 /** Everything the detail panel shows about the object with `key` in `cluster`. */
 export function objectDetails(cluster: ApiCluster | undefined, key: string): ObjectDetails {
-  const details: ObjectDetails = { owners: [], policies: [] };
+  const details: ObjectDetails = { owners: [], policies: [], warnings: [] };
   if (!cluster) return details;
   const workloads = new Map(cluster.workloads.map((w) => [w.key, w]));
 
@@ -62,6 +63,7 @@ export function objectDetails(cluster: ApiCluster | undefined, key: string): Obj
     const owner = isWorkloadKind(pod.owner.kind) && pod.owner.name ? workloads.get(workloadKey(pod.owner.kind, pod.namespace, pod.owner.name)) : undefined;
     details.owners = owner ? ownerChain(owner) : pod.owner.kind === "standalone" ? [] : [`${pod.owner.kind} ${pod.owner.name ?? ""}`];
     details.policies = cluster.networkPolicies.filter((np) => np.podKeys.includes(key)).map((np) => np.name);
+    details.warnings = pod.warnings ?? [];
     return details;
   }
 
@@ -70,9 +72,22 @@ export function objectDetails(cluster: ApiCluster | undefined, key: string): Obj
     details.workload = workload;
     details.owners = ownerChain(workload).slice(0, -1);
     details.hpa = cluster.hpas.find((h) => h.target === key);
+    details.warnings = workload.warnings ?? [];
     return details;
   }
 
+  const node = cluster.nodes.find((n) => n.key === key);
+  if (node) details.warnings = node.warnings ?? [];
+
   if (parseKey(key).kind === "pvc") details.pvc = cluster.pvcs.find((p) => p.key === key);
   return details;
+}
+
+/** "45s", "12m", "3h" since an RFC 3339 time. */
+export function age(at: string, now = Date.now()): string {
+  const s = Math.max(0, Math.round((now - Date.parse(at)) / 1000));
+  if (s < 60) return `${s}s`;
+  if (s < 3600) return `${Math.round(s / 60)}m`;
+  if (s < 86400) return `${Math.round(s / 3600)}h`;
+  return `${Math.round(s / 86400)}d`;
 }

@@ -12,6 +12,7 @@ import {
   podDisplayName,
   workloadKey,
   type RefKind,
+  workloadStatus,
 } from "./objectKey";
 
 const CLUSTER_COLORS = [
@@ -109,6 +110,7 @@ export function transformClusters(apiData: ApiClustersResponse): ClusterGalaxyGr
         ...STATE_COLORS[pod.state],
         size: 8,
         state: pod.state,
+        pulse: pod.recentRestart,
         status: STATE_LABELS[pod.state],
         metadata: {
           version: pod.version,
@@ -139,8 +141,8 @@ export function transformClusters(apiData: ApiClustersResponse): ClusterGalaxyGr
         ...(w.state === "running" || w.state === "completed" ? { color: style.color, glow: style.glow } : STATE_COLORS[w.state]),
         size: 15,
         state: w.state,
-        status: `${w.ready}/${w.desired} ready`,
-        metadata: { desired: w.desired, ready: w.ready, clusterId },
+        status: workloadStatus(w).status,
+        metadata: { ...workloadStatus(w).replicas, clusterId },
       });
       if (ownerId) {
         edges.push({ from: ownerId, to: wId, type: "workload-workload", color: TYPE_COLORS.workload.color });

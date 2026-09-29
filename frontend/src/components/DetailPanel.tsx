@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { motion } from "framer-motion";
 import { STATE_COLORS, type State } from "../lib/objectKey";
-import type { ObjectDetails } from "../lib/objectDetails";
+import { age, type ObjectDetails } from "../lib/objectDetails";
 
 export interface PanelNode {
   id: string;
@@ -52,7 +52,7 @@ function Row({ label, children, mono = false }: { label: string; children: React
 
 /** Shared detail panel for the selected object in both views. */
 export default function DetailPanel({ node, icon, typeLabel, details, deleted, onClose, className }: Props) {
-  const { owners, hpa, policies, refs, pvc } = details;
+  const { owners, hpa, policies, refs, pvc, pod, warnings } = details;
   const meta = node.metadata ?? {};
   const refRows: [string, string[] | undefined][] = [
     ["pvc", refs?.pvcs],
@@ -129,6 +129,32 @@ export default function DetailPanel({ node, icon, typeLabel, details, deleted, o
         {meta.address && (
           <Section title="ADDRESS">
             <div className="text-white/60 text-[10px] font-mono break-all">{meta.address}</div>
+          </Section>
+        )}
+
+        {pod && (pod.restarts || pod.lastTermination) && (
+          <Section title="HEALTH">
+            <Row label="restarts">{pod.restarts ?? 0}</Row>
+            {pod.lastTermination && (
+              <Row label="last termination">
+                {pod.lastTermination.reason || "Unknown"} (exit {pod.lastTermination.exitCode}), {age(pod.lastTermination.at)} ago
+              </Row>
+            )}
+          </Section>
+        )}
+
+        {warnings.length > 0 && (
+          <Section title="WARNINGS">
+            {warnings.map((w) => (
+              <div key={`${w.reason}|${w.lastSeen}|${w.message}`}>
+                <span className="text-amber-300/90">{w.reason}</span>
+                <span className="text-white/40">
+                  {" "}
+                  ×{w.count} · {age(w.lastSeen)} ago
+                </span>
+                <div className="text-white/55 text-[10px] break-words leading-[1.5]">{w.message}</div>
+              </div>
+            ))}
           </Section>
         )}
 

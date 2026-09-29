@@ -58,6 +58,12 @@ export const STATE_LABELS: Record<State, string> = {
   unknown: "Unknown",
 };
 
+/** Status line and replica counts for a workload node; a CronJob has no replicas of its own. */
+export function workloadStatus(w: { kind: WorkloadKind; state: State; desired: number; ready: number }) {
+  if (w.kind === "CronJob") return { status: STATE_LABELS[w.state], replicas: {} };
+  return { status: `${w.ready}/${w.desired} ${w.kind === "Job" ? "succeeded" : "ready"}`, replicas: { desired: w.desired, ready: w.ready } };
+}
+
 export function objectKey(kind: string, namespace: string | undefined, name: string): string {
   return `${kind}/${namespace || "_"}/${name}`;
 }

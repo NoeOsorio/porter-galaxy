@@ -74,11 +74,11 @@ description: "Task list for 003 Workload Coverage and Health"
 
 **Independent Test**: quickstart.md §3
 
-- [ ] T022 [US2] Add a Warning-events informer (separate factory, field selector `type=Warning`) and a bounded index (≤ 10 per object, ≤ 1 h) in `backend/internal/informers/events.go`
-- [ ] T023 [US2] Emit `restarts`, `lastTermination`, `recentRestart`, and `warnings` on Pods, workloads, and nodes in `backend/internal/cluster/builder.go`; add `events` get/list/watch to the ClusterRole
-- [ ] T024 [P] [US2] Emit crash-looping Pods with warnings from `backend/cmd/fakestream`
-- [ ] T025 [US2] Add an `aPulse` attribute to `frontend/src/components/three/NodeInstances.tsx` and set it for `recentRestart` in both scenes
-- [ ] T026 [US2] Show restarts, last termination, and the latest warnings (age, reason, count) in `frontend/src/components/DetailPanel.tsx`
+- [X] T022 [US2] Add a Warning-events informer (separate factory, field selector `type=Warning`) and a bounded index (≤ 10 per object, ≤ 1 h) in `backend/internal/informers/events.go`
+- [X] T023 [US2] Emit `restarts`, `lastTermination`, `recentRestart`, and `warnings` on Pods, workloads, and nodes in `backend/internal/cluster/builder.go`; add `events` get/list/watch to the ClusterRole
+- [X] T024 [P] [US2] Emit crash-looping Pods with warnings from `backend/cmd/fakestream`
+- [X] T025 [US2] Add an `aPulse` attribute to `frontend/src/components/three/NodeInstances.tsx` and set it for `recentRestart` in both scenes
+- [X] T026 [US2] Show restarts, last termination, and the latest warnings (age, reason, count) in `frontend/src/components/DetailPanel.tsx`
 - [ ] T027 [US2] `make verify`, PR, merge, `make release VERSION=0.11.0`, upgrade, walk quickstart §3
 
 ---

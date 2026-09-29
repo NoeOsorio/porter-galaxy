@@ -38,7 +38,7 @@ reference cluster.
 - [X] T007 [US1] Frontend: new `frontend/src/components/Login.tsx` (username, password, error text, disabled while submitting); in `frontend/src/App.tsx` call `GET /api/auth/session` on load and show Login until it returns 200, open the stream only after, and add a "Sign out" control; in `frontend/src/hooks/useClustersSSE.ts`, on stream error call the session endpoint and switch to Login on 401 instead of retrying.
 - [X] T008 [US1] Add an `auth` scenario to `hack/verify/check.mjs` and `hack/verify.sh` (fake stream started with `-password`): the login form shows and no graph loads; `/api/v1/clusters` returns 401; a wrong password shows an error; the right one loads the Topology view; "Sign out" returns to the form.
 - [X] T009 [US1] README: "Signing in" (default user, reading the generated password, setting your own or an existing Secret) and a note in "Deploy on Porter" on where to find the password, in `README.md`; add the `auth.*` values to the Configuration table.
-- [ ] T010 [US1] `make verify`, PR, merge, `make release VERSION=0.13.0`, upgrade the add-on, walk quickstart §1.
+- [X] T010 [US1] `make verify`, PR, merge, `make release VERSION=0.13.0`, upgrade the add-on, walk quickstart §1. (0.13.0 on the reference cluster: login form shown, anonymous stream 401, wrong password 401, generated 24-character password signs in and the stream loads; the password surviving an upgrade (§1.5) is checked at the 0.14.0 upgrade)
 
 **Checkpoint**: The deployed app asks for a password; the stream is refused without a session.
 

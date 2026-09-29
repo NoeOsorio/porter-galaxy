@@ -76,7 +76,7 @@ description: "Task list for 002 Render Engine at Scale"
 - [X] T021 [US2] Make `CameraRig` frame after the first `settled` (not on first positions) so the initial framing matches the settled layout, in `frontend/src/components/CameraRig.tsx` (frames instantly on the first positions too, then animates to the settled framing)
 - [X] T022 [US2] With `?stats`, log `max unrelated displacement` (largest move of a node not added and not a direct neighbor of an added/removed node, as % of view width) after each update settles, in `frontend/src/lib/layout/useForceLayout.ts`
 - [X] T023 [US2] Walk quickstart §2 steps 1–4 against the fake stream; record settle time and displacement in the PR
-- [ ] T024 [US2] Run the gates, open PR `002-render-engine-at-scale-us2`, merge, `make release VERSION=0.7.0`, upgrade the add-on, and walk quickstart §2 step 5
+- [X] T024 [US2] Run the gates, open PR `002-render-engine-at-scale-us2`, merge, `make release VERSION=0.7.0`, upgrade the add-on, and walk quickstart §2 step 5
 
 **Checkpoint**: SC-002 met; namespaces keep their places across reloads
 

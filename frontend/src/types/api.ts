@@ -110,3 +110,26 @@ export interface ApiCluster {
 export interface ApiClustersResponse {
   clusters: ApiCluster[];
 }
+
+export interface ApiSnapshotEvent extends ApiClustersResponse {
+  version: number;
+}
+
+type ApiList = { [K in keyof ApiCluster]: ApiCluster[K] extends unknown[] ? K : never }[keyof ApiCluster];
+
+export interface ApiClusterPatch {
+  id: string;
+  upsert?: { [K in ApiList]?: ApiCluster[K] };
+  /** Keys of removed objects; topology links use `from|to`. */
+  remove?: { [K in ApiList]?: string[] };
+  fields?: Partial<ApiCluster>;
+}
+
+/** Applies only to the snapshot at version `base`. */
+export interface ApiPatchEvent {
+  base: number;
+  version: number;
+  clusters: ApiClusterPatch[];
+  addedClusters: ApiCluster[];
+  removedClusters: string[];
+}

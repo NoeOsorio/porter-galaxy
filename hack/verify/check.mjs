@@ -3,7 +3,7 @@
 // fake stream and preview server.
 //
 // Usage: node check.mjs <scenario> <url> <out-dir>
-// Scenarios: functional | labels | layout | perf | webgl | stream | nometrics
+// Scenarios: functional | labels | layout | perf | webgl | stream | nometrics | auth
 // Env: THROTTLE (CPU slowdown factor for perf), CHROME (browser binary),
 // FAKE_BIN/FAKE_PID/FAKE_ARGS (stream: the fake stream to restart).
 
@@ -283,6 +283,35 @@ if (scenario === "nometrics") {
   await sleep(500);
   result.hint = await ev(`document.body.innerText.includes('install metrics-server')`);
   if (!result.hint) failures.push("no metrics-server hint in the legend without metrics");
+}
+
+if (scenario === "auth") {
+  const text = () => ev(`document.body.innerText`);
+  const signIn = (password) =>
+    ev(`(async () => {
+      const set = (el, v) => { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(el, v); el.dispatchEvent(new Event('input', { bubbles: true })); };
+      set(document.getElementById('galaxy-password'), ${JSON.stringify(password)});
+      await new Promise((r) => setTimeout(r, 100));
+      document.querySelector('form button[type=submit]').click(); return 1; })()`);
+  result.loginShown = (await text()).includes("Sign in to see the cluster");
+  result.anonymousStream = await ev(`fetch('/api/v1/clusters').then((r) => { r.body?.cancel(); return r.status; })`);
+  await signIn("wrong-password");
+  await sleep(2000);
+  result.wrongPassword = (await text()).includes("Wrong username or password");
+  await signIn("verify-secret");
+  await sleep(6000);
+  result.signedIn = (await text()).includes("TOPOLOGY");
+  await shot("signed-in");
+  await clickButton("Sign out");
+  await sleep(1500);
+  result.signedOut = (await text()).includes("Sign in to see the cluster");
+  result.streamAfterSignOut = await ev(`fetch('/api/v1/clusters').then((r) => { r.body?.cancel(); return r.status; })`);
+  if (!result.loginShown) failures.push("no login form before signing in");
+  if (result.anonymousStream !== 401) failures.push(`anonymous stream returned ${result.anonymousStream}, not 401`);
+  if (!result.wrongPassword) failures.push("wrong password did not show an error");
+  if (!result.signedIn) failures.push("correct password did not load the Topology view");
+  if (!result.signedOut) failures.push("sign out did not return to the login form");
+  if (result.streamAfterSignOut !== 401) failures.push(`stream after sign-out returned ${result.streamAfterSignOut}, not 401`);
 }
 
 if (scenario === "webgl") {

@@ -7,10 +7,13 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
+
+	"github.com/noeosorio/porter-galaxy/backend/internal/auth"
 )
 
 // Handler holds the HTTP routes for the porter-galaxy API.
 type Handler struct {
+	auth   *auth.Auth
 	hub    *Hub
 	ready  func() bool
 	logger *slog.Logger
@@ -18,14 +21,27 @@ type Handler struct {
 
 // NewHandler wires the routes. ready gates /readyz and must return true only
 // once every cluster's informer cache has synced.
-func NewHandler(hub *Hub, ready func() bool, logger *slog.Logger) *Handler {
-	return &Handler{hub: hub, ready: ready, logger: logger}
+// A nil auth leaves the API open.
+func NewHandler(auth *auth.Auth, hub *Hub, ready func() bool, logger *slog.Logger) *Handler {
+	return &Handler{auth: auth, hub: hub, ready: ready, logger: logger}
 }
 
 func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /healthz", h.handleHealthz)
 	mux.HandleFunc("GET /readyz", h.handleReadyz)
-	mux.HandleFunc("GET /api/v1/clusters", h.handleGraphSSE)
+	stream := http.Handler(http.HandlerFunc(h.handleGraphSSE))
+	if h.auth != nil {
+		mux.HandleFunc("POST /api/auth/login", h.auth.HandleLogin)
+		mux.HandleFunc("POST /api/auth/logout", h.auth.HandleLogout)
+		mux.HandleFunc("GET /api/auth/session", h.auth.HandleSession)
+		stream = h.auth.Middleware(stream)
+	} else {
+		mux.HandleFunc("GET /api/auth/session", func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			fmt.Fprint(w, `{"username":""}`)
+		})
+	}
+	mux.Handle("GET /api/v1/clusters", stream)
 }
 
 func (h *Handler) handleHealthz(w http.ResponseWriter, _ *http.Request) {

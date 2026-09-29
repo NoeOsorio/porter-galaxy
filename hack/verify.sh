@@ -5,7 +5,7 @@
 # concurrent headless Chrome runs would skew each other's frame rates.
 #
 # Usage: hack/verify.sh [scenario ...]
-#   scenarios: functional labels layout perf webgl stream nometrics (default: all)
+#   scenarios: functional labels layout perf webgl stream nometrics auth (default: all)
 # Env: THROTTLE (perf CPU slowdown, default 4), VERIFY_OUT (screenshots dir).
 set -euo pipefail
 
@@ -16,7 +16,7 @@ WORK="$(mktemp -d)"
 FAKE_PORT=4078
 PREVIEW_PORT=5199
 SCENARIOS=("$@")
-[ ${#SCENARIOS[@]} -eq 0 ] && SCENARIOS=(functional labels layout perf webgl stream nometrics)
+[ ${#SCENARIOS[@]} -eq 0 ] && SCENARIOS=(functional labels layout perf webgl stream nometrics auth)
 
 until mkdir "$LOCK" 2>/dev/null; do
   echo "verify: waiting for $(cat "$LOCK/owner" 2>/dev/null || echo 'another run') ..."
@@ -46,7 +46,7 @@ helm lint "$ROOT/charts/porter-galaxy" >/dev/null
 
 echo "== build"
 (cd "$ROOT/backend" && go build -o "$WORK/fakestream" ./cmd/fakestream)
-(cd "$ROOT/frontend" && VITE_API_URL="http://localhost:$FAKE_PORT" npm run build --silent -- --outDir "$WORK/dist" --emptyOutDir --logLevel error >/dev/null)
+(cd "$ROOT/frontend" && npm run build --silent -- --outDir "$WORK/dist" --emptyOutDir --logLevel error >/dev/null)
 
 start_fake() {
   # Kill by port: the stream scenario restarts the fake stream under a new PID.
@@ -60,7 +60,7 @@ start_fake() {
   until curl -sf "localhost:$FAKE_PORT/readyz" >/dev/null; do sleep 0.2; done
 }
 
-(cd "$ROOT/frontend" && exec ./node_modules/.bin/vite preview --outDir "$WORK/dist" --port $PREVIEW_PORT --strictPort >"$WORK/preview.log" 2>&1) &
+(cd "$ROOT/frontend" && GALAXY_API="http://localhost:$FAKE_PORT" exec ./node_modules/.bin/vite preview --outDir "$WORK/dist" --port $PREVIEW_PORT --strictPort >"$WORK/preview.log" 2>&1) &
 PIDS+=("$!")
 disown "$!"
 until curl -sf "localhost:$PREVIEW_PORT/" >/dev/null; do sleep 0.2; done
@@ -73,6 +73,7 @@ for scenario in "${SCENARIOS[@]}"; do
   case "$scenario" in
     functional|labels|webgl) start_fake -pods 1000 -churn 0; target="$URL" ;;
     nometrics) start_fake -pods 200 -churn 0 -metrics=false; target="$URL" ;;
+    auth) start_fake -pods 200 -churn 0 -password verify-secret; target="$URL" ;;
     layout) start_fake -pods 1000 -churn 500ms -churn-size 1; target="$URL?stats" ;;
     perf) start_fake -pods 3000 -churn 500ms; target="$URL?stats" ;;
     stream)

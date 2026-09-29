@@ -13,3 +13,12 @@ Port-forward to access the UI locally:
 
 Then open http://localhost:8080
 {{- end }}
+
+{{- if .Values.auth.enabled }}
+
+Sign in as "{{ .Values.auth.username }}". Read the password with:
+  kubectl get secret {{ include "porter-galaxy.authSecretName" . }} -n {{ .Release.Namespace }} -o jsonpath='{.data.password}' | base64 -d; echo
+{{- else }}
+
+WARNING: sign-in is disabled (auth.enabled=false). Anyone who can reach the app sees the cluster.
+{{- end }}

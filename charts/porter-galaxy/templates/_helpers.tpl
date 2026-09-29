@@ -56,3 +56,8 @@ ServiceAccount name.
 {{- default "default" .Values.serviceAccount.name }}
 {{- end }}
 {{- end }}
+
+{{/* Secret holding the sign-in username and password. */}}
+{{- define "porter-galaxy.authSecretName" -}}
+{{- .Values.auth.existingSecret | default (printf "%s-auth" (include "porter-galaxy.fullname" .)) -}}
+{{- end }}

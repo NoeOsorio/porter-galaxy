@@ -18,6 +18,7 @@ import (
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 
 	"github.com/noeosorio/porter-galaxy/backend/internal/api"
+	"github.com/noeosorio/porter-galaxy/backend/internal/auth"
 	"github.com/noeosorio/porter-galaxy/backend/internal/cluster"
 	"github.com/noeosorio/porter-galaxy/backend/internal/informers"
 	"github.com/noeosorio/porter-galaxy/backend/internal/metrics"
@@ -59,7 +60,17 @@ func main() {
 		}
 		return true
 	}
-	handler := api.NewHandler(hub, ready, logger)
+	var authn *auth.Auth
+	if os.Getenv("AUTH_ENABLED") == "true" {
+		authn, err = auth.FromDir(envOr("AUTH_DIR", "/etc/galaxy/auth"))
+		if err != nil {
+			logger.Error("sign-in is enabled but its credentials are unreadable", "error", err)
+			os.Exit(1)
+		}
+	} else {
+		logger.Warn("sign-in is disabled: anyone who can reach the API can see the cluster")
+	}
+	handler := api.NewHandler(authn, hub, ready, logger)
 
 	mux := http.NewServeMux()
 	handler.RegisterRoutes(mux)

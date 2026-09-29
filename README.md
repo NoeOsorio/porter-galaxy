@@ -4,7 +4,7 @@
 
 **Visualize your Kubernetes cluster as a living galaxy.**
 
-A force-directed graph of every Pod, Service, and Deployment and the relationships between them, rendered with Three.js and served by a Go backend that reads live cluster state through `client-go`.
+A force-directed graph of every Pod, Service, and workload and the relationships between them, rendered with Three.js and served by a Go backend that reads live cluster state through `client-go`.
 
 [![Release](https://img.shields.io/github/v/tag/NoeOsorio/porter-galaxy?label=release&sort=semver)](https://github.com/NoeOsorio/porter-galaxy/releases)
 [![CI](https://github.com/NoeOsorio/porter-galaxy/actions/workflows/publish.yml/badge.svg)](https://github.com/NoeOsorio/porter-galaxy/actions/workflows/publish.yml)
@@ -24,14 +24,16 @@ A force-directed graph of every Pod, Service, and Deployment and the relationshi
 
 ## Why
 
-`kubectl get` tells you *what* is in the cluster. Porter Galaxy shows you *how it all connects*: which Deployment owns which Pods, which Ingress routes to which Service, where the dense regions are, and where the lonely dangling object lives. It runs in-cluster, pushes changes to the browser as they happen, and renders the whole thing on a single canvas you can fly around.
+`kubectl get` tells you *what* is in the cluster. Porter Galaxy shows you *how it all connects*: which workload owns which Pods, which Ingress routes to which Service, where the dense regions are, and where the lonely dangling object lives. It runs in-cluster, pushes changes to the browser as they happen, and renders the whole thing on a single canvas you can fly around.
 
 Both views render the same graph:
 
-- **Topology**: how traffic reaches your workloads, from Internet → Load Balancer → Ingress → Service → Deployment → Pod.
-- **Clusters**: a hierarchical view (Cluster → Node → Deployment → Pod) that shows where every Pod runs.
+- **Topology**: how traffic reaches your workloads, from Internet → Load Balancer → Ingress → Service → Workload → Pod.
+- **Clusters**: a hierarchical view (Cluster → Node → Workload → Pod) that shows where every Pod runs, including CronJob → Job → Pod.
 
 Objects group by namespace, and adding a Pod never rearranges the rest of the map. Names appear where there is room and more detail shows up as you zoom in. Click a node or search for it and the camera flies to it; `R` reframes the whole graph, and the 3D/2D toggle flattens either view. Pods are colored by their real state (running, pending, completed, failed). It stays at 60 fps with thousands of Pods.
+
+Deployments, StatefulSets, DaemonSets, Jobs, and CronJobs all appear, each with its own color. A Pod that restarted in the last 10 minutes pulses, and its panel shows the restart count, the last termination reason (`OOMKilled`, `Error`), and recent Warning events. Selecting a Pod draws the PVCs, ConfigMaps, and Secrets it uses; only their names come from the Pod spec, their contents are never read. With metrics-server installed, busy Pods and nodes are larger and brighter, relative to their requests or allocatable capacity.
 
 ---
 
@@ -47,7 +49,7 @@ Objects group by namespace, and adding a Pod never rearranges the rest of the ma
    | ------------------- | -------------------------------- |
    | Helm Repository URL | `oci://ghcr.io/noeosorio/charts` |
    | Chart Name          | `porter-galaxy`                  |
-   | Chart Version       | `0.2.0`                          |
+   | Chart Version       | `0.12.0`                         |
 
 4. Paste this into **Values YAML → Custom Values**:
 
@@ -142,7 +144,7 @@ cd frontend && VITE_API_URL=http://localhost:4078 npm run dev
 # open http://localhost:5173/?stats  (fps overlay; console logs layout settle time and displacement)
 ```
 
-`make verify` runs the gates, builds the app against the fake stream, and drives headless Chrome through the functional, label, layout, performance, and WebGL checks, writing screenshots to `verify-out/`. Runs are serialized with a lock, so several worktrees can develop in parallel while sharing one verification lane.
+`make verify` runs the gates, builds the app against the fake stream, and drives headless Chrome through the functional, label, layout, performance, WebGL, stream, and no-metrics checks, writing screenshots to `verify-out/`. Runs are serialized with a lock, so several worktrees can develop in parallel while sharing one verification lane.
 
 `make help` lists every target.
 
@@ -160,7 +162,8 @@ cd frontend && VITE_API_URL=http://localhost:4078 npm run dev
                         │  Go backend (client-go)     │
                         │  Watches nodes, pods,       │
                         │  workloads, services,       │
-                        │  ingresses, endpointslices  │
+                        │  ingresses, Warning events; │
+                        │  polls metrics.k8s.io       │
                         └──────────────┬──────────────┘
                                        │ Kubernetes API
                                        ▼
@@ -172,9 +175,9 @@ cd frontend && VITE_API_URL=http://localhost:4078 npm run dev
 | Frontend     | React 19, TypeScript, Vite, Tailwind v4, Three.js (R3F), d3-force-3d in a Web Worker |
 | Backend      | Go 1.22, `k8s.io/client-go` informers                       |
 | Distribution | Multi-stage Docker images on GHCR, Helm chart as OCI on GHCR |
-| RBAC         | ClusterRole + ClusterRoleBinding (read-only across the cluster) |
+| RBAC         | Read-only ClusterRole; no access to Secret or ConfigMap contents |
 
-The backend uses informers to keep an in-memory graph in sync with the cluster and streams each change to the browser over Server-Sent Events, so the frontend never queries the Kubernetes API server. Pods are linked to their Deployment through owner references, and `/readyz` reports ready only after the informer caches have synced.
+The backend keeps informer caches in sync with the cluster and streams to the browser over Server-Sent Events: one snapshot per connection, then patches with only the objects that changed, gzip-compressed. The frontend never queries the Kubernetes API server. Pods are linked to their workload through owner references, and `/readyz` reports ready only after every informer cache has synced. Usage comes from metrics-server every 15 s and is sent only when it moves by more than 10%; without metrics-server the app works the same and the legend says how to enable it.
 
 In the browser, a Web Worker runs a 3D force layout (`d3-force-3d`) grouped by namespace; small updates pin every node they do not touch. All nodes render as one instanced mesh and all links as one line-segments draw call, reading positions from a shared buffer, so snapshots never rebuild the scene. Labels are a pooled DOM layer placed per frame without overlaps.
 
@@ -186,17 +189,18 @@ In the browser, a Web Worker runs a 3D force layout (`d3-force-3d`) grouped by n
 porter-galaxy/
 ├── backend/                 # Go API server
 │   ├── cmd/server/          # Entry point
+│   ├── cmd/fakestream/      # Synthetic stream for load tests and verify
 │   └── internal/
-│       ├── api/             # HTTP handlers + SSE hub
+│       ├── api/             # HTTP handlers, SSE hub, snapshot patches
 │       ├── cluster/         # Snapshot builder (objects, owners, states, links)
-│       ├── informers/       # client-go informer setup
-│       ├── registry/        # Porter API client for multi-cluster mode
-│       └── store/           # In-memory object cache
+│       ├── informers/       # client-go informers (one factory, plus Warning events)
+│       ├── metrics/         # metrics.k8s.io poller
+│       └── registry/        # Porter API client for multi-cluster mode
 ├── frontend/                # React + Three.js app
 │   ├── src/
 │   │   ├── App.tsx          # Shared canvas, live stream, view switch
 │   │   ├── Topology.tsx     # Traffic-flow view
-│   │   ├── Clusters.tsx     # Cluster → Node → Deployment → Pod view
+│   │   ├── Clusters.tsx     # Cluster → Node → Workload → Pod view
 │   │   ├── components/      # Camera rig, connection status, 3D scenes
 │   │   └── lib/             # Snapshot → graph transforms, helpers
 │   └── nginx.conf.template  # Serves static + proxies /api
@@ -261,7 +265,7 @@ Full flow: [DEPLOY_MANUAL.md](DEPLOY_MANUAL.md).
 - [x] Ownership through owner references and state from Kubernetes status
 - [x] Search, type filters, camera framing and fly-to
 - [x] Render engine at scale: instancing, worker force layout, labels, 2D mode ([spec 002](specs/002-render-engine-at-scale/spec.md))
-- [ ] More workload kinds and health signals ([spec 003](specs/003-workload-coverage-and-health/spec.md))
+- [x] Every workload kind, health signals, usage, and patch streaming ([spec 003](specs/003-workload-coverage-and-health/spec.md))
 - [ ] Multi-cluster hub ([spec 004](specs/004-multi-cluster-hub/spec.md))
 - [ ] Access control ([spec 005](specs/005-access-control/spec.md))
 - [ ] Semantic zoom, detail panel, share links, replay ([spec 006](specs/006-explore-and-share/spec.md))

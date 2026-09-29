@@ -100,8 +100,8 @@ description: "Task list for 003 Workload Coverage and Health"
 
 ## Phase 6: Polish
 
-- [ ] T034 [P] README (Why, Architecture, Configuration, Roadmap) and `specs/README.md` status for 003
-- [ ] T035 Update spec 001's snapshot contract doc to point to `contracts/stream.md`
+- [X] T034 [P] README (Why, Architecture, Configuration, Roadmap) and `specs/README.md` status for 003
+- [X] T035 Update spec 001's snapshot contract doc to point to `contracts/stream.md`
 
 ---
 

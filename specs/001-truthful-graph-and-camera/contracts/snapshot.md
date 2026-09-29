@@ -1,5 +1,9 @@
 # Contract: Cluster Snapshot (SSE `GET /api/v1/clusters`)
 
+> **Superseded** by [spec 003's stream contract](../../003-workload-coverage-and-health/contracts/stream.md)
+> (0.10.0): a versioned snapshot, then patches. `deployments` became `workloads`. This file records
+> the spec 001 shape.
+
 Each event's `data` is one JSON `Snapshot`. The backend and frontend ship in the same release, so
 this contract changes in place; there is no versioned endpoint.
 

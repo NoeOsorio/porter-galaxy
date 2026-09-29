@@ -48,7 +48,7 @@ description: "Task list for 003 Workload Coverage and Health"
 - [X] T011 [US1] Extract the detail panel into `frontend/src/components/DetailPanel.tsx`, used by both views, showing kind, owner chain, HPA, policies, and references
 - [X] T012 [US1] Draw a selected object's references (PVC, ConfigMap, Secret nodes and links) only while it is selected, in both scenes
 - [X] T013 [US1] Update legends and type filters in `frontend/src/Topology.tsx` and `frontend/src/Clusters.tsx` for workload kinds
-- [ ] T014 [US1] `make verify`, PR, merge, `make release VERSION=0.9.0`, upgrade the add-on, walk quickstart §1
+- [X] T014 [US1] `make verify`, PR, merge, `make release VERSION=0.9.0`, upgrade the add-on, walk quickstart §1 (0.9.0 on the reference cluster: 42 DaemonSet, 28 Deployment, 3 StatefulSet pods, all under their workload; a Porter cron job app showed CronJob → 2 Jobs → Pods)
 
 ---
 

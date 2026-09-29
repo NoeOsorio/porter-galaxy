@@ -6,25 +6,13 @@ import CameraRig, { type CameraRigHandle } from "./components/CameraRig";
 import { useScene } from "./lib/sceneSlot";
 import { useForceLayout } from "./lib/layout/useForceLayout";
 import type { ApiClustersResponse } from "./types/api";
-import { transformClusters, clustersLayoutInput, clustersLabels } from "./lib/transformClusters";
+import { transformClusters, clustersLayoutInput, clustersLabels, clustersWithRefs } from "./lib/transformClusters";
+import DetailPanel from "./components/DetailPanel";
+import { describeNode, objectDetails } from "./lib/objectDetails";
 import Labels from "./components/Labels";
 import ClustersScene from "./components/three/ClustersScene";
 import type { ClusterGalaxyNode } from "./types/clusters";
-import { STATE_COLORS, type State } from "./lib/objectKey";
-
-const TYPE_ICONS: Record<string, string> = {
-  cluster: "🌌",
-  node: "🖥️",
-  deployment: "📦",
-  pod: "⚛️",
-};
-
-const TYPE_LABELS: Record<string, string> = {
-  cluster: "Cluster",
-  node: "Node",
-  deployment: "Deployment",
-  pod: "Pod",
-};
+import { STATE_COLORS, WORKLOAD_KINDS, WORKLOAD_STYLE, type State } from "./lib/objectKey";
 
 function stateColor(state?: State): string {
   return state ? STATE_COLORS[state].color : "#ffffff";
@@ -43,18 +31,22 @@ export default function Clusters({ snapshot: data, dimension }: { snapshot: ApiC
     if (!data?.clusters) return null;
     return transformClusters(data);
   }, [data]);
-  const layoutInput = useMemo(() => (clustersGraph ? clustersLayoutInput(clustersGraph) : { nodes: [], links: [] }), [clustersGraph]);
-  const labels = useMemo(() => (clustersGraph ? clustersLabels(clustersGraph) : []), [clustersGraph]);
+  // References are drawn for one pod at a time: the last selected pod, kept
+  // while one of its references is selected.
+  const [refsFor, setRefsFor] = useState<string | null>(null);
+  const graph = useMemo(() => clustersGraph && clustersWithRefs(clustersGraph, data, refsFor), [clustersGraph, data, refsFor]);
+  const layoutInput = useMemo(() => (graph ? clustersLayoutInput(graph) : { nodes: [], links: [] }), [graph]);
+  const labels = useMemo(() => (graph ? clustersLabels(graph) : []), [graph]);
   const layout = useForceLayout("clusters", layoutInput.nodes, layoutInput.links);
 
   // Selection follows the object by key across snapshots. An object that
   // disappears stays in the panel marked deleted until the next snapshot.
   const [selection, setSelection] = useState<{ node: ClusterGalaxyNode; missing: boolean } | null>(null);
-  const [seenGraph, setSeenGraph] = useState(clustersGraph);
-  if (clustersGraph !== seenGraph) {
-    setSeenGraph(clustersGraph);
+  const [seenGraph, setSeenGraph] = useState(graph);
+  if (graph !== seenGraph) {
+    setSeenGraph(graph);
     if (selection) {
-      const live = clustersGraph?.nodes.find((n) => n.id === selection.node.id);
+      const live = graph?.nodes.find((n) => n.id === selection.node.id);
       if (live) setSelection({ node: live, missing: false });
       else if (selection.missing) setSelection(null);
       else setSelection({ ...selection, missing: true });
@@ -62,14 +54,17 @@ export default function Clusters({ snapshot: data, dimension }: { snapshot: ApiC
   }
   const selected = selection?.node ?? null;
   const selectionMissing = selection?.missing ?? false;
-  const setSelected = (node: ClusterGalaxyNode | null) => setSelection(node ? { node, missing: false } : null);
+  const setSelected = (node: ClusterGalaxyNode | null) => {
+    setSelection(node ? { node, missing: false } : null);
+    if (!node || !["pvc", "configmap", "secret"].includes(node.type)) setRefsFor(node?.type === "pod" ? node.id : null);
+  };
 
   const filteredNodes = useMemo(() => {
-    if (!clustersGraph) return new Set<string>();
+    if (!graph) return new Set<string>();
 
     const matchingNodes = new Set<string>();
 
-    clustersGraph.nodes.forEach((node) => {
+    graph.nodes.forEach((node) => {
       const matchesSearch =
         searchQuery === "" ||
         node.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -84,14 +79,14 @@ export default function Clusters({ snapshot: data, dimension }: { snapshot: ApiC
     });
 
     return matchingNodes;
-  }, [clustersGraph, searchQuery, filterType]);
+  }, [graph, searchQuery, filterType]);
 
   const errorPods = useMemo(() => {
-    if (!clustersGraph) return [];
-    return clustersGraph.nodes.filter(
+    if (!graph) return [];
+    return graph.nodes.filter(
       node => node.type === "pod" && node.state === "failed"
     );
-  }, [clustersGraph]);
+  }, [graph]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -114,10 +109,10 @@ export default function Clusters({ snapshot: data, dimension }: { snapshot: ApiC
   };
 
   const handleSearchEnter = () => {
-    if (!searchQuery || !clustersGraph) return;
+    if (!searchQuery || !graph) return;
     const matches = [...filteredNodes];
     if (matches.length === 1) {
-      const node = clustersGraph.nodes.find((n) => n.id === matches[0]);
+      const node = graph.nodes.find((n) => n.id === matches[0]);
       if (node) handleNodeClick(node);
     } else if (matches.length > 1) {
       rigRef.current?.frame(matches);
@@ -147,26 +142,26 @@ export default function Clusters({ snapshot: data, dimension }: { snapshot: ApiC
       0,
     );
     const totalPods = data.clusters.reduce((sum, c) => sum + c.pods.length, 0);
-    const totalDeployments = data.clusters.reduce(
-      (sum, c) => sum + c.deployments.length,
+    const totalWorkloads = data.clusters.reduce(
+      (sum, c) => sum + c.workloads.length,
       0,
     );
 
     return {
       clusters: data.clusters.length,
       nodes: totalNodes,
-      deployments: totalDeployments,
+      workloads: totalWorkloads,
       pods: totalPods,
     };
   }, [data]);
 
-  const scene = clustersGraph && (
+  const scene = graph && (
     <>
       <color attach="background" args={["#05050f"]} />
       <fog attach="fog" args={["#05050f", 1200, 3000]} />
       <Labels store={layout} candidates={labels} />
       <ClustersScene
-        graph={clustersGraph}
+        graph={graph}
         store={layout}
         onHover={setHovered}
         onMiss={() => setSelected(null)}
@@ -176,7 +171,7 @@ export default function Clusters({ snapshot: data, dimension }: { snapshot: ApiC
         filteredNodes={filteredNodes}
         errorPods={errorPods}
       />
-      <CameraRig ref={rigRef} store={layout} nodes={clustersGraph.nodes} edges={clustersGraph.edges} azimuth={0.8} polar={0.95} mode={dimension} plane2d="top" />
+      <CameraRig ref={rigRef} store={layout} nodes={graph.nodes} edges={graph.edges} azimuth={0.8} polar={0.95} mode={dimension} plane2d="top" />
       <Stars radius={1500} depth={500} count={3000} factor={3} />
       <EffectComposer>
         <Bloom
@@ -244,8 +239,8 @@ export default function Clusters({ snapshot: data, dimension }: { snapshot: ApiC
                     <div className="flex items-center gap-2">
                       <div className="w-2 h-2 rounded-full bg-[#fb923c] shadow-[0_0_8px_rgba(251,146,60,0.6)]" />
                       <span className="text-white/60">
-                        {clusterStats.deployments} deployment
-                        {clusterStats.deployments !== 1 ? "s" : ""}
+                        {clusterStats.workloads} workload
+                        {clusterStats.workloads !== 1 ? "s" : ""}
                       </span>
                     </div>
                     <div className="flex items-center gap-2">
@@ -328,14 +323,14 @@ export default function Clusters({ snapshot: data, dimension }: { snapshot: ApiC
                     </button>
                     <button
                       type="button"
-                      onClick={() => setFilterType("deployment")}
+                      onClick={() => setFilterType("workload")}
                       className={`px-2.5 py-1 rounded text-[9px] font-medium transition-all ${
-                        filterType === "deployment"
+                        filterType === "workload"
                           ? "bg-[#fb923c]/20 text-[#fb923c] border border-[#fb923c]/30"
                           : "bg-white/5 text-white/50 border border-white/10 hover:bg-white/10"
                       }`}
                     >
-                      Deploy
+                      Workload
                     </button>
                     <button
                       type="button"
@@ -423,10 +418,12 @@ export default function Clusters({ snapshot: data, dimension }: { snapshot: ApiC
                     <div className="w-2.5 h-2.5 rounded-full bg-[#a78bfa] shadow-[0_0_8px_rgba(167,139,250,0.6)]" />
                     <span className="text-white/60">Node</span>
                   </div>
-                  <div className="flex items-center gap-2.5 text-[10px]">
-                    <div className="w-2.5 h-2.5 rounded-full bg-[#fb923c] shadow-[0_0_8px_rgba(251,146,60,0.6)]" />
-                    <span className="text-white/60">Deployment</span>
-                  </div>
+                  {WORKLOAD_KINDS.map((kind) => (
+                    <div key={kind} className="flex items-center gap-2.5 text-[10px]">
+                      <div className="w-2.5 h-2.5 rounded-full" style={{ background: WORKLOAD_STYLE[kind].color, boxShadow: `0 0 8px ${WORKLOAD_STYLE[kind].glow}` }} />
+                      <span className="text-white/60">{kind}</span>
+                    </div>
+                  ))}
                   <div className="flex items-center gap-2.5 text-[10px]">
                     <div className="w-2.5 h-2.5 rounded-full bg-[#5bffb0] shadow-[0_0_8px_rgba(91,255,176,0.6)]" />
                     <span className="text-white/60">Pod</span>
@@ -450,7 +447,7 @@ export default function Clusters({ snapshot: data, dimension }: { snapshot: ApiC
           >
             <div className="bg-[rgba(8,8,25,0.9)] border border-white/[0.08] rounded-xl py-3.5 px-[18px] text-white/70 text-[11px] leading-[1.9] backdrop-blur-xl">
               <div className="flex items-center gap-2 mb-1.5">
-                <span className="text-base">{TYPE_ICONS[hovered.type]}</span>
+                <span className="text-base">{describeNode(hovered.type, hovered.kind).icon}</span>
                 <div>
                   <div
                     className="font-medium text-[13px]"
@@ -459,7 +456,7 @@ export default function Clusters({ snapshot: data, dimension }: { snapshot: ApiC
                     {hovered.name}
                   </div>
                   <div className="opacity-40 text-[9px] mt-0.5">
-                    {TYPE_LABELS[hovered.type]}
+                    {describeNode(hovered.type, hovered.kind).label}
                   </div>
                 </div>
               </div>
@@ -495,7 +492,7 @@ export default function Clusters({ snapshot: data, dimension }: { snapshot: ApiC
                   )}
                 </>
               )}
-              {hovered.type === "deployment" && hovered.metadata && (
+              {hovered.type === "workload" && hovered.metadata && (
                 <>
                   {hovered.metadata.desired !== undefined && (
                     <div>
@@ -514,164 +511,20 @@ export default function Clusters({ snapshot: data, dimension }: { snapshot: ApiC
 
       <AnimatePresence>
         {selected && (
-          <motion.div
-            initial={{ opacity: 0, x: -12 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: -12 }}
-            transition={{ duration: 0.2 }}
-            className="absolute top-[400px] left-6 pointer-events-auto min-w-[260px] max-w-[320px]"
-          >
-            <div
-              className="bg-[rgba(8,8,25,0.92)] rounded-xl py-4 px-5 text-white/75 text-[11px] leading-[1.8] backdrop-blur-xl border"
-              style={{
-                borderColor: (selected.color || "rgba(255,255,255,0.1)") + "33",
-              }}
-            >
-              <div className="flex justify-between items-start mb-3">
-                <div
-                  className="font-semibold text-[15px]"
-                  style={{ color: selected.color || "#fff" }}
-                >
-                  {TYPE_ICONS[selected.type]} {selected.name}
-                  {selectionMissing && (
-                    <span className="ml-2 text-[10px] font-normal text-red-400">deleted</span>
-                  )}
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setSelected(null)}
-                  className="bg-transparent border-none text-white/30 cursor-pointer text-base p-0 hover:text-white/50"
-                  aria-label="Close"
-                >
-                  ×
-                </button>
-              </div>
-
-              <div className="border-t border-white/[0.06] pt-2 space-y-1">
-                <div className="text-[10px] font-semibold opacity-60 mb-1.5">
-                  DETAILS
-                </div>
-
-                <div>
-                  type:{" "}
-                  <span className="text-white/90">
-                    {TYPE_LABELS[selected.type]}
-                  </span>
-                </div>
-
-                <div>
-                  id:{" "}
-                  <span className="text-white/60 text-[10px] font-mono break-all">
-                    {selected.id}
-                  </span>
-                </div>
-
-                {selected.namespace && (
-                  <div>
-                    namespace:{" "}
-                    <span className="text-white/90">{selected.namespace}</span>
-                  </div>
-                )}
-
-                {selected.status && (
-                  <div>
-                    status:{" "}
-                    <span style={{ color: stateColor(selected.state) }}>
-                      {selected.status}
-                    </span>
-                  </div>
-                )}
-              </div>
-
-              {selected.type === "node" && selected.metadata && (
-                <div className="border-t border-white/[0.06] pt-2 mt-2 space-y-1">
-                  <div className="text-[10px] font-semibold opacity-60 mb-1.5">
-                    CAPACITY
-                  </div>
-                  {selected.metadata.cpu && (
-                    <div>
-                      cpu:{" "}
-                      <span className="text-white/90">
-                        {selected.metadata.cpu}
-                      </span>
-                    </div>
-                  )}
-                  {selected.metadata.memory && (
-                    <div>
-                      memory:{" "}
-                      <span className="text-white/90">
-                        {selected.metadata.memory}
-                      </span>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {selected.type === "deployment" && selected.metadata && (
-                <div className="border-t border-white/[0.06] pt-2 mt-2 space-y-1">
-                  <div className="text-[10px] font-semibold opacity-60 mb-1.5">
-                    REPLICAS
-                  </div>
-                  {selected.metadata.desired !== undefined && (
-                    <div>
-                      desired:{" "}
-                      <span className="text-white/90">
-                        {selected.metadata.desired}
-                      </span>
-                    </div>
-                  )}
-                  {selected.metadata.ready !== undefined && (
-                    <div>
-                      ready:{" "}
-                      <span className="text-[#5bffb0]">
-                        {selected.metadata.ready}
-                      </span>
-                    </div>
-                  )}
-                  {selected.metadata.available !== undefined && (
-                    <div>
-                      available:{" "}
-                      <span className="text-white/90">
-                        {selected.metadata.available}
-                      </span>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {selected.type === "pod" && selected.metadata && (
-                <div className="border-t border-white/[0.06] pt-2 mt-2 space-y-1">
-                  <div className="text-[10px] font-semibold opacity-60 mb-1.5">
-                    POD INFO
-                  </div>
-                  {selected.metadata.version && (
-                    <div>
-                      version:{" "}
-                      <span className="text-white/90">
-                        {selected.metadata.version}
-                      </span>
-                    </div>
-                  )}
-                  {selected.metadata.nodeId && (
-                    <div>
-                      node:{" "}
-                      <span className="text-white/60 text-[10px] font-mono break-all">
-                        {selected.metadata.nodeId}
-                      </span>
-                    </div>
-                  )}
-                  {selected.metadata.owner && (
-                    <div>
-                      owner:{" "}
-                      <span className="text-white/60 text-[10px] font-mono break-all">
-                        {selected.metadata.owner}
-                      </span>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          </motion.div>
+          <DetailPanel
+            key="detail"
+            node={selected}
+            icon={describeNode(selected.type, selected.kind).icon}
+            typeLabel={describeNode(selected.type, selected.kind).label}
+            details={(() => {
+              const sep = selected.id.indexOf("::");
+              const cluster = data?.clusters.find((c) => c.id === (sep < 0 ? selected.id : selected.id.slice(0, sep)));
+              return objectDetails(cluster, sep < 0 ? selected.id : selected.id.slice(sep + 2));
+            })()}
+            deleted={selectionMissing}
+            onClose={() => setSelected(null)}
+            className={"top-[400px]"}
+          />
         )}
       </AnimatePresence>
     </div>

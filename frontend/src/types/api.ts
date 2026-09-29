@@ -1,4 +1,4 @@
-import type { State } from "../lib/objectKey";
+import type { State, WorkloadKind } from "../lib/objectKey";
 
 // Mirrors backend/internal/cluster/types.go (see specs/001-truthful-graph-and-camera/contracts/snapshot.md).
 
@@ -26,16 +26,59 @@ export interface ApiPod {
   state: State;
   version?: string;
   owner: ApiOwner;
+  refs?: ApiRefs;
 }
 
-export interface ApiDeployment {
+/** Names of objects a pod mounts or reads env from; contents are never sent. */
+export interface ApiRefs {
+  pvcs?: string[];
+  configMaps?: string[];
+  secrets?: string[];
+}
+
+export interface ApiWorkload {
   key: string;
+  kind: WorkloadKind;
   id: string;
   namespace: string;
   state: State;
   desired: number;
   ready: number;
-  available: number;
+  /** Set for Jobs created by a CronJob. */
+  owner?: ApiOwner;
+}
+
+export interface ApiPVC {
+  key: string;
+  namespace: string;
+  name: string;
+  phase: string;
+  storageClass?: string;
+}
+
+export interface ApiHPA {
+  key: string;
+  namespace: string;
+  name: string;
+  /** Object key of the scaled workload. */
+  target: string;
+  min: number;
+  max: number;
+  current: number;
+  desired: number;
+}
+
+export interface ApiNetworkPolicy {
+  key: string;
+  namespace: string;
+  name: string;
+  podKeys: string[];
+}
+
+export interface ApiNamespace {
+  key: string;
+  name: string;
+  phase: string;
 }
 
 export interface ApiLoadBalancer {
@@ -55,10 +98,13 @@ export interface ApiCluster {
   id: string;
   nodes: ApiNode[];
   pods: ApiPod[];
-  deployments: ApiDeployment[];
+  workloads: ApiWorkload[];
   loadBalancers: ApiLoadBalancer[];
+  pvcs: ApiPVC[];
+  hpas: ApiHPA[];
+  networkPolicies: ApiNetworkPolicy[];
+  namespaces: ApiNamespace[];
   topology: ApiTopology[];
-  metrics: Record<string, unknown>;
 }
 
 export interface ApiClustersResponse {

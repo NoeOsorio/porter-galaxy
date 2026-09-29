@@ -7,13 +7,16 @@ type Snapshot struct {
 
 // Cluster represents a single Kubernetes cluster with its full observed topology.
 type Cluster struct {
-	ID            string             `json:"id"`
-	Nodes         []NodeInfo         `json:"nodes"`
-	Pods          []PodInfo          `json:"pods"`
-	Deployments   []DeploymentInfo   `json:"deployments"`
-	LoadBalancers []LoadBalancerInfo `json:"loadBalancers"`
-	Topology      []Link             `json:"topology"`
-	Metrics       map[string]Metrics `json:"metrics"`
+	ID              string              `json:"id"`
+	Nodes           []NodeInfo          `json:"nodes"`
+	Pods            []PodInfo           `json:"pods"`
+	Workloads       []WorkloadInfo      `json:"workloads"`
+	LoadBalancers   []LoadBalancerInfo  `json:"loadBalancers"`
+	PVCs            []PVCInfo           `json:"pvcs"`
+	HPAs            []HPAInfo           `json:"hpas"`
+	NetworkPolicies []NetworkPolicyInfo `json:"networkPolicies"`
+	Namespaces      []NamespaceInfo     `json:"namespaces"`
+	Topology        []Link              `json:"topology"`
 }
 
 // NodeInfo is the physical host that pods are scheduled onto.
@@ -35,6 +38,15 @@ type PodInfo struct {
 	State     State  `json:"state"`
 	Version   string `json:"version,omitempty"`
 	Owner     Owner  `json:"owner"`
+	Refs      *Refs  `json:"refs,omitempty"`
+}
+
+// Refs are the names of objects a pod mounts or reads environment from.
+// Only names: Secret and ConfigMap contents are never read.
+type Refs struct {
+	PVCs       []string `json:"pvcs,omitempty"`
+	ConfigMaps []string `json:"configMaps,omitempty"`
+	Secrets    []string `json:"secrets,omitempty"`
 }
 
 // Owner is the workload that controls a pod, resolved through owner
@@ -45,18 +57,54 @@ type Owner struct {
 	Name string `json:"name,omitempty"`
 }
 
-// DeploymentInfo is a Kubernetes Deployment workload.
-type DeploymentInfo struct {
+// WorkloadInfo is a controller that owns pods: Deployment, StatefulSet,
+// DaemonSet, Job, or CronJob.
+type WorkloadInfo struct {
 	Key       string `json:"key"`
+	Kind      string `json:"kind"`
 	ID        string `json:"id"`
-	State     State  `json:"state"`
 	Namespace string `json:"namespace"`
-	// Desired is the number of desired replicas (spec.replicas).
+	State     State  `json:"state"`
+	// Desired and Ready count replicas; for DaemonSets, scheduled and ready
+	// nodes; for Jobs, completions and succeeded pods.
 	Desired int32 `json:"desired"`
-	// Ready is the number of replicas currently ready.
-	Ready int32 `json:"ready"`
-	// Available is the number of replicas available to serve traffic.
-	Available int32 `json:"available"`
+	Ready   int32 `json:"ready"`
+	// Owner is set for Jobs created by a CronJob.
+	Owner *Owner `json:"owner,omitempty"`
+}
+
+type PVCInfo struct {
+	Key          string `json:"key"`
+	Namespace    string `json:"namespace"`
+	Name         string `json:"name"`
+	Phase        string `json:"phase"`
+	StorageClass string `json:"storageClass,omitempty"`
+}
+
+type HPAInfo struct {
+	Key       string `json:"key"`
+	Namespace string `json:"namespace"`
+	Name      string `json:"name"`
+	// Target is the object key of the scaled workload.
+	Target  string `json:"target"`
+	Min     int32  `json:"min"`
+	Max     int32  `json:"max"`
+	Current int32  `json:"current"`
+	Desired int32  `json:"desired"`
+}
+
+type NetworkPolicyInfo struct {
+	Key       string `json:"key"`
+	Namespace string `json:"namespace"`
+	Name      string `json:"name"`
+	// PodKeys are the pods the policy's podSelector matches.
+	PodKeys []string `json:"podKeys"`
+}
+
+type NamespaceInfo struct {
+	Key   string `json:"key"`
+	Name  string `json:"name"`
+	Phase string `json:"phase"`
 }
 
 // LoadBalancerInfo is an external entry point: a LoadBalancer Service, or the
@@ -78,11 +126,4 @@ type Link struct {
 	Active bool `json:"active"`
 	// Type hints the rendering layer: "internet" | "lb" | "ingress" | "service" | "pod"
 	Type string `json:"type,omitempty"`
-}
-
-// Metrics is a placeholder for Prometheus-sourced data (future work).
-type Metrics struct {
-	RPS       float64 `json:"rps"`
-	Latency   string  `json:"latency"`
-	ErrorRate float64 `json:"errorRate"`
 }

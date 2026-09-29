@@ -24,9 +24,9 @@ description: "Task list for 003 Workload Coverage and Health"
 
 **Purpose**: Read from informer listers so adding kinds is cheap
 
-- [ ] T001 Replace per-kind handlers in `backend/internal/informers/manager.go` with one change handler that only calls `notify`, and expose the factory's listers (nodes, pods, services, ingresses, endpointslices, deployments, replicasets) through a `Listers` struct
-- [ ] T002 Switch `backend/internal/cluster/builder.go` to read through `Listers`, wire it in `backend/cmd/server/main.go`, and delete `backend/internal/store/`
-- [ ] T003 Run `make verify` and walk spec 001 quickstart §1 counts against the real cluster to confirm no behavior change
+- [X] T001 Replace per-kind handlers in `backend/internal/informers/manager.go` with one change handler that only calls `notify`, and expose the factory's listers (nodes, pods, services, ingresses, endpointslices, deployments, replicasets) through a `Listers` struct
+- [X] T002 Switch `backend/internal/cluster/builder.go` to read through `Listers`, wire it in `backend/cmd/server/main.go`, and delete `backend/internal/store/`
+- [X] T003 Run `make verify` and walk spec 001 quickstart §1 counts against the real cluster to confirm no behavior change (verified by diffing the lister-based snapshot against the deployed 0.8.0 on the same cluster: every list identical; `make verify` runs with the US1 slice)
 
 **Checkpoint**: Same snapshot as 0.8.0, ~400 fewer lines of backend code
 
@@ -38,16 +38,16 @@ description: "Task list for 003 Workload Coverage and Health"
 
 **Independent Test**: quickstart.md §1
 
-- [ ] T004 [US1] Add informers and listers for StatefulSets, DaemonSets, Jobs (trimmed to owner references), CronJobs, PVCs, HPAs (`autoscaling/v2`), NetworkPolicies, and Namespaces in `backend/internal/informers/manager.go`
-- [ ] T005 [P] [US1] Add get/list/watch for those kinds to `charts/porter-galaxy/templates/clusterrole.yaml` (no Secrets, no ConfigMaps)
-- [ ] T006 [US1] Replace `deployments` with `workloads` and add `pvcs`, `hpas`, `networkPolicies`, `namespaces`, and Pod `refs` to `backend/internal/cluster/types.go` per data-model.md
-- [ ] T007 [US1] Build workloads for all kinds with per-kind state (research R2), resolve Pod → Job → CronJob ownership, emit refs from Pod specs, HPA targets, and the Pods each NetworkPolicy selects, in `backend/internal/cluster/builder.go`
-- [ ] T008 [P] [US1] Emit a mix of workload kinds (StatefulSets, DaemonSets, a CronJob with Jobs) in `backend/cmd/fakestream/main.go`
-- [ ] T009 [US1] Mirror the contract in `frontend/src/types/api.ts`; rename the `deployment` node type to `workload` with `kind`, icon and color per kind in `frontend/src/types/*.ts`, `frontend/src/lib/objectKey.ts`
-- [ ] T010 [US1] Topology: Service → Workload → Pod for any kind in `frontend/src/lib/transformTopology.ts`; Clusters: CronJob → Job → Pod and every workload kind in `frontend/src/lib/transformClusters.ts`; label candidates rank workloads of every kind
-- [ ] T011 [US1] Extract the detail panel into `frontend/src/components/DetailPanel.tsx`, used by both views, showing kind, owner chain, HPA, policies, and references
-- [ ] T012 [US1] Draw a selected object's references (PVC, ConfigMap, Secret nodes and links) only while it is selected, in both scenes
-- [ ] T013 [US1] Update legends and type filters in `frontend/src/Topology.tsx` and `frontend/src/Clusters.tsx` for workload kinds
+- [X] T004 [US1] Add informers and listers for StatefulSets, DaemonSets, Jobs (trimmed to owner references), CronJobs, PVCs, HPAs (`autoscaling/v2`), NetworkPolicies, and Namespaces in `backend/internal/informers/manager.go`
+- [X] T005 [P] [US1] Add get/list/watch for those kinds to `charts/porter-galaxy/templates/clusterrole.yaml` (no Secrets, no ConfigMaps)
+- [X] T006 [US1] Replace `deployments` with `workloads` and add `pvcs`, `hpas`, `networkPolicies`, `namespaces`, and Pod `refs` to `backend/internal/cluster/types.go` per data-model.md
+- [X] T007 [US1] Build workloads for all kinds with per-kind state (research R2), resolve Pod → Job → CronJob ownership, emit refs from Pod specs, HPA targets, and the Pods each NetworkPolicy selects, in `backend/internal/cluster/builder.go`
+- [X] T008 [P] [US1] Emit a mix of workload kinds (StatefulSets, DaemonSets, a CronJob with Jobs) in `backend/cmd/fakestream/main.go`
+- [X] T009 [US1] Mirror the contract in `frontend/src/types/api.ts`; rename the `deployment` node type to `workload` with `kind`, icon and color per kind in `frontend/src/types/*.ts`, `frontend/src/lib/objectKey.ts`
+- [X] T010 [US1] Topology: Service → Workload → Pod for any kind in `frontend/src/lib/transformTopology.ts`; Clusters: CronJob → Job → Pod and every workload kind in `frontend/src/lib/transformClusters.ts`; label candidates rank workloads of every kind
+- [X] T011 [US1] Extract the detail panel into `frontend/src/components/DetailPanel.tsx`, used by both views, showing kind, owner chain, HPA, policies, and references
+- [X] T012 [US1] Draw a selected object's references (PVC, ConfigMap, Secret nodes and links) only while it is selected, in both scenes
+- [X] T013 [US1] Update legends and type filters in `frontend/src/Topology.tsx` and `frontend/src/Clusters.tsx` for workload kinds
 - [ ] T014 [US1] `make verify`, PR, merge, `make release VERSION=0.9.0`, upgrade the add-on, walk quickstart §1
 
 ---

@@ -7,8 +7,9 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 
-	"github.com/noeosorio/porter-galaxy/backend/internal/store"
+	"github.com/noeosorio/porter-galaxy/backend/internal/informers"
 )
 
 // SnapshotBuilder is the common interface for single- and multi-cluster builders.
@@ -34,15 +35,22 @@ func (m *MultiBuilder) Build() Snapshot {
 	return Snapshot{Clusters: clusters}
 }
 
-// Builder reads from the Store and assembles a Snapshot.
+// Builder reads the informer caches and assembles a Snapshot.
 // Build is safe to call concurrently.
 type Builder struct {
-	store     *store.Store
+	listers   informers.Listers
 	clusterID string
 }
 
-func NewBuilder(s *store.Store, clusterID string) *Builder {
-	return &Builder{store: s, clusterID: clusterID}
+func NewBuilder(listers informers.Listers, clusterID string) *Builder {
+	return &Builder{listers: listers, clusterID: clusterID}
+}
+
+// all lists every object of a kind; a lister error only happens for invalid
+// selectors, which labels.Everything never is.
+func all[T any](list func(labels.Selector) ([]T, error)) []T {
+	out, _ := list(labels.Everything())
+	return out
 }
 
 func (b *Builder) Build() Snapshot {
@@ -50,13 +58,16 @@ func (b *Builder) Build() Snapshot {
 	return Snapshot{
 		Clusters: []Cluster{
 			{
-				ID:            b.clusterID,
-				Nodes:         b.buildNodes(),
-				Pods:          b.buildPods(),
-				Deployments:   b.buildDeployments(),
-				LoadBalancers: lbs,
-				Topology:      links,
-				Metrics:       map[string]Metrics{},
+				ID:              b.clusterID,
+				Nodes:           b.buildNodes(),
+				Pods:            b.buildPods(),
+				Workloads:       b.buildWorkloads(),
+				LoadBalancers:   lbs,
+				PVCs:            b.buildPVCs(),
+				HPAs:            b.buildHPAs(),
+				NetworkPolicies: b.buildNetworkPolicies(),
+				Namespaces:      b.buildNamespaces(),
+				Topology:        links,
 			},
 		},
 	}
@@ -65,7 +76,7 @@ func (b *Builder) Build() Snapshot {
 // ── Nodes ─────────────────────────────────────────────────────────────────────
 
 func (b *Builder) buildNodes() []NodeInfo {
-	k8sNodes := b.store.ListNodes()
+	k8sNodes := all(b.listers.Nodes.List)
 	out := make([]NodeInfo, 0, len(k8sNodes))
 
 	for _, n := range k8sNodes {
@@ -118,7 +129,7 @@ func (b *Builder) buildNodes() []NodeInfo {
 // ── Pods ──────────────────────────────────────────────────────────────────────
 
 func (b *Builder) buildPods() []PodInfo {
-	k8sPods := b.store.ListPods()
+	k8sPods := all(b.listers.Pods.List)
 	out := make([]PodInfo, 0, len(k8sPods))
 	for _, p := range k8sPods {
 		version := firstNonEmpty(
@@ -135,6 +146,7 @@ func (b *Builder) buildPods() []PodInfo {
 			State:     podState(p),
 			Version:   version,
 			Owner:     b.podOwner(p),
+			Refs:      podRefs(p),
 		})
 	}
 	slices.SortFunc(out, func(a, b PodInfo) int { return cmp.Compare(a.Key, b.Key) })
@@ -151,7 +163,7 @@ func (b *Builder) podOwner(p *corev1.Pod) Owner {
 		return Owner{Kind: "standalone"}
 	}
 	if ref.Kind == "ReplicaSet" {
-		if rs := b.store.GetReplicaSet(p.Namespace, ref.Name); rs != nil {
+		if rs, err := b.listers.ReplicaSets.ReplicaSets(p.Namespace).Get(ref.Name); err == nil {
 			if dep := metav1.GetControllerOf(rs); dep != nil && dep.Kind == "Deployment" {
 				return Owner{Kind: "Deployment", Name: dep.Name}
 			}
@@ -194,44 +206,6 @@ func podState(p *corev1.Pod) State {
 	return StateUnknown
 }
 
-// ── Deployments ───────────────────────────────────────────────────────────────
-
-func (b *Builder) buildDeployments() []DeploymentInfo {
-	k8sDeployments := b.store.ListDeployments()
-	out := make([]DeploymentInfo, 0, len(k8sDeployments))
-
-	for _, d := range k8sDeployments {
-		desired := int32(1)
-		if d.Spec.Replicas != nil {
-			desired = *d.Spec.Replicas
-		}
-		out = append(out, DeploymentInfo{
-			Key:       objectKey("deployment", d.Namespace, d.Name),
-			ID:        d.Name,
-			State:     deploymentState(desired, d.Status.ReadyReplicas),
-			Namespace: d.Namespace,
-			Desired:   desired,
-			Ready:     d.Status.ReadyReplicas,
-			Available: d.Status.AvailableReplicas,
-		})
-	}
-	slices.SortFunc(out, func(a, b DeploymentInfo) int { return cmp.Compare(a.Key, b.Key) })
-	return out
-}
-
-func deploymentState(desired, ready int32) State {
-	switch {
-	case desired == 0:
-		return StateScaledToZero
-	case ready >= desired:
-		return StateRunning
-	case ready == 0:
-		return StateFailed
-	default:
-		return StatePending
-	}
-}
-
 // ── Topology ──────────────────────────────────────────────────────────────────
 
 // epEntry holds a pod name and its readiness state as reported by an EndpointSlice.
@@ -245,7 +219,7 @@ type epEntry struct {
 func (b *Builder) buildTopology() ([]Link, []LoadBalancerInfo) {
 	// "namespace/serviceName" → endpoints, from all EndpointSlices.
 	serviceEPs := make(map[string][]epEntry)
-	for _, es := range b.store.ListEndpointSlices() {
+	for _, es := range all(b.listers.EndpointSlices.List) {
 		svcName := es.Labels["kubernetes.io/service-name"]
 		if svcName == "" {
 			continue
@@ -262,7 +236,7 @@ func (b *Builder) buildTopology() ([]Link, []LoadBalancerInfo) {
 
 	// An Ingress only reports the controller's external address, so map
 	// addresses back to their LoadBalancer Service to name the entry point.
-	services := b.store.ListServices()
+	services := all(b.listers.Services.List)
 	lbServiceByAddr := make(map[string]*corev1.Service)
 	for _, svc := range services {
 		if svc.Spec.Type != corev1.ServiceTypeLoadBalancer {
@@ -274,7 +248,7 @@ func (b *Builder) buildTopology() ([]Link, []LoadBalancerInfo) {
 	}
 
 	lbs := make(map[string]LoadBalancerInfo)
-	var links []Link
+	links := []Link{}
 	seen := make(map[string]bool)
 	addLink := func(l Link) {
 		id := l.From + "|" + l.To
@@ -292,7 +266,7 @@ func (b *Builder) buildTopology() ([]Link, []LoadBalancerInfo) {
 
 	// ── Ingress-routed paths ──────────────────────────────────────────────────
 	coveredServices := make(map[string]bool)
-	for _, ing := range b.store.ListIngresses() {
+	for _, ing := range all(b.listers.Ingresses.List) {
 		lb := ingressLoadBalancer(ing, lbServiceByAddr)
 		lbs[lb.Key] = lb
 		ingKey := objectKey("ingress", ing.Namespace, ing.Name)

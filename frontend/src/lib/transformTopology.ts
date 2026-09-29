@@ -2,14 +2,24 @@ import type { ApiCluster, ApiPod } from "../types/api";
 import type { TopologyNode, TopologyEdge, TopologyGraph, TopologyNodeType } from "../types/topology";
 import type { LayoutLink, LayoutNode } from "./layout/types";
 import type { LabelCandidate } from "../components/Labels";
-import { INTERNET_KEY, STATE_COLORS, STATE_LABELS, objectKey, parseKey, podDisplayName } from "./objectKey";
+import {
+  INTERNET_KEY,
+  REF_STYLE,
+  STATE_COLORS,
+  STATE_LABELS,
+  WORKLOAD_STYLE,
+  isWorkloadKind,
+  parseKey,
+  podDisplayName,
+  workloadKey,
+  type RefKind,
+} from "./objectKey";
 
-const COLORS: Record<Exclude<TopologyNodeType, "pod">, { color: string; glow: string }> = {
+const COLORS: Record<Exclude<TopologyNodeType, "pod" | "workload" | RefKind>, { color: string; glow: string }> = {
   internet: { color: "#00d4ff", glow: "#0088dd" },
   loadbalancer: { color: "#f472b6", glow: "#ec4899" },
   ingress: { color: "#a78bfa", glow: "#7c3aed" },
   service: { color: "#38bdf8", glow: "#0284c7" },
-  deployment: { color: "#fb923c", glow: "#ea580c" },
 };
 
 const EDGE_COLORS: Record<TopologyEdge["type"], string> = {
@@ -18,6 +28,7 @@ const EDGE_COLORS: Record<TopologyEdge["type"], string> = {
   ingress: "#a78bfa",
   service: "#38bdf8",
   owns: "#5bffb0",
+  ref: "#94a3b8",
 };
 
 const TIER: Record<TopologyNodeType, number> = {
@@ -25,8 +36,11 @@ const TIER: Record<TopologyNodeType, number> = {
   loadbalancer: 1,
   ingress: 2,
   service: 3,
-  deployment: 4,
+  workload: 4,
   pod: 5,
+  pvc: 6,
+  configmap: 6,
+  secret: 6,
 };
 
 const SIZE: Record<TopologyNodeType, number> = {
@@ -34,8 +48,11 @@ const SIZE: Record<TopologyNodeType, number> = {
   loadbalancer: 20,
   ingress: 18,
   service: 15,
-  deployment: 16,
+  workload: 16,
   pod: 12,
+  pvc: 10,
+  configmap: 10,
+  secret: 10,
 };
 
 // Short, strong links keep a Deployment's pods tight around it; routing links
@@ -46,13 +63,14 @@ const LINK: Record<TopologyEdge["type"], { distance: number; strength: number }>
   ingress: { distance: 60, strength: 0.3 },
   service: { distance: 45, strength: 0.5 },
   owns: { distance: 28, strength: 0.8 },
+  ref: { distance: 40, strength: 0.4 },
 };
 
 type PartialNode = Omit<TopologyNode, "size" | "group" | "tier" | "parent">;
 
 export function transformTopology(apiCluster: ApiCluster): TopologyGraph {
   const podsByKey = new Map(apiCluster.pods.map((p) => [p.key, p]));
-  const deploymentsByKey = new Map(apiCluster.deployments.map((d) => [d.key, d]));
+  const workloadsByKey = new Map(apiCluster.workloads.map((w) => [w.key, w]));
   const lbsByKey = new Map(apiCluster.loadBalancers.map((lb) => [lb.key, lb]));
 
   const nodes = new Map<string, PartialNode>();
@@ -68,7 +86,7 @@ export function transformTopology(apiCluster: ApiCluster): TopologyGraph {
     edges.set(id, { from, to, type, active, color: EDGE_COLORS[type] });
   };
 
-  const addKindNode = (key: string, type: Exclude<TopologyNodeType, "pod" | "deployment">) => {
+  const addKindNode = (key: string, type: keyof typeof COLORS) => {
     if (nodes.has(key)) return;
     const { namespace, name } = parseKey(key);
     const lb = lbsByKey.get(key);
@@ -82,19 +100,20 @@ export function transformTopology(apiCluster: ApiCluster): TopologyGraph {
     });
   };
 
-  const addDeploymentNode = (key: string) => {
-    if (nodes.has(key)) return;
-    const dep = deploymentsByKey.get(key);
-    const { namespace, name } = parseKey(key);
+  const addWorkloadNode = (key: string) => {
+    const w = workloadsByKey.get(key);
+    if (nodes.has(key) || !w) return;
     nodes.set(key, {
       id: key,
-      type: "deployment",
-      name,
-      namespace,
-      ...COLORS.deployment,
-      state: dep?.state,
-      status: dep ? `${dep.ready}/${dep.desired} ready` : undefined,
-      metadata: dep ? { desired: dep.desired, ready: dep.ready, available: dep.available } : undefined,
+      type: "workload",
+      kind: w.kind,
+      name: w.id,
+      namespace: w.namespace,
+      color: WORKLOAD_STYLE[w.kind].color,
+      glow: WORKLOAD_STYLE[w.kind].glow,
+      state: w.state,
+      status: `${w.ready}/${w.desired} ready`,
+      metadata: { desired: w.desired, ready: w.ready },
     });
   };
 
@@ -136,11 +155,11 @@ export function transformTopology(apiCluster: ApiCluster): TopologyGraph {
         if (!pod) break; // endpoint for a pod the cache has not seen yet
         addKindNode(link.from, "service");
         addPodNode(pod);
-        if (pod.owner.kind === "Deployment" && pod.owner.name) {
-          const depKey = objectKey("deployment", pod.namespace, pod.owner.name);
-          addDeploymentNode(depKey);
-          addEdge(link.from, depKey, "service", link.active);
-          addEdge(depKey, pod.key, "owns", link.active);
+        const ownerKey = isWorkloadKind(pod.owner.kind) && pod.owner.name ? workloadKey(pod.owner.kind, pod.namespace, pod.owner.name) : null;
+        if (ownerKey && workloadsByKey.has(ownerKey)) {
+          addWorkloadNode(ownerKey);
+          addEdge(link.from, ownerKey, "service", link.active);
+          addEdge(ownerKey, pod.key, "owns", link.active);
         } else {
           addEdge(link.from, pod.key, "service", link.active);
         }
@@ -194,9 +213,45 @@ export function topologyLabels(graph: TopologyGraph): LabelCandidate[] {
   }));
   for (const n of graph.nodes) {
     const base = { id: n.id, text: n.name, keys: [n.id], radius: n.size };
-    if (n.type === "deployment") out.push({ ...base, rank: 2 - (podsPer.get(n.id) ?? 0) / maxPods, style: "primary" });
+    if (n.type === "workload") out.push({ ...base, rank: 2 - (podsPer.get(n.id) ?? 0) / maxPods, style: "primary" });
     else if (n.type === "pod") out.push({ ...base, rank: 5, style: "detail", maxDistance: 260 });
     else out.push({ ...base, rank: n.type === "internet" ? 2 : 3, style: "secondary" });
   }
   return out;
+}
+
+/**
+ * The selected pod's PVC, ConfigMap, and Secret references as extra nodes.
+ * They exist only while the pod is selected, so shared references never turn
+ * the whole graph into a hairball.
+ */
+export function topologyWithRefs(graph: TopologyGraph, apiCluster: ApiCluster | undefined, selectedId: string | null): TopologyGraph {
+  const pod = selectedId ? apiCluster?.pods.find((p) => p.key === selectedId) : undefined;
+  const podNode = pod && graph.nodes.find((n) => n.id === pod.key);
+  if (!pod?.refs || !podNode) return graph;
+  const extra: TopologyNode[] = [];
+  const add = (kind: RefKind, names: string[] | undefined) => {
+    for (const name of names ?? []) {
+      extra.push({
+        id: `${kind}/${pod.namespace}/${name}`,
+        type: kind,
+        name,
+        namespace: pod.namespace,
+        group: pod.namespace,
+        tier: TIER[kind],
+        parent: pod.key,
+        size: SIZE[kind],
+        color: REF_STYLE[kind].color,
+        glow: REF_STYLE[kind].glow,
+        status: REF_STYLE[kind].label,
+      });
+    }
+  };
+  add("pvc", pod.refs.pvcs);
+  add("configmap", pod.refs.configMaps);
+  add("secret", pod.refs.secrets);
+  return {
+    nodes: [...graph.nodes, ...extra],
+    edges: [...graph.edges, ...extra.map((n) => ({ from: pod.key, to: n.id, type: "ref" as const, active: true, color: EDGE_COLORS.ref }))],
+  };
 }

@@ -91,6 +91,9 @@ create the DNS record, and open `https://<host>`.
   cert-manager.
 - **FR-008**: The README MUST state who can see the topology for each exposure option and how to read
   the generated password.
+- **FR-009**: HTTPS MUST stay optional. The README MUST include an "HTTPS with your own domain" section
+  (DNS record, the two values, how to check the certificate) and warn that without HTTPS the password
+  and session cookie cross the network unencrypted.
 
 ## Success Criteria *(mandatory)*
 
@@ -105,5 +108,7 @@ create the DNS record, and open `https://<host>`.
 
 - One shared account (a username and a password) is enough; per-user accounts and roles are out of
   scope.
+- Galaxy stays an open-source Helm chart installed on any cluster, including as a Porter custom Helm
+  chart add-on. It does not rely on Porter-managed domains or Porter authentication.
 - Sign-in through an identity provider (for example Porter's Forward Authentication, which needs an
   IdP, a domain, and HTTPS) is a later option layered on the same ingress.

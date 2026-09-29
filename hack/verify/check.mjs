@@ -3,8 +3,9 @@
 // fake stream and preview server.
 //
 // Usage: node check.mjs <scenario> <url> <out-dir>
-// Scenarios: functional | labels | layout | perf | webgl
-// Env: THROTTLE (CPU slowdown factor for perf), CHROME (browser binary).
+// Scenarios: functional | labels | layout | perf | webgl | stream
+// Env: THROTTLE (CPU slowdown factor for perf), CHROME (browser binary),
+// FAKE_BIN/FAKE_PID/FAKE_ARGS (stream: the fake stream to restart).
 
 import { spawn } from "node:child_process";
 import { mkdtempSync, writeFileSync } from "node:fs";
@@ -45,8 +46,10 @@ await new Promise((r) => ws.addEventListener("open", r));
 let seq = 0;
 const pending = new Map();
 const logs = [];
+const sse = [];
 ws.addEventListener("message", (e) => {
   const m = JSON.parse(e.data);
+  if (m.method === "Network.eventSourceMessageReceived") sse.push({ event: m.params.eventName, data: m.params.data });
   if (m.id && pending.has(m.id)) {
     pending.get(m.id)(m);
     pending.delete(m.id);
@@ -75,7 +78,7 @@ const click = async (x, y) => {
 };
 const clickButton = (text) => ev(`[...document.querySelectorAll('button')].find(b => b.textContent.trim() === ${JSON.stringify(text)})?.click(); 1`);
 const search = async (query) => {
-  await ev(`[...document.querySelectorAll('button')].find(b => b.textContent.includes('FILTERS'))?.click(); 1`);
+  await ev(`document.querySelector('input[placeholder^="Search"]') || [...document.querySelectorAll('button')].find(b => b.textContent.includes('FILTERS'))?.click(); 1`);
   await sleep(400);
   await ev(`(() => { const i = document.querySelector('input[placeholder^="Search"]'); i.focus();
     Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(i, ${JSON.stringify(query)});
@@ -122,6 +125,7 @@ async function orbit() {
 
 await send("Page.enable");
 await send("Runtime.enable");
+if (scenario === "stream") await send("Network.enable");
 if (scenario === "perf" && process.env.THROTTLE) await send("Emulation.setCPUThrottlingRate", { rate: Number(process.env.THROTTLE) });
 await send("Page.navigate", { url });
 await sleep(9000);
@@ -210,6 +214,57 @@ if (scenario === "perf") {
   await sleep(6000);
   result.clusters = await orbit();
   for (const view of ["topology", "clusters"]) if (result[view].avgFps < 30) failures.push(`${view}: ${result[view].avgFps} fps (SC-001 is ≥ 30)`);
+}
+
+if (scenario === "stream") {
+  // Every patch must build on the version before it; a gap means the client
+  // applied a patch to the wrong base.
+  const chain = () => {
+    let version = null;
+    const gaps = [];
+    for (const { event, data } of sse) {
+      const d = JSON.parse(data);
+      if (event === "snapshot") version = d.version;
+      else if (d.base !== version) gaps.push(`${d.base}->${d.version} after ${version}`);
+      else version = d.version;
+    }
+    return gaps;
+  };
+  const newestPod = () => {
+    const patch = sse.filter((m) => m.event === "patch").map((m) => JSON.parse(m.data)).at(-1);
+    return patch?.clusters[0]?.upsert?.pods?.at(-1)?.key;
+  };
+  const size = (event) => sse.filter((m) => m.event === event).reduce((n, m) => n + m.data.length, 0);
+  const count = (event) => sse.filter((m) => m.event === event).length;
+
+  const pod = newestPod();
+  await search(pod ?? "no patch received");
+  await sleep(1500);
+  result.patchedPodPanel = await detailPanel();
+  result.snapshotBytes = size("snapshot");
+  result.patches = count("patch");
+  result.patchBytes = size("patch");
+  // What the same updates cost when every one resends the whole snapshot.
+  result.fullSnapshotBytes = result.snapshotBytes * result.patches;
+
+  // A restarted backend starts over at version 1, so the client must take the
+  // new snapshot rather than wait for a patch on its old base.
+  process.kill(Number(process.env.FAKE_PID));
+  await sleep(1000);
+  spawn(process.env.FAKE_BIN, process.env.FAKE_ARGS.split(" "), { stdio: "ignore", detached: true }).unref();
+  await sleep(8000);
+  result.snapshots = count("snapshot");
+  const resyncedPod = newestPod();
+  await clickButton("RESET VIEW");
+  await search(resyncedPod ?? "no patch received");
+  await sleep(1500);
+  result.resyncedPodPanel = await detailPanel();
+  result.gaps = chain();
+
+  if (!pod || !result.patchedPodPanel?.includes(pod.split("/").at(-1))) failures.push(`pod added by a patch (${pod}) is not selectable`);
+  if (result.snapshots < 2) failures.push("no new snapshot after the connection dropped");
+  if (!resyncedPod || !result.resyncedPodPanel?.includes(resyncedPod.split("/").at(-1))) failures.push(`pod added after the resync (${resyncedPod}) is not selectable`);
+  if (result.gaps.length) failures.push(`patches out of sequence: ${result.gaps.join(", ")}`);
 }
 
 if (scenario === "webgl") {

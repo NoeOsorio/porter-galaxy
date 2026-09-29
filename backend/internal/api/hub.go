@@ -3,8 +3,6 @@ package api
 import (
 	"context"
 	"encoding/json"
-	"fmt"
-	"hash/fnv"
 	"log/slog"
 	"sync"
 	"time"
@@ -12,65 +10,56 @@ import (
 	"github.com/noeosorio/porter-galaxy/backend/internal/cluster"
 )
 
-// Hub manages SSE client subscriptions and fans out cluster snapshots.
-// It throttles broadcasts and deduplicates snapshots so that only genuine
-// state changes are sent — informer resyncs that produce identical data are
-// silently suppressed.
+// Hub builds snapshots on change and fans them out to SSE clients: each client
+// gets one snapshot, then patches against the version it holds.
 type Hub struct {
-	mu       sync.RWMutex
-	clients  map[chan []byte]struct{}
-	lastHash uint64 // FNV-1a hash of the last broadcast payload
-	logger   *slog.Logger
+	builder cluster.SnapshotBuilder
+	logger  *slog.Logger
+
+	mu      sync.Mutex
+	clients map[*client]struct{}
+	state   *indexed
+	version uint64
+	frame   []byte // snapshot event for state
 }
 
-func NewHub(logger *slog.Logger) *Hub {
-	return &Hub{
-		clients: make(map[chan []byte]struct{}),
-		logger:  logger,
-	}
+type client struct {
+	ch chan []byte
+	// stale is set when a frame was dropped; the client's next frame must be a
+	// full snapshot because later patches would not apply to what it holds.
+	stale bool
 }
 
-// Subscribe registers a new SSE client and returns its dedicated channel.
-// The channel is buffered so a slow client cannot block the broadcaster.
-func (h *Hub) Subscribe() chan []byte {
-	ch := make(chan []byte, 8)
+func NewHub(builder cluster.SnapshotBuilder, logger *slog.Logger) *Hub {
+	return &Hub{builder: builder, logger: logger, clients: make(map[*client]struct{})}
+}
+
+// subscribe registers a client whose channel already holds the current
+// snapshot. Both happen under one lock so the next patch applies to it.
+func (h *Hub) subscribe() *client {
 	h.mu.Lock()
-	h.clients[ch] = struct{}{}
-	h.mu.Unlock()
-	return ch
-}
-
-// Unsubscribe removes a client channel from the hub.
-func (h *Hub) Unsubscribe(ch chan []byte) {
-	h.mu.Lock()
-	delete(h.clients, ch)
-	h.mu.Unlock()
-}
-
-// broadcast sends a raw SSE frame to every connected client.
-// Non-blocking: slow clients are silently skipped (they will catch up on the
-// next broadcast rather than back-pressuring the hub goroutine).
-func (h *Hub) broadcast(msg []byte) {
-	h.mu.RLock()
-	defer h.mu.RUnlock()
-	for ch := range h.clients {
-		select {
-		case ch <- msg:
-		default:
-			h.logger.Debug("hub: dropped frame for slow client")
-		}
+	defer h.mu.Unlock()
+	if h.state == nil {
+		h.publish(h.builder.Build())
 	}
+	c := &client{ch: make(chan []byte, 8)}
+	if h.frame != nil {
+		c.ch <- h.frame
+	}
+	h.clients[c] = struct{}{}
+	return c
 }
 
-// Run is the hub's main loop. It must be started in its own goroutine.
-//
-//   - notify: a channel that is signalled on every store mutation.
-//   - builder: used to assemble a fresh snapshot after each debounce window.
-//   - debounceWindow: how long to wait for further signals before broadcasting.
-//
-// A 30-second heartbeat comment is sent to keep idle connections alive through
-// proxies and load balancers that close idle HTTP streams.
-func (h *Hub) Run(ctx context.Context, notify <-chan struct{}, builder cluster.SnapshotBuilder, minInterval time.Duration) {
+func (h *Hub) unsubscribe(c *client) {
+	h.mu.Lock()
+	delete(h.clients, c)
+	h.mu.Unlock()
+}
+
+// Run rebuilds and broadcasts after changes signalled on notify, at most once
+// per minInterval, and sends a heartbeat every 30 s so proxies keep idle
+// streams open.
+func (h *Hub) Run(ctx context.Context, notify <-chan struct{}, minInterval time.Duration) {
 	debounced := throttle(ctx, notify, minInterval)
 	heartbeat := time.NewTicker(30 * time.Second)
 	defer heartbeat.Stop()
@@ -79,53 +68,62 @@ func (h *Hub) Run(ctx context.Context, notify <-chan struct{}, builder cluster.S
 		select {
 		case <-ctx.Done():
 			return
-
 		case <-debounced:
-			h.broadcastSnapshot(builder)
-
+			snapshot := h.builder.Build()
+			h.mu.Lock()
+			h.publish(snapshot)
+			h.mu.Unlock()
 		case <-heartbeat.C:
-			h.broadcast([]byte(": ping\n\n"))
+			h.mu.Lock()
+			for c := range h.clients {
+				select {
+				case c.ch <- []byte(": ping\n\n"):
+				default:
+				}
+			}
+			h.mu.Unlock()
 		}
 	}
 }
 
-func (h *Hub) broadcastSnapshot(builder cluster.SnapshotBuilder) {
-	snapshot := builder.Build()
-	data, err := json.Marshal(snapshot)
+// publish must be called with h.mu held.
+func (h *Hub) publish(snapshot cluster.Snapshot) {
+	next, err := index(snapshot)
 	if err != nil {
-		h.logger.Error("hub: failed to marshal snapshot", "error", err)
+		h.logger.Error("hub: failed to index snapshot", "error", err)
 		return
 	}
-
-	// Suppress the broadcast if the snapshot is byte-for-byte identical to the
-	// last one sent. This eliminates the noise caused by the informer's 30-second
-	// resync, which re-fires Update events for every object even when nothing
-	// has actually changed.
-	hash := fnvHash(data)
-	h.mu.Lock()
-	if hash == h.lastHash {
-		h.mu.Unlock()
-		h.logger.Debug("hub: snapshot unchanged, skipping broadcast")
-		return
+	var patchFrame []byte
+	if h.state != nil {
+		p := diff(h.state, next)
+		if p.empty() {
+			return
+		}
+		p.Base, p.Version = h.version, h.version+1
+		data, err := json.Marshal(p)
+		if err != nil {
+			h.logger.Error("hub: failed to marshal patch", "error", err)
+			return
+		}
+		patchFrame = sseFrame("patch", data)
 	}
-	h.lastHash = hash
-	h.mu.Unlock()
+	h.version++
+	h.state = next
+	h.frame = sseFrame("snapshot", next.snapshotJSON(h.version))
 
-	frame := []byte(fmt.Sprintf("data: %s\n\n", data))
-	h.broadcast(frame)
-	h.logger.Debug("hub: broadcast snapshot", "clients", h.clientCount())
-}
-
-func fnvHash(b []byte) uint64 {
-	h := fnv.New64a()
-	h.Write(b)
-	return h.Sum64()
-}
-
-func (h *Hub) clientCount() int {
-	h.mu.RLock()
-	defer h.mu.RUnlock()
-	return len(h.clients)
+	for c := range h.clients {
+		frame := patchFrame
+		if c.stale || frame == nil {
+			frame = h.frame
+		}
+		select {
+		case c.ch <- frame:
+			c.stale = false
+		default:
+			c.stale = true
+			h.logger.Debug("hub: dropped frame for slow client")
+		}
+	}
 }
 
 // ── Throttle ──────────────────────────────────────────────────────────────────

@@ -4,30 +4,32 @@
 package main
 
 import (
-	"encoding/json"
+	"context"
 	"flag"
 	"fmt"
 	"log"
+	"log/slog"
 	"math/rand/v2"
 	"net/http"
+	"os"
 	"slices"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/noeosorio/porter-galaxy/backend/internal/api"
 	"github.com/noeosorio/porter-galaxy/backend/internal/cluster"
 )
 
 type generator struct {
-	mu       sync.Mutex
-	rng      *rand.Rand
-	nodes    []string
-	deps     []cluster.WorkloadInfo // churned: their pods are replaced over time
-	others   []cluster.WorkloadInfo // StatefulSets, a DaemonSet, a CronJob and its Jobs
-	pods     []cluster.PodInfo
-	fixed    []cluster.PodInfo // pods of `others`, never churned
-	serial   int
-	snapshot []byte
+	mu     sync.Mutex
+	rng    *rand.Rand
+	nodes  []string
+	deps   []cluster.WorkloadInfo // churned: their pods are replaced over time
+	others []cluster.WorkloadInfo // StatefulSets, a DaemonSet, a CronJob and its Jobs
+	pods   []cluster.PodInfo
+	fixed  []cluster.PodInfo // pods of `others`, never churned
+	serial int
 }
 
 func key(kind, ns, name string) string {
@@ -123,15 +125,13 @@ func (g *generator) churn(n int) {
 		dep := cluster.WorkloadInfo{Kind: "Deployment", ID: old.Owner.Name, Namespace: old.Namespace}
 		g.pods[i] = g.newPod(dep, cluster.StateRunning, "")
 	}
-	g.snapshot = nil
 }
 
-func (g *generator) build() []byte {
+// Build implements cluster.SnapshotBuilder so the stream goes through the
+// same hub and encoder as the real backend.
+func (g *generator) Build() cluster.Snapshot {
 	g.mu.Lock()
 	defer g.mu.Unlock()
-	if g.snapshot != nil {
-		return g.snapshot
-	}
 	c := cluster.Cluster{
 		ID:              "fake",
 		Workloads:       slices.Concat(g.deps, g.others),
@@ -173,12 +173,7 @@ func (g *generator) build() []byte {
 		}
 	}
 
-	body, err := json.Marshal(cluster.Snapshot{Clusters: []cluster.Cluster{c}})
-	if err != nil {
-		log.Fatal(err)
-	}
-	g.snapshot = fmt.Appendf(nil, "data: %s\n\n", body)
-	return g.snapshot
+	return cluster.Snapshot{Clusters: []cluster.Cluster{c}}
 }
 
 func main() {
@@ -192,34 +187,22 @@ func main() {
 	flag.Parse()
 
 	g := newGenerator(*pods, *namespaces, *depsPerNS, *nodes)
-	mux := http.NewServeMux()
-	mux.HandleFunc("GET /readyz", func(w http.ResponseWriter, _ *http.Request) { fmt.Fprint(w, "ok") })
-	mux.HandleFunc("GET /api/v1/clusters", func(w http.ResponseWriter, r *http.Request) {
-		flusher := w.(http.Flusher)
-		w.Header().Set("Content-Type", "text/event-stream")
-		w.Header().Set("Cache-Control", "no-cache")
-		w.Header().Set("Access-Control-Allow-Origin", "*")
-		w.Write(g.build())
-		flusher.Flush()
-		if *churnEvery <= 0 {
-			<-r.Context().Done()
-			return
-		}
-		ticker := time.NewTicker(*churnEvery)
-		defer ticker.Stop()
-		for {
-			select {
-			case <-r.Context().Done():
-				return
-			case <-ticker.C:
+	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelWarn}))
+	hub := api.NewHub(g, logger)
+	notify := make(chan struct{}, 1)
+	ctx := context.Background()
+	go hub.Run(ctx, notify, *churnEvery/2)
+	if *churnEvery > 0 {
+		go func() {
+			for range time.Tick(*churnEvery) {
 				g.churn(*churnSize)
-				if _, err := w.Write(g.build()); err != nil {
-					return
-				}
-				flusher.Flush()
+				notify <- struct{}{}
 			}
-		}
-	})
+		}()
+	}
+
+	mux := http.NewServeMux()
+	api.NewHandler(hub, func() bool { return true }, logger).RegisterRoutes(mux)
 
 	log.Printf("fakestream: %d pods, %d namespaces, churn %s on :%d", *pods, *namespaces, *churnEvery, *port)
 	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%d", *port), mux))

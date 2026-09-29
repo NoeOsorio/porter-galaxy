@@ -5,7 +5,7 @@
 # concurrent headless Chrome runs would skew each other's frame rates.
 #
 # Usage: hack/verify.sh [scenario ...]
-#   scenarios: functional labels layout perf webgl (default: all)
+#   scenarios: functional labels layout perf webgl stream (default: all)
 # Env: THROTTLE (perf CPU slowdown, default 4), VERIFY_OUT (screenshots dir).
 set -euo pipefail
 
@@ -16,7 +16,7 @@ WORK="$(mktemp -d)"
 FAKE_PORT=4078
 PREVIEW_PORT=5199
 SCENARIOS=("$@")
-[ ${#SCENARIOS[@]} -eq 0 ] && SCENARIOS=(functional labels layout perf webgl)
+[ ${#SCENARIOS[@]} -eq 0 ] && SCENARIOS=(functional labels layout perf webgl stream)
 
 until mkdir "$LOCK" 2>/dev/null; do
   echo "verify: waiting for $(cat "$LOCK/owner" 2>/dev/null || echo 'another run') ..."
@@ -75,6 +75,10 @@ for scenario in "${SCENARIOS[@]}"; do
     functional|labels|webgl) start_fake -pods 1000 -churn 0; target="$URL" ;;
     layout) start_fake -pods 1000 -churn 500ms -churn-size 1; target="$URL?stats" ;;
     perf) start_fake -pods 3000 -churn 500ms; target="$URL?stats" ;;
+    stream)
+      # check.mjs restarts the fake stream mid-run to test the client's resync.
+      start_fake -pods 1000 -churn 500ms; target="$URL"
+      export FAKE_BIN="$WORK/fakestream" FAKE_PID FAKE_ARGS="-port $FAKE_PORT -pods 1000 -churn 500ms" ;;
     *) echo "unknown scenario: $scenario" >&2; status=1; continue ;;
   esac
   THROTTLE="${THROTTLE:-4}" node "$ROOT/hack/verify/check.mjs" "$scenario" "$target" "$OUT" || status=1

@@ -58,12 +58,12 @@ description: "Task list for 003 Workload Coverage and Health"
 
 **Independent Test**: quickstart.md §2
 
-- [ ] T015 [STREAM] Compute patches between consecutive snapshots by object key in `backend/internal/api/patch.go` (new) per contracts/stream.md
-- [ ] T016 [STREAM] Hub keeps the last broadcast snapshot and version; subscribe and send that snapshot under one lock; on a dropped frame, send the client a full snapshot next, in `backend/internal/api/hub.go` and `handler.go`
-- [ ] T017 [STREAM] Gzip the stream with a flush after every event when the client accepts gzip, in `backend/internal/api/handler.go`
-- [ ] T018 [P] [STREAM] Make `backend/cmd/fakestream` stream snapshot + patches through the same encoder
-- [ ] T019 [STREAM] Apply `snapshot` and `patch` events in `frontend/src/hooks/useClustersSSE.ts`, reconnecting on a base mismatch; with `?stats`, log bytes received per minute
-- [ ] T020 [STREAM] Add a `stream` scenario to `hack/verify/check.mjs` (patch applies, reconnect resyncs) and record bytes/minute for full vs patch in the PR
+- [X] T015 [STREAM] Compute patches between consecutive snapshots by object key in `backend/internal/api/patch.go` (new) per contracts/stream.md
+- [X] T016 [STREAM] Hub keeps the last broadcast snapshot and version; subscribe and send that snapshot under one lock; on a dropped frame, send the client a full snapshot next, in `backend/internal/api/hub.go` and `handler.go`
+- [X] T017 [STREAM] Gzip the stream with a flush after every event when the client accepts gzip, in `backend/internal/api/handler.go`
+- [X] T018 [P] [STREAM] Make `backend/cmd/fakestream` stream snapshot + patches through the same encoder
+- [X] T019 [STREAM] Apply `snapshot` and `patch` events in `frontend/src/hooks/useClustersSSE.ts`, reconnecting on a base mismatch; with `?stats`, log bytes received per minute
+- [X] T020 [STREAM] Add a `stream` scenario to `hack/verify/check.mjs` (patch applies, reconnect resyncs) and record bytes/minute for full vs patch in the PR
 - [ ] T021 [STREAM] `make verify`, PR, merge, `make release VERSION=0.10.0`, upgrade, walk quickstart §2
 
 ---

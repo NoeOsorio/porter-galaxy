@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { createClusterEventSource } from "../lib/api";
+import { applyPatch, createClusterEventSource } from "../lib/api";
 import type { ApiClustersResponse } from "../types/api";
 
 export type Connection = "connecting" | "live" | "reconnecting" | "offline";
@@ -12,6 +12,7 @@ export interface ClustersStream {
 
 const OFFLINE_AFTER_MS = 30_000;
 const RETRY_CLOSED_MS = 3_000;
+const STATS = new URLSearchParams(window.location.search).has("stats");
 
 // Must be called once, at the app root: each call opens its own stream.
 export function useClustersSSE(): ClustersStream {
@@ -24,6 +25,24 @@ export function useClustersSSE(): ClustersStream {
     let offlineTimer: ReturnType<typeof setTimeout> | undefined;
     let retryTimer: ReturnType<typeof setTimeout> | undefined;
     let disposed = false;
+    let current: ApiClustersResponse | null = null;
+    let version = -1;
+    const bytes = { snapshot: 0, patch: 0 };
+    const statsTimer = STATS
+      ? setInterval(() => {
+          console.log(`[galaxy] stream bytes/min: ${bytes.snapshot + bytes.patch} (snapshot ${bytes.snapshot}, patch ${bytes.patch})`);
+          bytes.snapshot = bytes.patch = 0;
+        }, 60_000)
+      : undefined;
+
+    const show = (data: ApiClustersResponse) => {
+      clearTimeout(offlineTimer);
+      offlineTimer = undefined;
+      current = data;
+      setSnapshot(data);
+      setLastUpdate(new Date());
+      setConnection("live");
+    };
 
     const markDisconnected = () => {
       setConnection((c) => (c === "offline" ? c : "reconnecting"));
@@ -31,15 +50,25 @@ export function useClustersSSE(): ClustersStream {
     };
 
     const connect = () => {
-      source = createClusterEventSource(
-        (data) => {
-          clearTimeout(offlineTimer);
-          offlineTimer = undefined;
-          setSnapshot(data);
-          setLastUpdate(new Date());
-          setConnection("live");
+      source = createClusterEventSource({
+        onSnapshot: (data, size) => {
+          bytes.snapshot += size;
+          version = data.version;
+          show({ clusters: data.clusters });
         },
-        () => {
+        onPatch: (data, size) => {
+          bytes.patch += size;
+          // A patch for another base would corrupt the graph; a new
+          // connection starts from a fresh snapshot instead.
+          if (!current || data.base !== version) {
+            source?.close();
+            connect();
+            return;
+          }
+          version = data.version;
+          show(applyPatch(current, data));
+        },
+        onError: () => {
           markDisconnected();
           // EventSource retries on its own unless the server answered with a
           // non-200 status, which leaves it CLOSED for good.
@@ -47,7 +76,7 @@ export function useClustersSSE(): ClustersStream {
             retryTimer = setTimeout(connect, RETRY_CLOSED_MS);
           }
         },
-      );
+      });
     };
 
     connect();
@@ -55,6 +84,7 @@ export function useClustersSSE(): ClustersStream {
       disposed = true;
       clearTimeout(offlineTimer);
       clearTimeout(retryTimer);
+      clearInterval(statsTimer);
       source?.close();
     };
   }, []);

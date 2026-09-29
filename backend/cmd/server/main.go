@@ -49,7 +49,7 @@ func main() {
 	// ── Core components ───────────────────────────────────────────────────────
 	multiBuilder := cluster.NewMultiBuilder(builders...)
 
-	hub := api.NewHub(logger)
+	hub := api.NewHub(multiBuilder, logger)
 	ready := func() bool {
 		for _, mgr := range managers {
 			if !mgr.Synced() {
@@ -58,7 +58,7 @@ func main() {
 		}
 		return true
 	}
-	handler := api.NewHandler(multiBuilder, hub, ready, logger)
+	handler := api.NewHandler(hub, ready, logger)
 
 	mux := http.NewServeMux()
 	handler.RegisterRoutes(mux)
@@ -68,7 +68,7 @@ func main() {
 	defer cancel()
 
 	// ── Start hub ─────────────────────────────────────────────────────────────
-	go hub.Run(ctx, notifyCh, multiBuilder, 500*time.Millisecond)
+	go hub.Run(ctx, notifyCh, 500*time.Millisecond)
 
 	// ── Start one informer manager per cluster ────────────────────────────────
 	for _, mgr := range managers {

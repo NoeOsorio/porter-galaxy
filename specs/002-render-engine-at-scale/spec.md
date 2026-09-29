@@ -4,7 +4,7 @@
 
 **Created**: 2026-09-25
 
-**Status**: Planned
+**Status**: Done
 
 **Input**: User description: "Improve the UI and camera movement; make it a first-class app to
 represent your cluster."

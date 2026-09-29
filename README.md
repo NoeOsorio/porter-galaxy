@@ -31,7 +31,7 @@ Both views render the same graph:
 - **Topology**: how traffic reaches your workloads, from Internet → Load Balancer → Ingress → Service → Deployment → Pod.
 - **Clusters**: a hierarchical view (Cluster → Node → Deployment → Pod) that shows where every Pod runs.
 
-Click a node or search for it and the camera flies to it; `R` reframes the whole graph. Pods are colored by their real state (running, pending, completed, failed).
+Objects group by namespace, and adding a Pod never rearranges the rest of the map. Names appear where there is room and more detail shows up as you zoom in. Click a node or search for it and the camera flies to it; `R` reframes the whole graph, and the 3D/2D toggle flattens either view. Pods are colored by their real state (running, pending, completed, failed). It stays at 60 fps with thousands of Pods.
 
 ---
 
@@ -132,6 +132,18 @@ make open      # port-forward the frontend to http://localhost:8888
 make logs-backend
 ```
 
+### Load testing and verification
+
+`backend/cmd/fakestream` serves synthetic snapshots so you can try the UI at sizes no dev cluster has:
+
+```bash
+cd backend && go run ./cmd/fakestream -pods 3000 -namespaces 20 -churn 500ms
+cd frontend && VITE_API_URL=http://localhost:4078 npm run dev
+# open http://localhost:5173/?stats  (fps overlay; console logs layout settle time and displacement)
+```
+
+`make verify` runs the gates, builds the app against the fake stream, and drives headless Chrome through the functional, label, layout, performance, and WebGL checks, writing screenshots to `verify-out/`. Runs are serialized with a lock, so several worktrees can develop in parallel while sharing one verification lane.
+
 `make help` lists every target.
 
 ---
@@ -157,12 +169,14 @@ make logs-backend
 
 | Layer        | Tech                                                        |
 | ------------ | ----------------------------------------------------------- |
-| Frontend     | React 19, TypeScript, Vite, Tailwind v4, Three.js (R3F)     |
+| Frontend     | React 19, TypeScript, Vite, Tailwind v4, Three.js (R3F), d3-force-3d in a Web Worker |
 | Backend      | Go 1.22, `k8s.io/client-go` informers                       |
 | Distribution | Multi-stage Docker images on GHCR, Helm chart as OCI on GHCR |
 | RBAC         | ClusterRole + ClusterRoleBinding (read-only across the cluster) |
 
 The backend uses informers to keep an in-memory graph in sync with the cluster and streams each change to the browser over Server-Sent Events, so the frontend never queries the Kubernetes API server. Pods are linked to their Deployment through owner references, and `/readyz` reports ready only after the informer caches have synced.
+
+In the browser, a Web Worker runs a 3D force layout (`d3-force-3d`) grouped by namespace; small updates pin every node they do not touch. All nodes render as one instanced mesh and all links as one line-segments draw call, reading positions from a shared buffer, so snapshots never rebuild the scene. Labels are a pooled DOM layer placed per frame without overlaps.
 
 ---
 
@@ -189,6 +203,7 @@ porter-galaxy/
 ├── charts/porter-galaxy/    # Helm chart (deployments, svcs, ingress, RBAC)
 ├── .github/workflows/       # publish.yml — tag-driven release
 ├── specs/                   # Roadmap and specs (Spec Kit)
+├── hack/                    # verify.sh + headless checks (make verify)
 ├── Makefile                 # dev + release commands
 └── DEPLOY_MANUAL.md         # Full deploy guide
 ```
@@ -245,7 +260,7 @@ Full flow: [DEPLOY_MANUAL.md](DEPLOY_MANUAL.md).
 - [x] Live updates over Server-Sent Events, with connection status
 - [x] Ownership through owner references and state from Kubernetes status
 - [x] Search, type filters, camera framing and fly-to
-- [ ] Render engine at scale: instancing, force layout, 3D labels ([spec 002](specs/002-render-engine-at-scale/spec.md))
+- [x] Render engine at scale: instancing, worker force layout, labels, 2D mode ([spec 002](specs/002-render-engine-at-scale/spec.md))
 - [ ] More workload kinds and health signals ([spec 003](specs/003-workload-coverage-and-health/spec.md))
 - [ ] Multi-cluster hub ([spec 004](specs/004-multi-cluster-hub/spec.md))
 - [ ] Access control ([spec 005](specs/005-access-control/spec.md))

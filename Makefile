@@ -172,6 +172,10 @@ chart-push: chart-package ## Push the packaged chart to $(CHART_REGISTRY)
 
 # ── Validation ────────────────────────────────────────────────────────────────
 
+.PHONY: verify
+verify: ## Build and check the app against the fake stream (one run at a time across worktrees)
+	./hack/verify.sh
+
 .PHONY: lint
 lint: ## Lint the Helm chart
 	helm lint $(CHART)

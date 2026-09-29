@@ -1,6 +1,6 @@
 <!--
 Sync Impact Report
-- Version change: template → 1.0.0
+- Version change: 1.0.0 → 1.0.1 (PATCH: Development Workflow step 3 names `make verify`)
 - Principles added: I. Thin Vertical Slices, II. Verify on a Real Cluster, III. Truthful Data First,
   IV. Performance Budget, V. Delete Before Adding, VI. Read-Only by Default
 - Sections added: Constraints, Development Workflow, Governance
@@ -64,7 +64,8 @@ The backend only ever reads cluster state (get/list/watch). Any exposure of clus
 
 1. Pick the next spec in `specs/README.md`; if it has no `plan.md`, run plan and tasks for it first.
 2. One branch per slice (`NNN-short-name` or `NNN-short-name-usX`), one PR per slice.
-3. Before opening the PR: run the checks in Principle II and walk the quickstart for that slice.
+3. Before opening the PR: run `make verify` (the Principle II gates plus the fake-stream checks; it
+   waits its turn if another worktree is verifying) and walk the quickstart for that slice.
 4. After merge: `make release VERSION=x.y.z`, upgrade the Porter add-on's Chart Version, and re-walk
    the quickstart on the deployed app.
 
@@ -75,4 +76,4 @@ this file in a PR that states the reason and bumps the version (MAJOR: a princip
 redefined; MINOR: a principle or section added; PATCH: wording). Every plan's Constitution Check MUST
 list each principle with pass or a justified exception.
 
-**Version**: 1.0.0 | **Ratified**: 2026-09-25 | **Last Amended**: 2026-09-25
+**Version**: 1.0.1 | **Ratified**: 2026-09-25 | **Last Amended**: 2026-09-29

@@ -15,15 +15,15 @@ const (
 )
 
 // podHealth reads restarts and the latest termination from container statuses.
+// A container waiting out a crash back-off reports its latest termination in
+// State; it moves to LastTerminationState only when the container starts again.
 func podHealth(p *corev1.Pod, now time.Time) (restarts int32, last *Termination, recent bool) {
 	for _, cs := range p.Status.ContainerStatuses {
 		restarts += cs.RestartCount
-		t := cs.LastTerminationState.Terminated
-		if t == nil {
-			continue
-		}
-		if last == nil || t.FinishedAt.After(last.At) {
-			last = &Termination{Reason: t.Reason, ExitCode: t.ExitCode, At: t.FinishedAt.Time}
+		for _, t := range []*corev1.ContainerStateTerminated{cs.State.Terminated, cs.LastTerminationState.Terminated} {
+			if t != nil && (last == nil || t.FinishedAt.After(last.At)) {
+				last = &Termination{Reason: t.Reason, ExitCode: t.ExitCode, At: t.FinishedAt.Time}
+			}
 		}
 	}
 	recent = last != nil && restarts > 0 && now.Sub(last.At) < RecentRestartWindow

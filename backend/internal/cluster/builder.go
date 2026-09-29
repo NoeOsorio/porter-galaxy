@@ -206,6 +206,10 @@ func podState(p *corev1.Pod) State {
 		if cs.State.Waiting != nil && failingWaitReasons[cs.State.Waiting.Reason] {
 			return StateFailed
 		}
+		// Between a crash and its back-off the container is terminated, not waiting.
+		if t := cs.State.Terminated; t != nil && t.ExitCode != 0 {
+			return StateFailed
+		}
 	}
 	switch p.Status.Phase {
 	case corev1.PodPending:

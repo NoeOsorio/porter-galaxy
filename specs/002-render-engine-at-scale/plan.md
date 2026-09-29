@@ -38,7 +38,7 @@ no frame over 50 ms when a snapshot arrives every 500 ms; layout of 1,000 nodes 
 labels ≤ 60 DOM elements
 
 **Scale/Scope**: Reference loads 1,000 and 3,000 pods from the fake stream; the real reference
-cluster (`porter-gloom-dev`, ~80 pods) for correctness
+cluster (~80 pods) for correctness
 
 ## Constitution Check
 

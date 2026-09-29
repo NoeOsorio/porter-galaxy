@@ -65,7 +65,7 @@ errors".
 - [X] T014 [US1] Replace color-based error detection and string state checks with `state` in `frontend/src/Topology.tsx` and `frontend/src/Clusters.tsx` (e.g. `Topology.tsx:76`), and show namespace and LB `address` in the detail panels
 - [X] T015 [US1] Run the gates, open PR `001-truthful-graph-and-camera-us1`, merge, `make release VERSION=0.3.0`, upgrade the Porter add-on, and walk quickstart.md §1
 
-**Checkpoint**: Counts in Galaxy equal `kubectl` counts on `porter-gloom-dev` (SC-001)
+**Checkpoint**: Counts in Galaxy equal `kubectl` counts on the reference cluster (SC-001)
 
 ---
 

@@ -154,7 +154,7 @@ other nodes without moving the camera.
 
 ## Assumptions
 
-- The reference cluster is `porter-gloom-dev`, where Galaxy runs as a Porter Helm add-on.
+- The reference cluster is a Porter dev cluster where Galaxy runs as a Porter Helm add-on.
 - Multi-cluster, new Kubernetes kinds, labels in 3D, and performance at 1,000+ pods are later specs
   (002–006); this spec keeps the single-cluster, in-cluster mode.
 - The live update transport stays as it is (full snapshots); only its identity scheme changes.

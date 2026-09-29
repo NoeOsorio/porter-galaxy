@@ -3,7 +3,7 @@
 ## R1. Object identity
 
 - **Decision**: Every object gets a `key` of the form `<kind>/<namespace>/<name>` (cluster-scoped
-  kinds use `_` as namespace, e.g. `node/_/ip-10-78-1-1`). The frontend prefixes the cluster ID when
+  kinds use `_` as namespace, e.g. `node/_/ip-10-0-0-1`). The frontend prefixes the cluster ID when
   it merges clusters.
 - **Rationale**: Pod IDs are bare names today (`builder.go:146`), so equal names in two namespaces
   collide. Links already use `ingress/<ns>/<name>` for ingresses, so the scheme extends what exists.

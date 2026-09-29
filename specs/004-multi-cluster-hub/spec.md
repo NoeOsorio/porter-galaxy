@@ -19,8 +19,8 @@ project as its own system in the galaxy.
 **Why this priority**: The backend can already read clusters from the Porter API (`REGISTRY_*`
 env vars), but the chart cannot configure it and the scratch image has no CA certificates.
 
-**Independent Test**: Install the chart with registry mode on `porter-gloom-dev` and see every
-cluster of project 1.
+**Independent Test**: Install the chart with registry mode on the reference cluster and see every
+cluster of its Porter project.
 
 **Acceptance Scenarios**:
 
@@ -78,7 +78,7 @@ The operator sees all clusters at once, flies into one, and filters by cluster.
 
 ### Measurable Outcomes
 
-- **SC-001**: All clusters of Porter project 1 appear from a single install.
+- **SC-001**: All clusters of the Porter project appear from a single install.
 - **SC-002**: An agent-connected cluster appears in the hub within 30 s of the agent starting.
 
 ## Assumptions

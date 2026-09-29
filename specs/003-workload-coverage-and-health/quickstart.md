@@ -7,14 +7,14 @@ make verify          # gates + fake-stream checks (waits its turn if another run
 ```
 
 Then deploy: `make release VERSION=<x.y.z>`, set the Porter add-on's **Chart Version**, and open
-the app. `pk` = `porter kubectl --project 1 --cluster 1 --`.
+the app. `pk` = `porter kubectl --project <project-id> --cluster <cluster-id> --`.
 
 ## §1 Every workload kind (US1, 0.9.0)
 
 1. `pk get pods -A -o jsonpath='{range .items[*]}{.metadata.ownerReferences[0].kind}{"\n"}{end}' | sort | uniq -c`
    — every owner kind listed appears as a workload kind in Clusters, and Galaxy shows no
    standalone Pod that has an owner (SC-001).
-2. The `test-postgres` StatefulSet (or any StatefulSet) appears with its Pods in both views; in
+2. A StatefulSet appears with its Pods in both views; in
    Topology it sits under its Service.
 3. DaemonSet Pods (`kube-proxy`, `aws-node`) appear under their DaemonSet in Clusters.
 4. Create a CronJob that runs every minute:

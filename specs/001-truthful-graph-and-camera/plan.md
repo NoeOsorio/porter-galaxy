@@ -44,7 +44,7 @@ size, performance at scale is spec 002
 | Principle | Status | Notes |
 | --- | --- | --- |
 | I. Thin Vertical Slices | Pass | US1, US2, US3 ship as separate PRs and releases (0.3.0, 0.4.0, 0.5.0) |
-| II. Verify on a Real Cluster | Pass | No test tasks; each story has quickstart steps on `porter-gloom-dev` |
+| II. Verify on a Real Cluster | Pass | No test tasks; each story has quickstart steps on the reference cluster |
 | III. Truthful Data First | Pass | US1 is P1 and goes first |
 | IV. Performance Budget | Pass | Removes per-view canvases and dead code; no per-object additions |
 | V. Delete Before Adding | Pass | Deletes 4 views and their helpers; no new runtime dependency |

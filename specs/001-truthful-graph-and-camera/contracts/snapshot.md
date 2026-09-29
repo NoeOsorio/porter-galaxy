@@ -17,8 +17,8 @@ Fields marked **new** are added; existing fields keep their meaning unless noted
     {
       "id": "in-cluster",
       "nodes": [
-        { "key": "node/_/ip-10-78-1-1",            // new
-          "id": "ip-10-78-1-1",
+        { "key": "node/_/ip-10-0-0-1",            // new
+          "id": "ip-10-0-0-1",
           "state": "running",                      // new, see data-model.md State
           "capacity": { "cpu": "2", "memory": "3923812Ki" },
           "status": "Ready", "conditions": [] }
@@ -27,7 +27,7 @@ Fields marked **new** are added; existing fields keep their meaning unless noted
         { "key": "pod/monitoring/grafana-5f7c9-abcde",   // new
           "id": "grafana-5f7c9-abcde",
           "namespace": "monitoring",
-          "nodeId": "ip-10-78-1-1",
+          "nodeId": "ip-10-0-0-1",
           "state": "running",                            // new
           "owner": { "kind": "Deployment", "name": "grafana" } },  // new; replaces controllerId
       ],

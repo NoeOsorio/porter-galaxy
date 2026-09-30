@@ -19,7 +19,7 @@ app. `pk` = `porter kubectl --project <project-id> --cluster <cluster-id> --`.
 5. Upgrade the add-on again with no value changes: the same password still works.
 6. "Sign out" returns to the login form, and the stream stops.
 
-## §2 Safe by default (US2, 0.14.0)
+## §2 Safe by default (US2, 0.15.0)
 
 1. `helm template galaxy charts/porter-galaxy` with default values has no Ingress, a `ClusterIP`
    Service, both containers with `runAsNonRoot`, `readOnlyRootFilesystem`, dropped capabilities,
@@ -28,7 +28,7 @@ app. `pk` = `porter kubectl --project <project-id> --cluster <cluster-id> --`.
    pods start (SC-002).
 3. From the browser console on another origin, `fetch('<url>/api/auth/session')` is blocked by CORS.
 
-## §3 HTTPS with my own domain (US3, 0.15.0)
+## §3 HTTPS with my own domain (US3, 0.16.0)
 
 1. Create a DNS record from `<host>` to the ingress load balancer.
 2. Set `ingress.host: <host>` and `ingress.tls.clusterIssuer: <issuer>`; the certificate becomes

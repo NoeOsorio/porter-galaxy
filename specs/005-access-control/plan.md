@@ -44,7 +44,7 @@ nothing about the password or cookie is logged
 
 | Principle | Status | Notes |
 | --- | --- | --- |
-| I. Thin Vertical Slices | Pass | US1 → 0.13.0, US2 → 0.14.0, US3 → 0.15.0; each is visible on the add-on |
+| I. Thin Vertical Slices | Pass | US1 → 0.13.0, US2 → 0.15.0, US3 → 0.16.0 (0.14.x shipped the layout work); each is visible on the add-on |
 | II. Verify on a Real Cluster | Pass | No test tasks; `auth` verify scenario plus quickstart on the Porter add-on |
 | III. Truthful Data First | Pass | No change to what is drawn |
 | IV. Performance Budget | Pass | One HMAC per request; the stream is authorized once per connection |

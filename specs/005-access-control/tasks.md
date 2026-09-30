@@ -38,13 +38,13 @@ reference cluster.
 - [X] T007 [US1] Frontend: new `frontend/src/components/Login.tsx` (username, password, error text, disabled while submitting); in `frontend/src/App.tsx` call `GET /api/auth/session` on load and show Login until it returns 200, open the stream only after, and add a "Sign out" control; in `frontend/src/hooks/useClustersSSE.ts`, on stream error call the session endpoint and switch to Login on 401 instead of retrying.
 - [X] T008 [US1] Add an `auth` scenario to `hack/verify/check.mjs` and `hack/verify.sh` (fake stream started with `-password`): the login form shows and no graph loads; `/api/v1/clusters` returns 401; a wrong password shows an error; the right one loads the Topology view; "Sign out" returns to the form.
 - [X] T009 [US1] README: "Signing in" (default user, reading the generated password, setting your own or an existing Secret) and a note in "Deploy on Porter" on where to find the password, in `README.md`; add the `auth.*` values to the Configuration table.
-- [X] T010 [US1] `make verify`, PR, merge, `make release VERSION=0.13.0`, upgrade the add-on, walk quickstart §1. (0.13.0 on the reference cluster: login form shown, anonymous stream 401, wrong password 401, generated 24-character password signs in and the stream loads; the password surviving an upgrade (§1.5) is checked at the 0.14.0 upgrade)
+- [X] T010 [US1] `make verify`, PR, merge, `make release VERSION=0.13.0`, upgrade the add-on, walk quickstart §1. (0.13.0 on the reference cluster: login form shown, anonymous stream 401, wrong password 401, generated 24-character password signs in and the stream loads; §1.5 confirmed on a second release installed with the CLI: the generated password was identical across three upgrades, 0.13.0 → 0.14.1)
 
 **Checkpoint**: The deployed app asks for a password; the stream is refused without a session.
 
 ---
 
-## Phase 3: User Story 2 - Safe by default (P2) · release 0.14.0
+## Phase 3: User Story 2 - Safe by default (P2) · release 0.15.0
 
 **Goal**: Default manifests pass the restricted Pod Security Standard; no wildcard CORS.
 
@@ -54,13 +54,13 @@ reference cluster.
 - [ ] T012 [P] [US2] Backend image and pod: `USER 65532:65532` in `backend/Dockerfile`; pod `runAsNonRoot` and `seccompProfile: RuntimeDefault`, container `allowPrivilegeEscalation: false`, `capabilities.drop: [ALL]`, `readOnlyRootFilesystem: true`, and default resources (50m/128Mi requests, 256Mi limit) in `charts/porter-galaxy/templates/backend-deployment.yaml` and `charts/porter-galaxy/values.yaml`.
 - [ ] T013 [P] [US2] Frontend image and pod: base `nginxinc/nginx-unprivileged:1.27-alpine` and the template moved out of `conf.d` in `frontend/Dockerfile`; `listen 8080` in `frontend/nginx.conf.template`; container port 8080, emptyDirs for `/tmp` and `/etc/nginx/conf.d`, the same security context, and default resources (10m/32Mi requests, 64Mi limit) in `charts/porter-galaxy/templates/frontend-deployment.yaml` and `charts/porter-galaxy/values.yaml`; keep the Service port at 80 targeting the named port.
 - [ ] T014 [US2] README: an "Exposure" table (port-forward / Ingress over HTTP / Ingress over HTTPS: who can see the topology, what crosses the network in clear), and the new resource and security defaults in the Configuration table, in `README.md`.
-- [ ] T015 [US2] `make verify`, `helm lint`, PR, merge, `make release VERSION=0.14.0`, upgrade the add-on, walk quickstart §2.
+- [ ] T015 [US2] `make verify`, `helm lint`, PR, merge, `make release VERSION=0.15.0`, upgrade the add-on, walk quickstart §2.
 
 **Checkpoint**: Both pods run as non-root with read-only filesystems; the add-on keeps working.
 
 ---
 
-## Phase 4: User Story 3 - HTTPS with my own domain (P3) · release 0.15.0
+## Phase 4: User Story 3 - HTTPS with my own domain (P3) · release 0.16.0
 
 **Goal**: One value turns on a cert-manager certificate for `ingress.host`.
 
@@ -68,7 +68,7 @@ reference cluster.
 
 - [ ] T016 [US3] `ingress.tls.clusterIssuer` in `charts/porter-galaxy/values.yaml` and `charts/porter-galaxy/templates/ingress.yaml`: adds `cert-manager.io/cluster-issuer` and a TLS block for `ingress.host` with secret `<fullname>-tls`; `fail` with a clear message when set without `ingress.host`; keep accepting the previous list form of `ingress.tls` so existing installs render unchanged. Show `https://` in `charts/porter-galaxy/templates/NOTES.txt` when TLS is on.
 - [ ] T017 [US3] README "HTTPS with your own domain" (FR-009): the DNS record to create, the two values, how to check the certificate (`kubectl get certificate`), and the warning that without HTTPS the password and cookie cross the network unencrypted, in `README.md`.
-- [ ] T018 [US3] `make verify`, PR, merge, `make release VERSION=0.15.0`, upgrade the add-on; walk quickstart §3 if a domain is available, otherwise record that it was checked with `helm template` only.
+- [ ] T018 [US3] `make verify`, PR, merge, `make release VERSION=0.16.0`, upgrade the add-on; walk quickstart §3 if a domain is available, otherwise record that it was checked with `helm template` only.
 
 ---
 

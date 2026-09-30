@@ -10,6 +10,7 @@ keywords:
   - cluster
   - topology
 home: https://github.com/noeosorio/porter-galaxy
+icon: https://raw.githubusercontent.com/NoeOsorio/porter-galaxy/main/frontend/public/black-hole.png
 sources:
   - https://github.com/noeosorio/porter-galaxy
 maintainers:

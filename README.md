@@ -343,7 +343,7 @@ Full flow: [DEPLOY_MANUAL.md](DEPLOY_MANUAL.md).
 - [x] Render engine at scale: instancing, worker force layout, labels, 2D mode ([spec 002](specs/002-render-engine-at-scale/spec.md))
 - [x] Every workload kind, health signals, usage, and patch streaming ([spec 003](specs/003-workload-coverage-and-health/spec.md))
 - [ ] Multi-cluster hub ([spec 004](specs/004-multi-cluster-hub/spec.md))
-- [ ] Access control ([spec 005](specs/005-access-control/spec.md))
+- [x] Access control: built-in sign-in, restricted defaults, optional HTTPS ([spec 005](specs/005-access-control/spec.md))
 - [ ] Semantic zoom, detail panel, share links, replay ([spec 006](specs/006-explore-and-share/spec.md))
 
 ---

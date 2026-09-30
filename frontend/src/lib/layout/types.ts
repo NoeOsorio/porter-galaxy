@@ -23,7 +23,7 @@ export interface LayoutLink {
 }
 
 export type ToWorker =
-  | { type: "update"; mode: LayoutMode; nodes: LayoutNode[]; links: LayoutLink[]; first: boolean }
+  | { type: "update"; mode: LayoutMode; dimension: "2d" | "3d"; nodes: LayoutNode[]; links: LayoutLink[]; first: boolean }
   | { type: "stop" };
 
 export interface FromWorker {

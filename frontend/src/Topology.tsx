@@ -37,7 +37,7 @@ export default function Topology({ snapshot: data, dimension }: { snapshot: ApiC
   const graph = useMemo(() => topologyGraph && topologyWithRefs(topologyGraph, data?.clusters[selectedClusterIndex], refsFor), [topologyGraph, data, refsFor, selectedClusterIndex]);
   const layoutInput = useMemo(() => (graph ? topologyLayoutInput(graph) : { nodes: [], links: [] }), [graph]);
   const labels = useMemo(() => (graph ? topologyLabels(graph) : []), [graph]);
-  const layout = useLayout("topology", layoutInput.nodes, layoutInput.links);
+  const layout = useLayout("topology", dimension, layoutInput.nodes, layoutInput.links);
 
   // Selection follows the object by key across snapshots. An object that
   // disappears stays in the panel marked deleted until the next snapshot.
@@ -149,7 +149,7 @@ export default function Topology({ snapshot: data, dimension }: { snapshot: ApiC
         filteredNodes={filteredNodes}
         errorPods={errorPods}
       />
-      <CameraRig key={selectedClusterIndex} ref={rigRef} store={layout} nodes={graph.nodes} edges={graph.edges} azimuth={0.3} polar={1.3} mode={dimension} plane2d="front" />
+      <CameraRig key={selectedClusterIndex} ref={rigRef} store={layout} nodes={graph.nodes} edges={graph.edges} azimuth={0.25} polar={1.1} mode={dimension} plane2d="front" />
       <EffectComposer>
         <Bloom
           luminanceThreshold={0.2}

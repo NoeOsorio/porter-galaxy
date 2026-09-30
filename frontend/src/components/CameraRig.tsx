@@ -37,6 +37,8 @@ interface Props {
 // A polar angle of exactly 0 makes camera-controls' up vector degenerate.
 const TOP_POLAR = 0.0001;
 
+const MIN_FAR = 6000;
+
 // Room for the glow of the outermost nodes.
 const GLOW_PADDING = 1.5;
 
@@ -99,7 +101,7 @@ export default function CameraRig({ ref, store, nodes, edges, azimuth, polar, mo
   // Positions arrive from the layout worker after mount: frame instantly on the
   // first positions, then once more (animated) when the layout first settles.
   // Later updates never move the camera. A view switch remounts the rig.
-  useFrame(() => {
+  useFrame(({ camera }) => {
     const f = framing.current;
     if (store.keys.length === 0 || store.version === f.limitsVersion) return;
     if (!f.first) {
@@ -112,12 +114,15 @@ export default function CameraRig({ ref, store, nodes, edges, azimuth, polar, mo
       f.settled = true;
       frame();
     }
-    // Zoom limits follow the settled graph so the wheel always has room both ways.
+    // Zoom limits follow the settled graph so the wheel always has room both
+    // ways, and the far plane reaches past the whole graph at maximum zoom-out.
     const cc = controls.current;
     const sphere = sphereFor(byId.keys());
     if (cc && sphere) {
       cc.minDistance = 20;
       cc.maxDistance = sphere.radius * 6;
+      camera.far = Math.max(MIN_FAR, cc.maxDistance + sphere.radius * 2);
+      camera.updateProjectionMatrix();
     }
   });
 

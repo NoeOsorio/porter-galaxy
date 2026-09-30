@@ -9,6 +9,7 @@ type ToWorker =
   | {
       type: "update";
       mode: "topology" | "clusters";
+      dimension: "2d" | "3d";     // topology only: 2d wraps namespaces into rows, 3d bends them into a ring
       nodes: LayoutNode[];        // full current set, see data-model.md
       links: LayoutLink[];
       first: boolean;             // true on the first snapshot of a view: nodes start at their targets
@@ -17,8 +18,9 @@ type ToWorker =
 ```
 
 - `update` replaces the node and link sets and recomputes a deterministic target for every node:
-  topology is a layered tree per namespace (pods in a grid under their parent, Internet and load
-  balancers centered over what they route to); clusters is radial (machines on an inner ring,
+  topology is a layered tree per namespace with pods in a grid under their parent; in 2d the
+  namespaces wrap into rows under Internet and load balancers, in 3d one strip bends into a ring
+  around them; clusters is radial (machines on an inner ring,
   namespaces as arcs of an outer ring or spiral, pods clustered under their workload).
   `role: "pod"` nodes pack around their parent; `role: "ref"` nodes hang off a pod.
 - Nodes ease toward their targets. New nodes start at `parent`'s current position (at their target

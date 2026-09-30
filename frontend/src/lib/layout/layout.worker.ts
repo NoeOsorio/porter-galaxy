@@ -30,6 +30,11 @@ const ROW_GAP = 140;
 // namespace widths do not reflow every row.
 const ROW_ASPECT = 1.6;
 const ROW_QUANTUM = 400;
+// Keeps a small cluster's arc gentle, and the ring wide enough that its near
+// and far sides do not overlap from the default camera.
+const MIN_RING_RADIUS = 700;
+// How far toward the ring's axis load balancers and Internet sit.
+const HUB_PULL = 0.5;
 const MIN_TIER_GAP = 60;
 const REF_DROP = 70;
 const REF_RING = 22;
@@ -117,11 +122,11 @@ function neighborIndex(links: LayoutLink[]) {
 }
 
 /**
- * Topology reads top to bottom from the front: each namespace is a block of
- * tidy trees, pods pack in a grid under their parent, and Internet and load
- * balancers sit over the namespaces they route to.
+ * Topology reads top to bottom: each namespace is a block of tidy trees and
+ * pods pack in a grid under their parent. Flat, namespaces wrap into rows
+ * under Internet; otherwise one strip bends into a ring around it.
  */
-function layoutLayered(list: PlacedNode[], links: LayoutLink[]) {
+function layoutLayered(list: PlacedNode[], links: LayoutLink[], flat: boolean) {
   const tierY = TIER_Y.topology;
   const kids = childIndex(list);
   const rowY = (n: PlacedNode, parentY: number) => Math.min(tierY[n.tier] ?? parentY - MIN_TIER_GAP, parentY - MIN_TIER_GAP);
@@ -180,18 +185,17 @@ function layoutLayered(list: PlacedNode[], links: LayoutLink[]) {
     return { nodes: block, width: x - GAP, height: Math.max(...ys) - Math.min(...ys) };
   });
 
-  // Namespaces wrap into rows so a large cluster keeps a screen-like shape
-  // instead of one strip too wide to read at any zoom.
+  // Flat namespaces wrap into rows so a large cluster keeps a screen-like
+  // shape instead of one strip too wide to read at any zoom.
   const rowHeight = Math.max(0, ...blocks.map((b) => b.height)) + ROW_GAP;
   const totalWidth = blocks.reduce((sum, b) => sum + b.width + GROUP_GAP, 0);
-  const rowWidth = Math.max(
-    ...blocks.map((b) => b.width),
-    Math.ceil(Math.sqrt(ROW_ASPECT * totalWidth * rowHeight) / ROW_QUANTUM) * ROW_QUANTUM,
-  );
+  const rowWidth = flat
+    ? Math.max(...blocks.map((b) => b.width), Math.ceil(Math.sqrt(ROW_ASPECT * totalWidth * rowHeight) / ROW_QUANTUM) * ROW_QUANTUM)
+    : Infinity;
   const rows: (typeof blocks)[] = [];
-  let used = Infinity;
+  let used = 0;
   for (const b of blocks) {
-    if (used + b.width > rowWidth) {
+    if (rows.length === 0 || used + b.width > rowWidth) {
       rows.push([]);
       used = 0;
     }
@@ -199,7 +203,7 @@ function layoutLayered(list: PlacedNode[], links: LayoutLink[]) {
     used += b.width + GROUP_GAP;
   }
   rows.forEach((row, ri) => {
-    let x = (rowWidth - (row.reduce((sum, b) => sum + b.width + GROUP_GAP, 0) - GROUP_GAP)) / 2;
+    let x = flat ? (rowWidth - (row.reduce((sum, b) => sum + b.width + GROUP_GAP, 0) - GROUP_GAP)) / 2 : 0;
     for (const b of row) {
       for (const n of b.nodes) {
         n.tx += x;
@@ -209,24 +213,6 @@ function layoutLayered(list: PlacedNode[], links: LayoutLink[]) {
     }
   });
 
-  // Deepest shared tier first, so Internet centers over load balancers that
-  // are already centered over the namespaces they route to.
-  const neighbors = neighborIndex(links);
-  const placed = new Set(list.filter((n) => n.group !== "_"));
-  const shared = list.filter((n) => n.group === "_");
-  const tiers = [...new Set(shared.map((n) => n.tier))].sort((a, b) => b - a);
-  for (const tier of tiers) {
-    const row = shared.filter((n) => n.tier === tier);
-    for (const n of row) {
-      const xs = (neighbors.get(n.key) ?? []).filter((m) => placed.has(m) && m.tier > n.tier).map((m) => m.tx);
-      n.tx = xs.length > 0 ? xs.reduce((a, b) => a + b, 0) / xs.length : rowWidth / 2;
-      n.ty = tierY[tier] ?? 0;
-      n.tz = 0;
-    }
-    spreadRow(row);
-    for (const n of row) placed.add(n);
-  }
-
   for (const pod of list) {
     const refs = kids.refs(pod);
     refs.forEach((r, i) => {
@@ -234,6 +220,73 @@ function layoutLayered(list: PlacedNode[], links: LayoutLink[]) {
       r.ty = pod.ty - (gridDepth.get(pod.key) ?? 0) - REF_DROP;
       r.tz = pod.tz;
     });
+  }
+
+  if (!flat) bendIntoRing(list.filter((n) => n.group !== "_"));
+
+  // Deepest shared tier first, so Internet centers over load balancers that
+  // are already centered over the namespaces they route to. On the ring they
+  // are pulled toward its axis instead, so Internet ends up as the hub.
+  const neighbors = neighborIndex(links);
+  const placed = new Set(list.filter((n) => n.group !== "_"));
+  const shared = list.filter((n) => n.group === "_");
+  const tiers = [...new Set(shared.map((n) => n.tier))].sort((a, b) => b - a);
+  for (const tier of tiers) {
+    const row = shared.filter((n) => n.tier === tier);
+    for (const n of row) {
+      const below = (neighbors.get(n.key) ?? []).filter((m) => placed.has(m) && m.tier > n.tier);
+      const mean = (pick: (m: PlacedNode) => number) => below.reduce((sum, m) => sum + pick(m), 0) / below.length;
+      if (flat) {
+        n.tx = below.length > 0 ? mean((m) => m.tx) : rowWidth / 2;
+        n.tz = 0;
+      } else {
+        n.tx = below.length > 0 ? mean((m) => m.tx) * HUB_PULL : 0;
+        n.tz = below.length > 0 ? mean((m) => m.tz) * HUB_PULL : 0;
+      }
+      n.ty = tierY[tier] ?? 0;
+    }
+    if (flat) spreadRow(row);
+    else separate(row);
+    for (const n of row) placed.add(n);
+  }
+}
+
+/** Bends the strip around the vertical axis; a small cluster stays a gentle arc facing +z. */
+function bendIntoRing(list: PlacedNode[]) {
+  if (list.length === 0) return;
+  const xs = list.map((n) => n.tx);
+  const min = Math.min(...xs);
+  const max = Math.max(...xs);
+  const radius = Math.max(MIN_RING_RADIUS, (max - min + GROUP_GAP) / (2 * Math.PI));
+  const mid = (min + max) / 2;
+  for (const n of list) {
+    const theta = (n.tx - mid) / radius;
+    n.tx = Math.sin(theta) * radius;
+    n.tz = Math.cos(theta) * radius;
+  }
+}
+
+/** Pushes apart nodes of one tier that landed on top of each other in x/z. */
+function separate(row: PlacedNode[]) {
+  row.sort((a, b) => a.key.localeCompare(b.key));
+  for (let pass = 0; pass < 8; pass++) {
+    for (let i = 0; i < row.length; i++) {
+      for (let j = i + 1; j < row.length; j++) {
+        const a = row[i]!;
+        const b = row[j]!;
+        const min = (slot(a) + slot(b)) / 2;
+        let dx = b.tx - a.tx;
+        let dz = b.tz - a.tz;
+        let d = Math.hypot(dx, dz);
+        if (d >= min) continue;
+        if (d < 1e-6) [dx, dz, d] = [1, 0, 1];
+        const push = (min - d) / 2 / d;
+        a.tx -= dx * push;
+        a.tz -= dz * push;
+        b.tx += dx * push;
+        b.tz += dz * push;
+      }
+    }
   }
 }
 
@@ -394,7 +447,7 @@ function update(msg: Extract<ToWorker, { type: "update" }>) {
   for (const key of [...byKey.keys()]) if (!seen.has(key)) byKey.delete(key);
 
   const links = msg.links.filter((l) => byKey.has(l.source) && byKey.has(l.target));
-  if (msg.mode === "topology") layoutLayered(next, links);
+  if (msg.mode === "topology") layoutLayered(next, links, msg.dimension === "2d");
   else layoutRadial(next, links);
 
   // New nodes grow out of their parent's current position; on a view's first

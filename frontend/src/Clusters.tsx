@@ -38,7 +38,7 @@ export default function Clusters({ snapshot: data, dimension }: { snapshot: ApiC
   const graph = useMemo(() => clustersGraph && clustersWithRefs(clustersGraph, data, refsFor), [clustersGraph, data, refsFor]);
   const layoutInput = useMemo(() => (graph ? clustersLayoutInput(graph) : { nodes: [], links: [] }), [graph]);
   const labels = useMemo(() => (graph ? clustersLabels(graph) : []), [graph]);
-  const layout = useLayout("clusters", layoutInput.nodes, layoutInput.links);
+  const layout = useLayout("clusters", dimension, layoutInput.nodes, layoutInput.links);
 
   // Selection follows the object by key across snapshots. An object that
   // disappears stays in the panel marked deleted until the next snapshot.

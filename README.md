@@ -105,6 +105,40 @@ helm upgrade galaxy oci://ghcr.io/noeosorio/charts/porter-galaxy \
   --set ingress.host=galaxy.example.com
 ```
 
+Over plain HTTP, the password you type to sign in and the session cookie cross the network unencrypted. Use HTTPS whenever the URL is reachable from outside your network.
+
+### HTTPS with your own domain
+
+HTTPS is optional and needs a domain you control, plus [cert-manager](https://cert-manager.io) with a ClusterIssuer in the cluster (Porter clusters come with `letsencrypt-prod`).
+
+1. Create a DNS record for your host that points at the ingress controller's load balancer: a CNAME to its hostname, or an A record to its IP.
+
+   ```bash
+   kubectl get svc -n ingress-nginx ingress-nginx-controller \
+     -o jsonpath='{.status.loadBalancer.ingress[0].hostname}'
+   ```
+
+2. Set the host and the issuer:
+
+   ```yaml
+   ingress:
+     enabled: true
+     className: nginx
+     host: galaxy.example.com
+     tls:
+       clusterIssuer: letsencrypt-prod
+   ```
+
+   On Porter, paste this into the add-on's **Custom Values**. With Helm, pass it with `-f`.
+
+3. cert-manager requests the certificate and renews it on its own. It is usually ready within a couple of minutes:
+
+   ```bash
+   kubectl get certificate -n <namespace>   # READY True
+   ```
+
+Then open `https://galaxy.example.com`. Signed-in sessions over HTTPS use a Secure cookie. If you manage certificates another way, list standard Ingress `tls` entries under `ingress.tls.extra`.
+
 ### Who can see your cluster
 
 The chart installs with no Ingress and a `ClusterIP` Service, so only people with access to the cluster can reach it. Every option below still asks for the [Galaxy password](#signing-in).
@@ -262,7 +296,8 @@ The chart's most useful values:
 | `ingress.enabled`              | `false`                                  | Toggle Ingress object                       |
 | `ingress.className`            | `""`                                     | e.g. `nginx`, `alb`                         |
 | `ingress.host`                 | `""`                                     | Public DNS name                             |
-| `ingress.tls`                  | `[]`                                     | Standard `tls:` block (cert-manager works)  |
+| `ingress.tls.clusterIssuer`    | `""`                                     | cert-manager ClusterIssuer for `ingress.host` ([HTTPS](#https-with-your-own-domain)) |
+| `ingress.tls.extra`            | `[]`                                     | More standard Ingress `tls` entries         |
 | `backend.resources`            | 50m / 128Mi requests, 256Mi limit        | Backend requests and limits                 |
 | `frontend.resources`           | 10m / 32Mi requests, 64Mi limit          | Frontend requests and limits                |
 | `podSecurityContext`, `securityContext` | non-root, read-only root filesystem, no capabilities | Meet the "restricted" Pod Security Standard |

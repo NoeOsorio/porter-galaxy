@@ -76,4 +76,9 @@ ingress:
   className: ""
   annotations: {}
   host: ""
-  tls: []
+  # HTTPS for `host` through cert-manager: set clusterIssuer to an existing
+  # ClusterIssuer (e.g. letsencrypt-prod). `extra` takes standard Ingress tls
+  # entries for other setups; a plain list here is still accepted.
+  tls:
+    clusterIssuer: ""
+    extra: []

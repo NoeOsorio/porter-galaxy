@@ -66,8 +66,8 @@ reference cluster.
 
 **Independent Test**: quickstart.md §3 (needs a domain the operator controls)
 
-- [ ] T016 [US3] `ingress.tls.clusterIssuer` in `charts/porter-galaxy/values.yaml` and `charts/porter-galaxy/templates/ingress.yaml`: adds `cert-manager.io/cluster-issuer` and a TLS block for `ingress.host` with secret `<fullname>-tls`; `fail` with a clear message when set without `ingress.host`; keep accepting the previous list form of `ingress.tls` so existing installs render unchanged. Show `https://` in `charts/porter-galaxy/templates/NOTES.txt` when TLS is on.
-- [ ] T017 [US3] README "HTTPS with your own domain" (FR-009): the DNS record to create, the two values, how to check the certificate (`kubectl get certificate`), and the warning that without HTTPS the password and cookie cross the network unencrypted, in `README.md`.
+- [X] T016 [US3] `ingress.tls.clusterIssuer` in `charts/porter-galaxy/values.yaml` and `charts/porter-galaxy/templates/ingress.yaml`: adds `cert-manager.io/cluster-issuer` and a TLS block for `ingress.host` with secret `<fullname>-tls`; `fail` with a clear message when set without `ingress.host`; keep accepting the previous list form of `ingress.tls` so existing installs render unchanged. Show `https://` in `charts/porter-galaxy/templates/NOTES.txt` when TLS is on.
+- [X] T017 [US3] README "HTTPS with your own domain" (FR-009): the DNS record to create, the two values, how to check the certificate (`kubectl get certificate`), and the warning that without HTTPS the password and cookie cross the network unencrypted, in `README.md`.
 - [ ] T018 [US3] `make verify`, PR, merge, `make release VERSION=0.16.0`, upgrade the add-on; walk quickstart §3 if a domain is available, otherwise record that it was checked with `helm template` only.
 
 ---

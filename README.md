@@ -105,6 +105,18 @@ helm upgrade galaxy oci://ghcr.io/noeosorio/charts/porter-galaxy \
   --set ingress.host=galaxy.example.com
 ```
 
+### Who can see your cluster
+
+The chart installs with no Ingress and a `ClusterIP` Service, so only people with access to the cluster can reach it. Every option below still asks for the [Galaxy password](#signing-in).
+
+| How you open it | Who can reach the sign-in page | What crosses the network unencrypted |
+| --- | --- | --- |
+| `kubectl port-forward` (default) | People with `kubectl` access to the namespace | Nothing: the tunnel to the API server is encrypted |
+| Ingress or `LoadBalancer` over HTTP | Anyone who can reach the URL | The password when signing in, and the session cookie on every request |
+| Ingress with your own domain and HTTPS | Anyone who can reach the URL | Nothing |
+
+Galaxy never reads the contents of Secrets or ConfigMaps, only the names a Pod references, and its RBAC is read-only.
+
 ### Private GHCR images
 
 If your fork uses private container images, create a pull secret and pass it to the chart:
@@ -251,6 +263,9 @@ The chart's most useful values:
 | `ingress.className`            | `""`                                     | e.g. `nginx`, `alb`                         |
 | `ingress.host`                 | `""`                                     | Public DNS name                             |
 | `ingress.tls`                  | `[]`                                     | Standard `tls:` block (cert-manager works)  |
+| `backend.resources`            | 50m / 128Mi requests, 256Mi limit        | Backend requests and limits                 |
+| `frontend.resources`           | 10m / 32Mi requests, 64Mi limit          | Frontend requests and limits                |
+| `podSecurityContext`, `securityContext` | non-root, read-only root filesystem, no capabilities | Meet the "restricted" Pod Security Standard |
 | `serviceAccount.create`        | `true`                                   | Backend RBAC needs a ServiceAccount         |
 | `auth.enabled`                 | `true`                                   | Require sign-in for the app and API         |
 | `auth.username`                | `admin`                                  | Sign-in name                                |

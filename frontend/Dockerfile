@@ -10,13 +10,16 @@ COPY . .
 RUN npm run build
 
 # ── Stage 2: Serve ─────────────────────────────────────────────────────────────
-FROM nginx:1.27-alpine
+# Runs as UID 101 and keeps its pid and temp files in /tmp, so the pod can use
+# a read-only root filesystem with emptyDirs on /tmp and conf.d.
+FROM nginxinc/nginx-unprivileged:1.27-alpine
 
 COPY --from=builder /app/dist /usr/share/nginx/html
-COPY nginx.conf.template /etc/nginx/conf.d/default.conf.template
+# Outside conf.d: the chart mounts an emptyDir there for the rendered config.
+COPY nginx.conf.template /etc/nginx/galaxy.conf.template
 
-EXPOSE 80
+EXPOSE 8080
 
 # Substitute only $BACKEND_URL, leaving nginx $variables untouched
 CMD ["/bin/sh", "-c", \
-  "envsubst '$BACKEND_URL' < /etc/nginx/conf.d/default.conf.template > /etc/nginx/conf.d/default.conf && exec nginx -g 'daemon off;'"]
+  "envsubst '$BACKEND_URL' < /etc/nginx/galaxy.conf.template > /etc/nginx/conf.d/default.conf && exec nginx -g 'daemon off;'"]

@@ -50,10 +50,10 @@ reference cluster.
 
 **Independent Test**: quickstart.md §2
 
-- [ ] T011 [US2] Remove `Access-Control-Allow-Origin` from `backend/internal/api/handler.go` (the SSE handler and any other response).
-- [ ] T012 [P] [US2] Backend image and pod: `USER 65532:65532` in `backend/Dockerfile`; pod `runAsNonRoot` and `seccompProfile: RuntimeDefault`, container `allowPrivilegeEscalation: false`, `capabilities.drop: [ALL]`, `readOnlyRootFilesystem: true`, and default resources (50m/128Mi requests, 256Mi limit) in `charts/porter-galaxy/templates/backend-deployment.yaml` and `charts/porter-galaxy/values.yaml`.
-- [ ] T013 [P] [US2] Frontend image and pod: base `nginxinc/nginx-unprivileged:1.27-alpine` and the template moved out of `conf.d` in `frontend/Dockerfile`; `listen 8080` in `frontend/nginx.conf.template`; container port 8080, emptyDirs for `/tmp` and `/etc/nginx/conf.d`, the same security context, and default resources (10m/32Mi requests, 64Mi limit) in `charts/porter-galaxy/templates/frontend-deployment.yaml` and `charts/porter-galaxy/values.yaml`; keep the Service port at 80 targeting the named port.
-- [ ] T014 [US2] README: an "Exposure" table (port-forward / Ingress over HTTP / Ingress over HTTPS: who can see the topology, what crosses the network in clear), and the new resource and security defaults in the Configuration table, in `README.md`.
+- [X] T011 [US2] Remove `Access-Control-Allow-Origin` from `backend/internal/api/handler.go` (the SSE handler and any other response).
+- [X] T012 [P] [US2] Backend image and pod: `USER 65532:65532` in `backend/Dockerfile`; pod `runAsNonRoot` and `seccompProfile: RuntimeDefault`, container `allowPrivilegeEscalation: false`, `capabilities.drop: [ALL]`, `readOnlyRootFilesystem: true`, and default resources (50m/128Mi requests, 256Mi limit) in `charts/porter-galaxy/templates/backend-deployment.yaml` and `charts/porter-galaxy/values.yaml`.
+- [X] T013 [P] [US2] Frontend image and pod: base `nginxinc/nginx-unprivileged:1.27-alpine` and the template moved out of `conf.d` in `frontend/Dockerfile`; `listen 8080` in `frontend/nginx.conf.template`; container port 8080, emptyDirs for `/tmp` and `/etc/nginx/conf.d`, the same security context, and default resources (10m/32Mi requests, 64Mi limit) in `charts/porter-galaxy/templates/frontend-deployment.yaml` and `charts/porter-galaxy/values.yaml`; keep the Service port at 80 targeting the named port.
+- [X] T014 [US2] README: an "Exposure" table (port-forward / Ingress over HTTP / Ingress over HTTPS: who can see the topology, what crosses the network in clear), and the new resource and security defaults in the Configuration table, in `README.md`.
 - [ ] T015 [US2] `make verify`, `helm lint`, PR, merge, `make release VERSION=0.15.0`, upgrade the add-on, walk quickstart §2.
 
 **Checkpoint**: Both pods run as non-root with read-only filesystems; the add-on keeps working.

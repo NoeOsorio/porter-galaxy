@@ -57,16 +57,7 @@ const SIZE: Record<TopologyNodeType, number> = {
   secret: 10,
 };
 
-// Short, strong links keep a Deployment's pods tight around it; routing links
-// are looser so namespaces can spread.
-const LINK: Record<TopologyEdge["type"], { distance: number; strength: number }> = {
-  internet: { distance: 120, strength: 0.05 },
-  lb: { distance: 90, strength: 0.1 },
-  ingress: { distance: 60, strength: 0.3 },
-  service: { distance: 45, strength: 0.5 },
-  owns: { distance: 28, strength: 0.8 },
-  ref: { distance: 40, strength: 0.4 },
-};
+const ROLE: Partial<Record<TopologyNodeType, LayoutNode["role"]>> = { pod: "pod", pvc: "ref", configmap: "ref", secret: "ref" };
 
 type PartialNode = Omit<TopologyNode, "size" | "group" | "tier" | "parent">;
 
@@ -194,8 +185,8 @@ export function transformTopology(apiCluster: ApiCluster): TopologyGraph {
 
 export function topologyLayoutInput(graph: TopologyGraph): { nodes: LayoutNode[]; links: LayoutLink[] } {
   return {
-    nodes: graph.nodes.map((n) => ({ key: n.id, group: n.group, cluster: "_", tier: n.tier, radius: n.size, parent: n.parent })),
-    links: graph.edges.map((e) => ({ source: e.from, target: e.to, ...LINK[e.type] })),
+    nodes: graph.nodes.map((n) => ({ key: n.id, group: n.group, cluster: "_", tier: n.tier, radius: n.size, parent: n.parent, role: ROLE[n.type] })),
+    links: graph.edges.map((e) => ({ source: e.from, target: e.to })),
   };
 }
 
@@ -218,7 +209,7 @@ export function topologyLabels(graph: TopologyGraph): LabelCandidate[] {
   for (const n of graph.nodes) {
     const base = { id: n.id, text: n.name, keys: [n.id], radius: n.size };
     if (n.type === "workload") out.push({ ...base, rank: 2 - (podsPer.get(n.id) ?? 0) / maxPods, style: "primary" });
-    else if (n.type === "pod") out.push({ ...base, rank: 5, style: "detail", maxDistance: 260 });
+    else if (n.type === "pod") out.push({ ...base, rank: 5, style: "detail", maxDistance: 380 });
     else out.push({ ...base, rank: n.type === "internet" ? 2 : 3, style: "secondary" });
   }
   return out;

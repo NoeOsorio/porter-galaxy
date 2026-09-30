@@ -11,18 +11,19 @@ type ToWorker =
       mode: "topology" | "clusters";
       nodes: LayoutNode[];        // full current set, see data-model.md
       links: LayoutLink[];
-      first: boolean;             // true on the first snapshot of a view: alpha = 1
+      first: boolean;             // true on the first snapshot of a view: nodes start at their targets
     }
   | { type: "stop" };
 ```
 
-- `update` replaces the node and link sets. Nodes whose `key` already exists keep their position;
-  new nodes are seeded at `parent`'s position plus jitter (or at their group anchor if the parent
-  is unknown); removed nodes are dropped. Each `LayoutLink` carries `strength` and `distance`.
-- Restart energy: the first update starts at `alpha = 1`. Later updates that change ≤ 20% of the
-  nodes pin every node that is not new or a direct neighbor of a change and run a short local
-  relaxation (`alpha = 0.3`, faster decay). Larger changes re-relax everything from `alpha = 0.15`.
-  An update that arrives during a global relaxation joins it without raising its energy.
+- `update` replaces the node and link sets and recomputes a deterministic target for every node:
+  topology is a layered tree per namespace (pods in a grid under their parent, Internet and load
+  balancers centered over what they route to); clusters is radial (machines on an inner ring,
+  namespaces as arcs of an outer ring or spiral, pods clustered under their workload).
+  `role: "pod"` nodes pack around their parent; `role: "ref"` nodes hang off a pod.
+- Nodes ease toward their targets. New nodes start at `parent`'s current position (at their target
+  on the first update); removed nodes are dropped. Pods keep their slot in order of first
+  appearance, so churn only moves what changed and what sits after it.
 - `stop` halts ticking (view unmounted).
 
 ## Worker → main
@@ -32,10 +33,9 @@ type FromWorker = {
   type: "positions";
   keys: string[] | null;          // present only when the key order changed since the last message
   positions: Float32Array;        // transferable; x, y, z per key in order
-  alpha: number;
-  settled: boolean;               // alpha < alphaMin
+  settled: boolean;               // every node has reached its target
 };
 ```
 
-- Sent every second tick while the simulation runs, and once more when it settles.
+- Sent about every 16 ms while nodes move, and once more when they settle.
 - The main thread must treat `positions` as owned (it is transferred, not copied).

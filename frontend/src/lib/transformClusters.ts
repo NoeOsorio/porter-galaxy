@@ -31,16 +31,7 @@ const TYPE_COLORS = {
   pod: { color: "#5bffb0", glow: "#00cc66" },
 };
 
-// Pods stay tight around their workload; placement links (workload → the
-// nodes its pods run on) are weak so workloads group by namespace, not by node.
-const LINK: Record<ClusterGalaxyEdge["type"], { distance: number; strength: number }> = {
-  "cluster-node": { distance: 90, strength: 0.3 },
-  "node-workload": { distance: 160, strength: 0.02 },
-  "workload-workload": { distance: 40, strength: 0.6 },
-  "workload-pod": { distance: 26, strength: 0.8 },
-  "node-pod": { distance: 40, strength: 0.4 },
-  ref: { distance: 36, strength: 0.4 },
-};
+const ROLE: Partial<Record<ClusterGalaxyNode["type"], LayoutNode["role"]>> = { pod: "pod", pvc: "ref", configmap: "ref", secret: "ref" };
 
 // Cluster → Node → Workload → Pod, with CronJob → Job → Pod. Each workload
 // appears once per cluster and links to every node that runs one of its pods;
@@ -172,8 +163,16 @@ export function transformClusters(apiData: ApiClustersResponse): ClusterGalaxyGr
 
 export function clustersLayoutInput(graph: ClusterGalaxyGraph): { nodes: LayoutNode[]; links: LayoutLink[] } {
   return {
-    nodes: graph.nodes.map((n) => ({ key: n.id, group: n.group, cluster: n.cluster, tier: n.tier, radius: n.size, parent: n.parent })),
-    links: graph.edges.map((e) => ({ source: e.from, target: e.to, ...LINK[e.type] })),
+    nodes: graph.nodes.map((n) => ({
+      key: n.id,
+      group: n.group,
+      cluster: n.cluster,
+      tier: n.tier,
+      radius: n.size,
+      parent: n.parent,
+      role: ROLE[n.type],
+    })),
+    links: graph.edges.map((e) => ({ source: e.from, target: e.to })),
   };
 }
 

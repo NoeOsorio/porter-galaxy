@@ -34,8 +34,8 @@ function reportDisplacement(store: LayoutStore, baseline: Baseline) {
   console.info(`[galaxy] max unrelated displacement: ${((worst / width) * 100).toFixed(2)}% of layout width`);
 }
 
-/** Runs the force layout for one view in a worker and exposes positions through a store. */
-export function useForceLayout(mode: LayoutMode, nodes: LayoutNode[], links: LayoutLink[]): LayoutStore {
+/** Runs the layout for one view in a worker and exposes positions through a store. */
+export function useLayout(mode: LayoutMode, nodes: LayoutNode[], links: LayoutLink[]): LayoutStore {
   const [store] = useState(createLayoutStore);
   const worker = useRef<Worker | null>(null);
   const sentFirst = useRef(false);
@@ -66,7 +66,7 @@ export function useForceLayout(mode: LayoutMode, nodes: LayoutNode[], links: Lay
     };
   }, [store, mode]);
 
-  // Only structural changes restart the simulation; state-only snapshots
+  // Only structural changes recompute the layout; state-only snapshots
   // (colors, readiness) keep the current positions.
   useEffect(() => {
     const w = worker.current;

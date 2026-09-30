@@ -70,7 +70,6 @@ func (h *Handler) handleGraphSSE(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
-	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.Header().Set("Vary", "Accept-Encoding")
 	// Tell nginx (and similar proxies) not to buffer the stream.
 	w.Header().Set("X-Accel-Buffering", "no")

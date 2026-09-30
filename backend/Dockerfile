@@ -15,6 +15,9 @@ FROM scratch
 
 COPY --from=builder /bin/server /server
 
+# Numeric so the pod's runAsNonRoot check can verify it without a passwd file.
+USER 65532:65532
+
 EXPOSE 4000
 
 ENTRYPOINT ["/server"]

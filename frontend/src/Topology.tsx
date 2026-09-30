@@ -3,7 +3,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { EffectComposer, Bloom } from "@react-three/postprocessing";
 import CameraRig, { type CameraRigHandle } from "./components/CameraRig";
 import { useScene } from "./lib/sceneSlot";
-import { useForceLayout } from "./lib/layout/useForceLayout";
+import { useLayout } from "./lib/layout/useLayout";
 import type { ApiClustersResponse } from "./types/api";
 import { transformTopology, topologyLayoutInput, topologyLabels, topologyWithRefs } from "./lib/transformTopology";
 import DetailPanel from "./components/DetailPanel";
@@ -37,7 +37,7 @@ export default function Topology({ snapshot: data, dimension }: { snapshot: ApiC
   const graph = useMemo(() => topologyGraph && topologyWithRefs(topologyGraph, data?.clusters[selectedClusterIndex], refsFor), [topologyGraph, data, refsFor, selectedClusterIndex]);
   const layoutInput = useMemo(() => (graph ? topologyLayoutInput(graph) : { nodes: [], links: [] }), [graph]);
   const labels = useMemo(() => (graph ? topologyLabels(graph) : []), [graph]);
-  const layout = useForceLayout("topology", layoutInput.nodes, layoutInput.links);
+  const layout = useLayout("topology", dimension, layoutInput.nodes, layoutInput.links);
 
   // Selection follows the object by key across snapshots. An object that
   // disappears stays in the panel marked deleted until the next snapshot.
@@ -149,7 +149,7 @@ export default function Topology({ snapshot: data, dimension }: { snapshot: ApiC
         filteredNodes={filteredNodes}
         errorPods={errorPods}
       />
-      <CameraRig key={selectedClusterIndex} ref={rigRef} store={layout} nodes={graph.nodes} edges={graph.edges} azimuth={0.7} polar={1.15} mode={dimension} plane2d="front" />
+      <CameraRig key={selectedClusterIndex} ref={rigRef} store={layout} nodes={graph.nodes} edges={graph.edges} azimuth={0.25} polar={1.1} mode={dimension} plane2d="front" />
       <EffectComposer>
         <Bloom
           luminanceThreshold={0.2}

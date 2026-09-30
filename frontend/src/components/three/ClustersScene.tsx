@@ -82,7 +82,9 @@ export default function ClustersScene({
 
   const baseEdges = useMemo<EdgeList>(() => {
     const colors = new Float32Array(graph.edges.length * 3);
-    graph.edges.forEach((e, i) => writeColor(colors, i, e.color, family ? 0.12 : 0.3));
+    // Every workload links to each machine that runs one of its pods, so these
+    // edges cross the whole ring; they stay faint until a selection lights them.
+    graph.edges.forEach((e, i) => writeColor(colors, i, e.color, family ? 0.12 : e.type === "node-workload" ? 0.06 : 0.3));
     return { from: graph.edges.map((e) => e.from), to: graph.edges.map((e) => e.to), colors };
   }, [graph.edges, family]);
 

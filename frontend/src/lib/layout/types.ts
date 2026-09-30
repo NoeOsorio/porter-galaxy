@@ -11,25 +11,24 @@ export interface LayoutNode {
   /** Vertical band, 0 = top. */
   tier: number;
   radius: number;
-  /** Where a new node is seeded when it first appears. */
+  /** Tree parent; a new node grows out of its position. */
   parent?: string;
+  /** Pods pack around their parent; refs hang off a pod and take no layout space. */
+  role?: "pod" | "ref";
 }
 
 export interface LayoutLink {
   source: string;
   target: string;
-  strength: number;
-  distance: number;
 }
 
 export type ToWorker =
-  | { type: "update"; mode: LayoutMode; nodes: LayoutNode[]; links: LayoutLink[]; first: boolean }
+  | { type: "update"; mode: LayoutMode; dimension: "2d" | "3d"; nodes: LayoutNode[]; links: LayoutLink[]; first: boolean }
   | { type: "stop" };
 
 export interface FromWorker {
   type: "positions";
   keys: string[] | null;
   positions: Float32Array;
-  alpha: number;
   settled: boolean;
 }

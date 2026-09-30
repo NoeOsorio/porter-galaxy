@@ -4,7 +4,7 @@ import { Stars } from "@react-three/drei";
 import { EffectComposer, Bloom } from "@react-three/postprocessing";
 import CameraRig, { type CameraRigHandle } from "./components/CameraRig";
 import { useScene } from "./lib/sceneSlot";
-import { useForceLayout } from "./lib/layout/useForceLayout";
+import { useLayout } from "./lib/layout/useLayout";
 import type { ApiClustersResponse } from "./types/api";
 import { transformClusters, clustersLayoutInput, clustersLabels, clustersWithRefs } from "./lib/transformClusters";
 import DetailPanel from "./components/DetailPanel";
@@ -38,7 +38,7 @@ export default function Clusters({ snapshot: data, dimension }: { snapshot: ApiC
   const graph = useMemo(() => clustersGraph && clustersWithRefs(clustersGraph, data, refsFor), [clustersGraph, data, refsFor]);
   const layoutInput = useMemo(() => (graph ? clustersLayoutInput(graph) : { nodes: [], links: [] }), [graph]);
   const labels = useMemo(() => (graph ? clustersLabels(graph) : []), [graph]);
-  const layout = useForceLayout("clusters", layoutInput.nodes, layoutInput.links);
+  const layout = useLayout("clusters", dimension, layoutInput.nodes, layoutInput.links);
 
   // Selection follows the object by key across snapshots. An object that
   // disappears stays in the panel marked deleted until the next snapshot.

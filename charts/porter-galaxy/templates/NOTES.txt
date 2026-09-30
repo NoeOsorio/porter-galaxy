@@ -1,7 +1,7 @@
 Porter Galaxy has been deployed!
 
 {{- if .Values.ingress.enabled }}
-Access the UI at: http{{ if .Values.ingress.tls }}s{{ end }}://{{ .Values.ingress.host }}
+Access the UI at: http{{ if include "porter-galaxy.ingressTLS" . }}s{{ end }}://{{ .Values.ingress.host | default "<ingress load balancer address>" }}
 {{- else if eq .Values.service.type "LoadBalancer" }}
 Get the external IP by running:
   kubectl get svc {{ include "porter-galaxy.fullname" . }}-frontend -n {{ .Release.Namespace }} -w

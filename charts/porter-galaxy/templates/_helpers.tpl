@@ -61,3 +61,25 @@ ServiceAccount name.
 {{- define "porter-galaxy.authSecretName" -}}
 {{- .Values.auth.existingSecret | default (printf "%s-auth" (include "porter-galaxy.fullname" .)) -}}
 {{- end }}
+
+{{/* Ingress tls entries: the clusterIssuer certificate for ingress.host plus
+     `extra`, or the whole value when it is the older plain list. */}}
+{{- define "porter-galaxy.ingressTLS" -}}
+{{- $tls := .Values.ingress.tls -}}
+{{- if kindIs "slice" $tls -}}
+{{- toYaml $tls -}}
+{{- else -}}
+{{- $entries := list -}}
+{{- if $tls.clusterIssuer -}}
+{{- $entries = append $entries (dict "hosts" (list .Values.ingress.host) "secretName" (printf "%s-tls" (include "porter-galaxy.fullname" .))) -}}
+{{- end -}}
+{{- range ($tls.extra | default list) -}}
+{{- $entries = append $entries . -}}
+{{- end -}}
+{{- if $entries }}{{ toYaml $entries }}{{ end -}}
+{{- end -}}
+{{- end }}
+
+{{- define "porter-galaxy.clusterIssuer" -}}
+{{- if kindIs "map" .Values.ingress.tls }}{{ .Values.ingress.tls.clusterIssuer }}{{ end -}}
+{{- end }}

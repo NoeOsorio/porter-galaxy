@@ -1,3 +1,4 @@
+import type { LucideIcon } from "lucide-react";
 import type { ReactNode } from "react";
 import { motion } from "framer-motion";
 import { STATE_COLORS, type State } from "../lib/objectKey";
@@ -24,7 +25,7 @@ export interface PanelNode {
 
 interface Props {
   node: PanelNode;
-  icon: string;
+  icon: LucideIcon;
   typeLabel: string;
   details: ObjectDetails;
   deleted: boolean;
@@ -65,7 +66,7 @@ function UsageRow({ label, now, base, format, baseLabel }: { label: string; now:
 }
 
 /** Shared detail panel for the selected object in both views. */
-export default function DetailPanel({ node, icon, typeLabel, details, deleted, onClose, className }: Props) {
+export default function DetailPanel({ node, icon: Icon, typeLabel, details, deleted, onClose, className }: Props) {
   const { owners, hpa, policies, refs, pvc, pod, warnings, usage } = details;
   const meta = node.metadata ?? {};
   const refRows: [string, string[] | undefined][] = [
@@ -87,8 +88,9 @@ export default function DetailPanel({ node, icon, typeLabel, details, deleted, o
         style={{ borderColor: node.color + "33" }}
       >
         <div className="flex justify-between items-start mb-3">
-          <div className="font-semibold text-[15px]" style={{ color: node.color }}>
-            {icon} {node.name}
+          <div className="flex items-center gap-2 font-semibold text-[15px]" style={{ color: node.color }}>
+            <Icon className="size-4 shrink-0" aria-hidden />
+            {node.name}
             {deleted && <span className="ml-2 text-[10px] font-normal text-red-400">deleted</span>}
           </div>
           <button

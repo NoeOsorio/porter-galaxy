@@ -4,7 +4,12 @@
 
 **Created**: 2026-09-25
 
-**Status**: Backlog
+**Status**: Dropped (2026-10-01)
+
+> Galaxy is an open-source Helm chart that shows the cluster it is installed in. A registry mode
+> would tie it to a Porter API token, and a hub with agents is a separate product. To see several
+> clusters, install Galaxy in each. The unused Porter registry client was removed. This file stays
+> as the record of the decision.
 
 **Input**: User description: "It used to be a backend + frontend app that showed many clusters.
 Since it became a Helm chart installed in one cluster, multi-cluster lost its point."

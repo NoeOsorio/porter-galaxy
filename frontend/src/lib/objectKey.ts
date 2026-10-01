@@ -1,3 +1,4 @@
+import { Boxes, Cog, Database, FileText, HardDrive, KeyRound, Satellite, Timer, type LucideIcon } from "lucide-react";
 import type { ApiPod } from "../types/api";
 
 // Mirrors backend/internal/cluster/keys.go; change both together.
@@ -16,12 +17,12 @@ export type WorkloadKind = "Deployment" | "StatefulSet" | "DaemonSet" | "Job" | 
 export const WORKLOAD_KINDS: WorkloadKind[] = ["Deployment", "StatefulSet", "DaemonSet", "Job", "CronJob"];
 
 // One orange family so every kind reads as "workload", with a hue step per kind.
-export const WORKLOAD_STYLE: Record<WorkloadKind, { color: string; glow: string; icon: string }> = {
-  Deployment: { color: "#fb923c", glow: "#ea580c", icon: "📦" },
-  StatefulSet: { color: "#f59e0b", glow: "#d97706", icon: "🗄️" },
-  DaemonSet: { color: "#fbbf24", glow: "#ca8a04", icon: "🛰️" },
-  Job: { color: "#fdba74", glow: "#f97316", icon: "⚙️" },
-  CronJob: { color: "#fcd34d", glow: "#eab308", icon: "⏱️" },
+export const WORKLOAD_STYLE: Record<WorkloadKind, { color: string; glow: string; icon: LucideIcon }> = {
+  Deployment: { color: "#fb923c", glow: "#ea580c", icon: Boxes },
+  StatefulSet: { color: "#f59e0b", glow: "#d97706", icon: Database },
+  DaemonSet: { color: "#fbbf24", glow: "#ca8a04", icon: Satellite },
+  Job: { color: "#fdba74", glow: "#f97316", icon: Cog },
+  CronJob: { color: "#fcd34d", glow: "#eab308", icon: Timer },
 };
 
 export function isWorkloadKind(kind: string | undefined): kind is WorkloadKind {
@@ -34,10 +35,10 @@ export function workloadKey(kind: WorkloadKind, namespace: string, name: string)
 
 export type RefKind = "pvc" | "configmap" | "secret";
 
-export const REF_STYLE: Record<RefKind, { color: string; glow: string; icon: string; label: string }> = {
-  pvc: { color: "#60a5fa", glow: "#2563eb", icon: "💾", label: "PVC" },
-  configmap: { color: "#c084fc", glow: "#9333ea", icon: "📄", label: "ConfigMap" },
-  secret: { color: "#f87171", glow: "#dc2626", icon: "🔑", label: "Secret" },
+export const REF_STYLE: Record<RefKind, { color: string; glow: string; icon: LucideIcon; label: string }> = {
+  pvc: { color: "#60a5fa", glow: "#2563eb", icon: HardDrive, label: "PVC" },
+  configmap: { color: "#c084fc", glow: "#9333ea", icon: FileText, label: "ConfigMap" },
+  secret: { color: "#f87171", glow: "#dc2626", icon: KeyRound, label: "Secret" },
 };
 
 export const STATE_COLORS: Record<State, { color: string; glow: string }> = {

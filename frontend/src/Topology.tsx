@@ -1,5 +1,6 @@
-import { useState, useMemo, useRef, useEffect } from "react";
+import { createElement, useState, useMemo, useRef, useEffect } from "react";
 import { AnimatePresence, motion } from "framer-motion";
+import { Siren } from "lucide-react";
 import { EffectComposer, Bloom } from "@react-three/postprocessing";
 import CameraRig, { type CameraRigHandle } from "./components/CameraRig";
 import { useScene } from "./lib/sceneSlot";
@@ -343,7 +344,7 @@ export default function Topology({ snapshot: data, dimension }: { snapshot: ApiC
               ease: "easeInOut",
             }}
           >
-            <span className="text-base">🚨</span>
+            <Siren className="size-4" aria-hidden />
             <span>{errorPods.length} ERROR{errorPods.length > 1 ? 'S' : ''}</span>
           </motion.button>
         )}
@@ -423,7 +424,7 @@ export default function Topology({ snapshot: data, dimension }: { snapshot: ApiC
           >
             <div className="bg-[rgba(8,8,25,0.9)] border border-white/[0.08] rounded-xl py-3.5 px-[18px] text-white/70 text-[11px] leading-[1.9] backdrop-blur-xl">
               <div className="flex items-center gap-2 mb-1.5">
-                <span className="text-base">{describeNode(hovered.type, hovered.kind).icon}</span>
+                {createElement(describeNode(hovered.type, hovered.kind).icon, { className: "size-4 shrink-0", style: { color: hovered.color }, "aria-hidden": true })}
                 <div>
                   <div
                     className="font-medium text-[13px]"

@@ -1,3 +1,4 @@
+import { Atom, Circle, DoorOpen, Globe, Orbit, Scale, Server, Shuffle, type LucideIcon } from "lucide-react";
 import type { ApiCluster, ApiHPA, ApiPod, ApiRefs, ApiResources, ApiWorkload, ApiPVC, ApiWarning } from "../types/api";
 import { REF_STYLE, WORKLOAD_STYLE, isWorkloadKind, parseKey, workloadKey, type RefKind, type WorkloadKind } from "./objectKey";
 
@@ -15,14 +16,14 @@ export interface ObjectDetails {
   usage?: { now: ApiResources; base?: ApiResources; baseLabel: "requested" | "allocatable" };
 }
 
-const TYPE_ICONS: Record<string, string> = {
-  internet: "🌐",
-  loadbalancer: "⚖️",
-  ingress: "🚪",
-  service: "🔀",
-  pod: "⚛️",
-  cluster: "🌌",
-  node: "🖥️",
+const TYPE_ICONS: Record<string, LucideIcon> = {
+  internet: Globe,
+  loadbalancer: Scale,
+  ingress: DoorOpen,
+  service: Shuffle,
+  pod: Atom,
+  cluster: Orbit,
+  node: Server,
 };
 
 const TYPE_LABELS: Record<string, string> = {
@@ -36,10 +37,10 @@ const TYPE_LABELS: Record<string, string> = {
 };
 
 /** Icon and label for any node type the views draw. */
-export function describeNode(type: string, kind?: WorkloadKind): { icon: string; label: string } {
+export function describeNode(type: string, kind?: WorkloadKind): { icon: LucideIcon; label: string } {
   if (type === "workload" && kind) return { icon: WORKLOAD_STYLE[kind].icon, label: kind };
   if (type in REF_STYLE) return { icon: REF_STYLE[type as RefKind].icon, label: REF_STYLE[type as RefKind].label };
-  return { icon: TYPE_ICONS[type] ?? "•", label: TYPE_LABELS[type] ?? type };
+  return { icon: TYPE_ICONS[type] ?? Circle, label: TYPE_LABELS[type] ?? type };
 }
 
 /** Everything the detail panel shows about the object with `key` in `cluster`. */

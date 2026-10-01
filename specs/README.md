@@ -10,7 +10,7 @@ Only the next spec has a plan and tasks; the rest are planned when they become n
 | 003 | [Workload coverage and health](003-workload-coverage-and-health/spec.md) | Done (0.9.0–0.12.0) · [tasks](003-workload-coverage-and-health/tasks.md) | 001 |
 | 004 | [Multi-cluster hub](004-multi-cluster-hub/spec.md) | Dropped: one install per cluster | — |
 | 005 | [Access control](005-access-control/spec.md) | Done (0.13.0, 0.15.0, 0.16.0) · [tasks](005-access-control/tasks.md) | — |
-| 006 | [Explore and share](006-explore-and-share/spec.md) | Clarified | 002, 003, 005 |
+| 006 | [Explore and share](006-explore-and-share/spec.md) | Planned · [tasks](006-explore-and-share/tasks.md) | 002, 003, 005 |
 
 To start the next spec: set `.specify/feature.json` to its directory, then run `/speckit-plan` and
 `/speckit-tasks`. To build a slice: `/speckit-implement` on its phase.

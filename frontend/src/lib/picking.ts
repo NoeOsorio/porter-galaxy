@@ -27,6 +27,8 @@ export function pickNode(
   let best: string | null = null;
   let bestDistance = Infinity;
   for (let i = 0; i < keys.length; i++) {
+    // Radius 0 marks a node hidden by a namespace focus.
+    if (radii[i]! <= 0) continue;
     const j = store.index.get(keys[i]!);
     if (j === undefined) continue;
     scratch.set(store.positions[j * 3]!, store.positions[j * 3 + 1]!, store.positions[j * 3 + 2]!);

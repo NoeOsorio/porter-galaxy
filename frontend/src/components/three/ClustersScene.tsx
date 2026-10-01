@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import type { ClusterGalaxyNode, ClusterGalaxyGraph } from "../../types/clusters";
 import type { LayoutStore } from "../../lib/layout/layoutStore";
 import { usePicking } from "../../lib/picking";
+import { DOT_COLOR, DOT_RADIUS, type FocusView } from "../../lib/focus";
 import { writeColor } from "../../lib/colorBuffers";
 import NodeInstances, { type NodeAttributes } from "./NodeInstances";
 import EdgeSegments, { type EdgeList } from "./EdgeSegments";
@@ -16,6 +17,8 @@ interface ClustersSceneProps {
   selectedNode: ClusterGalaxyNode | null;
   filteredNodes: Set<string>;
   errorPods: ClusterGalaxyNode[];
+  /** Namespace focus: hidden nodes are not drawn or pickable; dots stand in for other namespaces. */
+  focus: FocusView | null;
 }
 
 const FAMILY_COLOR = "#00d4ff";
@@ -49,6 +52,7 @@ export default function ClustersScene({
   selectedNode,
   filteredNodes,
   errorPods,
+  focus,
 }: ClustersSceneProps) {
   const nodesById = useMemo(() => new Map(graph.nodes.map((n) => [n.id, n])), [graph.nodes]);
   const family = useMemo(() => (selectedNode ? findFamily(selectedNode.id, graph) : null), [selectedNode, graph]);
@@ -76,17 +80,28 @@ export default function ClustersScene({
       attrs.blink[i] = failing.has(node.id) ? 1 : 0;
       attrs.pulse[i] = node.pulse ? 1 : 0;
       attrs.glowOpacities[i] = attrs.opacities[i]! * (1 + load);
+      if (focus?.hidden.has(node.id)) {
+        attrs.radii[i] = 0;
+        attrs.opacities[i] = attrs.glowOpacities[i] = 0;
+      } else if (focus?.dots.has(node.id)) {
+        writeColor(attrs.colors, i, DOT_COLOR);
+        writeColor(attrs.glowColors, i, DOT_COLOR);
+        attrs.radii[i] = DOT_RADIUS;
+        attrs.glowOpacities[i] = 0.3;
+        attrs.blink[i] = attrs.pulse[i] = 0;
+      }
     });
     return attrs;
-  }, [graph.nodes, family, filteredNodes, errorPods]);
+  }, [graph.nodes, family, filteredNodes, errorPods, focus]);
 
   const baseEdges = useMemo<EdgeList>(() => {
-    const colors = new Float32Array(graph.edges.length * 3);
+    const edges = focus ? graph.edges.filter((e) => !focus.hidden.has(e.from) && !focus.hidden.has(e.to)) : graph.edges;
+    const colors = new Float32Array(edges.length * 3);
     // Every workload links to each machine that runs one of its pods, so these
     // edges cross the whole ring; they stay faint until a selection lights them.
-    graph.edges.forEach((e, i) => writeColor(colors, i, e.color, family ? 0.12 : e.type === "node-workload" ? 0.06 : 0.3));
-    return { from: graph.edges.map((e) => e.from), to: graph.edges.map((e) => e.to), colors };
-  }, [graph.edges, family]);
+    edges.forEach((e, i) => writeColor(colors, i, e.color, family ? 0.12 : e.type === "node-workload" ? 0.06 : 0.3));
+    return { from: edges.map((e) => e.from), to: edges.map((e) => e.to), colors };
+  }, [graph.edges, family, focus]);
 
   const familyEdges = useMemo<EdgeList>(() => {
     const list = family ? graph.edges.filter((e) => family.edges.has(`${e.from}|${e.to}`)) : [];

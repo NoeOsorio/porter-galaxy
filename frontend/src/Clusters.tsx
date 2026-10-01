@@ -15,6 +15,10 @@ import Labels from "./components/Labels";
 import ClustersScene from "./components/three/ClustersScene";
 import type { ClusterGalaxyNode } from "./types/clusters";
 import { STATE_COLORS, WORKLOAD_KINDS, WORKLOAD_STYLE, type State } from "./lib/objectKey";
+import { focusLabels, focusView } from "./lib/focus";
+
+/** A node's namespace group within its cluster, or null for clusters and machines. */
+const groupOf = (node: ClusterGalaxyNode) => (node.group === "_" ? null : `${node.cluster}/${node.group}`);
 
 function stateColor(state?: State): string {
   return state ? STATE_COLORS[state].color : "#ffffff";
@@ -38,7 +42,9 @@ export default function Clusters({ snapshot: data, dimension }: { snapshot: ApiC
   const [refsFor, setRefsFor] = useState<string | null>(null);
   const graph = useMemo(() => clustersGraph && clustersWithRefs(clustersGraph, data, refsFor), [clustersGraph, data, refsFor]);
   const layoutInput = useMemo(() => (graph ? clustersLayoutInput(graph) : { nodes: [], links: [] }), [graph]);
-  const labels = useMemo(() => (graph ? clustersLabels(graph) : []), [graph]);
+  const [focusGroup, setFocusGroup] = useState<string | null>(null);
+  const focus = useMemo(() => (graph ? focusView(graph.nodes, groupOf, focusGroup) : null), [graph, focusGroup]);
+  const labels = useMemo(() => focusLabels(graph ? clustersLabels(graph) : [], focus), [graph, focus]);
   const layout = useLayout("clusters", dimension, layoutInput.nodes, layoutInput.links);
 
   // Selection follows the object by key across snapshots. An object that
@@ -90,22 +96,40 @@ export default function Clusters({ snapshot: data, dimension }: { snapshot: ApiC
     );
   }, [graph]);
 
+  const focusNamespace = (group: string) => {
+    if (selected && groupOf(selected) !== null && groupOf(selected) !== group) setSelected(null);
+    setFocusGroup(group);
+    rigRef.current?.frame(graph?.nodes.filter((n) => groupOf(n) === group).map((n) => n.id));
+  };
+
+  // Escape steps back: the selection first, then the namespace focus.
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && selected) {
+      if (e.key !== "Escape") return;
+      if (selected) {
         setSelected(null);
+      } else if (focus) {
+        setFocusGroup(null);
+        rigRef.current?.frame();
       }
     };
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [selected]);
+  }, [selected, focus]);
 
   const handleDoubleClick = (node: ClusterGalaxyNode) => {
     rigRef.current?.flyTo(node.id);
   };
 
   const handleNodeClick = (node: ClusterGalaxyNode) => {
+    const dotOf = focus?.dots.get(node.id);
+    if (dotOf) {
+      focusNamespace(dotOf);
+      return;
+    }
+    // Search and the error button can pick a node the focus hides.
+    if (focus?.hidden.has(node.id)) setFocusGroup(null);
     setSelected(node);
     rigRef.current?.flyTo(node.id);
   };
@@ -124,6 +148,7 @@ export default function Clusters({ snapshot: data, dimension }: { snapshot: ApiC
   const handleResetView = () => {
     rigRef.current?.frame();
     setSelected(null);
+    setFocusGroup(null);
   };
 
   const handleAlarmClick = () => {
@@ -161,7 +186,7 @@ export default function Clusters({ snapshot: data, dimension }: { snapshot: ApiC
     <>
       <color attach="background" args={["#05050f"]} />
       <fog attach="fog" args={["#05050f", 1200, 3000]} />
-      <Labels store={layout} candidates={labels} />
+      <Labels store={layout} candidates={labels} onGroupClick={focusNamespace} />
       <ClustersScene
         graph={graph}
         store={layout}
@@ -172,6 +197,7 @@ export default function Clusters({ snapshot: data, dimension }: { snapshot: ApiC
         onDoubleClick={handleDoubleClick}
         filteredNodes={filteredNodes}
         errorPods={errorPods}
+        focus={focus}
       />
       <CameraRig ref={rigRef} store={layout} nodes={graph.nodes} edges={graph.edges} azimuth={0.8} polar={0.95} mode={dimension} plane2d="top" />
       <Stars radius={1500} depth={500} count={3000} factor={3} />
@@ -529,6 +555,7 @@ export default function Clusters({ snapshot: data, dimension }: { snapshot: ApiC
             deleted={selectionMissing}
             onClose={() => setSelected(null)}
             className={"top-[400px]"}
+            onFocusNamespace={groupOf(selected) && groupOf(selected) !== focus?.group ? () => focusNamespace(groupOf(selected)!) : undefined}
           />
         )}
       </AnimatePresence>

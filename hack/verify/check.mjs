@@ -3,7 +3,7 @@
 // fake stream and preview server.
 //
 // Usage: node check.mjs <scenario> <url> <out-dir>
-// Scenarios: functional | labels | layout | perf | webgl | stream | nometrics | auth
+// Scenarios: functional | labels | layout | perf | webgl | stream | nometrics | auth | focus
 // Env: THROTTLE (CPU slowdown factor for perf), CHROME (browser binary),
 // FAKE_BIN/FAKE_PID/FAKE_ARGS (stream: the fake stream to restart).
 
@@ -126,7 +126,7 @@ async function orbit() {
 await send("Page.enable");
 await send("Runtime.enable");
 if (scenario === "stream") await send("Network.enable");
-if (scenario === "perf" && process.env.THROTTLE) await send("Emulation.setCPUThrottlingRate", { rate: Number(process.env.THROTTLE) });
+if ((scenario === "perf" || scenario === "focus") && process.env.THROTTLE) await send("Emulation.setCPUThrottlingRate", { rate: Number(process.env.THROTTLE) });
 await send("Page.navigate", { url });
 await sleep(9000);
 
@@ -312,6 +312,47 @@ if (scenario === "auth") {
   if (!result.signedIn) failures.push("correct password did not load the Topology view");
   if (!result.signedOut) failures.push("sign out did not return to the login form");
   if (result.streamAfterSignOut !== 401) failures.push(`stream after sign-out returned ${result.streamAfterSignOut}, not 401`);
+}
+
+if (scenario === "focus") {
+  const focusGroup = (name) =>
+    ev(`(() => { const els = [...document.querySelectorAll('[data-group]')].filter((e) => e.dataset.group && e.style.display === 'block');
+      const el = els.find((e) => e.dataset.group === ${JSON.stringify(name)}) ?? els[0]; el?.click(); return el?.dataset.group ?? null; })()`);
+  const escape = async () => {
+    for (const type of ["keyDown", "keyUp"]) await send("Input.dispatchKeyEvent", { type, key: "Escape", code: "Escape", windowsVirtualKeyCode: 27 });
+    await sleep(800);
+  };
+  result.before = await labelStats();
+  result.focused = await focusGroup("ns-03");
+  await sleep(2500);
+  result.during = await labelStats();
+  await shot("focused");
+  result.fps = await orbit();
+  await escape();
+  await escape();
+  await sleep(1500);
+  result.after = await labelStats();
+  const primary = (s) => s.byStyle.primary ?? 0;
+  if (!result.focused) failures.push("no clickable namespace label");
+  if (primary(result.during) === 0 || primary(result.during) > 8) failures.push(`focused view shows ${primary(result.during)} workload labels, expected 1-8 (one namespace)`);
+  // The camera frames the focused namespace, so only nearby dots stay on screen.
+  if ((result.during.byStyle.group ?? 0) < 3) failures.push("collapsed namespaces lost their labels");
+  if (primary(result.after) < primary(result.before) - 5) failures.push(`after Escape only ${primary(result.after)} workload labels (was ${primary(result.before)})`);
+  if (result.fps.avgFps < 30) failures.push(`focused view at ${result.fps.avgFps} fps (budget ≥ 30)`);
+
+  await clickButton("Clusters");
+  await sleep(6000);
+  result.clustersBefore = await labelStats();
+  result.clustersFocused = await focusGroup("fake/ns-03");
+  await sleep(2500);
+  result.clustersDuring = await labelStats();
+  await shot("clusters-focused");
+  await escape();
+  await sleep(1500);
+  result.clustersAfter = await labelStats();
+  if (!result.clustersFocused) failures.push("Clusters: no clickable namespace label");
+  if (primary(result.clustersDuring) > 8) failures.push(`Clusters: focused view shows ${primary(result.clustersDuring)} workload labels`);
+  if (primary(result.clustersAfter) < primary(result.clustersBefore) - 5) failures.push("Clusters: Escape did not restore the namespaces");
 }
 
 if (scenario === "webgl") {

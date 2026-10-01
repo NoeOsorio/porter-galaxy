@@ -21,6 +21,8 @@ export interface LabelCandidate {
   maxDistance?: number;
   /** Radius of the anchored node, so the label sits just below it. */
   radius?: number;
+  /** Namespace group key on `group` labels; clicking the label focuses it. */
+  group?: string;
 }
 
 const MAX_LABELS = 60;
@@ -38,6 +40,7 @@ const CLASS: Record<LabelStyle, string> = {
 interface Props {
   store: LayoutStore;
   candidates: LabelCandidate[];
+  onGroupClick?: (group: string) => void;
 }
 
 /**
@@ -45,7 +48,7 @@ interface Props {
  * a fixed pool of DOM elements directly each frame, so labels never trigger
  * React renders.
  */
-export default function Labels({ store, candidates }: Props) {
+export default function Labels({ store, candidates, onGroupClick }: Props) {
   const { gl, camera, size } = useThree();
   const ordered = useMemo(() => {
     const byRank = [...candidates].sort((a, b) => a.rank - b.rank);
@@ -60,6 +63,10 @@ export default function Labels({ store, candidates }: Props) {
   // Label sizes measured once per (style, text); collision checks run every frame.
   const sizes = useRef(new Map<string, [number, number]>());
   const measurer = useRef<HTMLDivElement | null>(null);
+  const onGroupClickRef = useRef(onGroupClick);
+  useEffect(() => {
+    onGroupClickRef.current = onGroupClick;
+  }, [onGroupClick]);
 
   useEffect(() => {
     const container = document.createElement("div");
@@ -74,6 +81,11 @@ export default function Labels({ store, candidates }: Props) {
     probe.style.visibility = "hidden";
     container.appendChild(probe);
     measurer.current = probe;
+    // Only group labels take pointer events; the click bubbles here.
+    container.addEventListener("click", (e) => {
+      const group = (e.target as HTMLElement).dataset.group;
+      if (group) onGroupClickRef.current?.(group);
+    });
     gl.domElement.parentElement?.appendChild(container);
     return () => {
       container.remove();
@@ -152,6 +164,12 @@ export default function Labels({ store, candidates }: Props) {
       if (el.dataset.style !== c.style) {
         el.dataset.style = c.style;
         el.className = `${BASE_CLASS} ${CLASS[c.style]}`;
+      }
+      const group = onGroupClickRef.current && c.group !== undefined ? c.group : "";
+      if ((el.dataset.group ?? "") !== group) {
+        el.dataset.group = group;
+        el.style.pointerEvents = group ? "auto" : "none";
+        el.style.cursor = group ? "pointer" : "";
       }
       el.style.transform = `translate(${left.toFixed(1)}px, ${top.toFixed(1)}px)`;
       el.style.display = "block";

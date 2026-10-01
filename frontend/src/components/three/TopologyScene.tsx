@@ -5,6 +5,7 @@ import type { TopologyNode, TopologyGraph, TopologyEdge } from "../../types/topo
 import type { LayoutStore } from "../../lib/layout/layoutStore";
 import { readPosition } from "../../lib/layout/layoutStore";
 import { usePicking } from "../../lib/picking";
+import { DOT_COLOR, DOT_RADIUS, type FocusView } from "../../lib/focus";
 import { writeColor } from "../../lib/colorBuffers";
 import { solidDiscTexture } from "../../lib/discTextures";
 import NodeInstances, { type NodeAttributes } from "./NodeInstances";
@@ -20,6 +21,8 @@ interface TopologySceneProps {
   selectedNode: TopologyNode | null;
   filteredNodes: Set<string>;
   errorPods: TopologyNode[];
+  /** Namespace focus: hidden nodes are not drawn or pickable; dots stand in for other namespaces. */
+  focus: FocusView | null;
 }
 
 const PARTICLES = 5;
@@ -56,6 +59,7 @@ export default function TopologyScene({
   selectedNode,
   filteredNodes,
   errorPods,
+  focus,
 }: TopologySceneProps) {
   const particleRefs = useRef<(THREE.Group | null)[]>([]);
   const progress = useRef(0);
@@ -86,15 +90,26 @@ export default function TopologyScene({
       attrs.blink[i] = failing.has(node.id) ? 1 : 0;
       attrs.pulse[i] = node.pulse ? 1 : 0;
       attrs.glowOpacities[i] = attrs.opacities[i]! * (1 + load);
+      if (focus?.hidden.has(node.id)) {
+        attrs.radii[i] = 0;
+        attrs.opacities[i] = attrs.glowOpacities[i] = 0;
+      } else if (focus?.dots.has(node.id)) {
+        writeColor(attrs.colors, i, DOT_COLOR);
+        writeColor(attrs.glowColors, i, DOT_COLOR);
+        attrs.radii[i] = DOT_RADIUS;
+        attrs.glowOpacities[i] = 0.3;
+        attrs.blink[i] = attrs.pulse[i] = 0;
+      }
     });
     return attrs;
-  }, [graph.nodes, flowPath, filteredNodes, errorPods]);
+  }, [graph.nodes, flowPath, filteredNodes, errorPods, focus]);
 
   const baseEdges = useMemo<EdgeList>(() => {
-    const colors = new Float32Array(graph.edges.length * 3);
-    graph.edges.forEach((e, i) => writeColor(colors, i, e.color, e.active ? 0.6 : 0.25));
-    return { from: graph.edges.map((e) => e.from), to: graph.edges.map((e) => e.to), colors };
-  }, [graph.edges]);
+    const edges = focus ? graph.edges.filter((e) => !focus.hidden.has(e.from) && !focus.hidden.has(e.to)) : graph.edges;
+    const colors = new Float32Array(edges.length * 3);
+    edges.forEach((e, i) => writeColor(colors, i, e.color, e.active ? 0.6 : 0.25));
+    return { from: edges.map((e) => e.from), to: edges.map((e) => e.to), colors };
+  }, [graph.edges, focus]);
 
   const pathEdges = useMemo<EdgeList>(() => {
     const colors = new Float32Array(flowPath.length * 3);

@@ -14,6 +14,10 @@ import Labels from "./components/Labels";
 import TopologyScene from "./components/three/TopologyScene";
 import type { TopologyNode } from "./types/topology";
 import { STATE_COLORS, WORKLOAD_KINDS, WORKLOAD_STYLE, type State } from "./lib/objectKey";
+import { focusLabels, focusView } from "./lib/focus";
+
+/** A node's namespace group, or null for Internet and load balancers. */
+const groupOf = (node: TopologyNode) => (node.group === "_" ? null : node.group);
 
 function stateColor(state?: State): string {
   return state ? STATE_COLORS[state].color : "#ffffff";
@@ -37,7 +41,9 @@ export default function Topology({ snapshot: data, dimension }: { snapshot: ApiC
   const [refsFor, setRefsFor] = useState<string | null>(null);
   const graph = useMemo(() => topologyGraph && topologyWithRefs(topologyGraph, data?.clusters[selectedClusterIndex], refsFor), [topologyGraph, data, refsFor, selectedClusterIndex]);
   const layoutInput = useMemo(() => (graph ? topologyLayoutInput(graph) : { nodes: [], links: [] }), [graph]);
-  const labels = useMemo(() => (graph ? topologyLabels(graph) : []), [graph]);
+  const [focusGroup, setFocusGroup] = useState<string | null>(null);
+  const focus = useMemo(() => (graph ? focusView(graph.nodes, groupOf, focusGroup) : null), [graph, focusGroup]);
+  const labels = useMemo(() => focusLabels(graph ? topologyLabels(graph) : [], focus), [graph, focus]);
   const layout = useLayout("topology", dimension, layoutInput.nodes, layoutInput.links);
 
   // Selection follows the object by key across snapshots. An object that
@@ -87,22 +93,40 @@ export default function Topology({ snapshot: data, dimension }: { snapshot: ApiC
     );
   }, [graph]);
 
+  const focusNamespace = (group: string) => {
+    if (selected && groupOf(selected) !== null && groupOf(selected) !== group) setSelected(null);
+    setFocusGroup(group);
+    rigRef.current?.frame(graph?.nodes.filter((n) => groupOf(n) === group).map((n) => n.id));
+  };
+
+  // Escape steps back: the selection first, then the namespace focus.
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && selected) {
+      if (e.key !== "Escape") return;
+      if (selected) {
         setSelected(null);
+      } else if (focus) {
+        setFocusGroup(null);
+        rigRef.current?.frame();
       }
     };
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [selected]);
+  }, [selected, focus]);
 
   const handleDoubleClick = (node: TopologyNode) => {
     rigRef.current?.flyTo(node.id);
   };
 
   const handleNodeClick = (node: TopologyNode) => {
+    const dotOf = focus?.dots.get(node.id);
+    if (dotOf) {
+      focusNamespace(dotOf);
+      return;
+    }
+    // Search and the error button can pick a node the focus hides.
+    if (focus?.hidden.has(node.id)) setFocusGroup(null);
     setSelected(node);
     rigRef.current?.flyTo(node.id);
   };
@@ -121,6 +145,7 @@ export default function Topology({ snapshot: data, dimension }: { snapshot: ApiC
   const handleResetView = () => {
     rigRef.current?.frame();
     setSelected(null);
+    setFocusGroup(null);
   };
 
   const handleAlarmClick = () => {
@@ -138,7 +163,7 @@ export default function Topology({ snapshot: data, dimension }: { snapshot: ApiC
     <>
       <color attach="background" args={["#05050f"]} />
       <fog attach="fog" args={["#05050f", 900, 2000]} />
-      <Labels store={layout} candidates={labels} />
+      <Labels store={layout} candidates={labels} onGroupClick={focusNamespace} />
       <TopologyScene
         graph={graph}
         store={layout}
@@ -149,6 +174,7 @@ export default function Topology({ snapshot: data, dimension }: { snapshot: ApiC
         onDoubleClick={handleDoubleClick}
         filteredNodes={filteredNodes}
         errorPods={errorPods}
+        focus={focus}
       />
       <CameraRig key={selectedClusterIndex} ref={rigRef} store={layout} nodes={graph.nodes} edges={graph.edges} azimuth={0.25} polar={1.1} mode={dimension} plane2d="front" />
       <EffectComposer>
@@ -475,6 +501,7 @@ export default function Topology({ snapshot: data, dimension }: { snapshot: ApiC
             deleted={selectionMissing}
             onClose={() => setSelected(null)}
             className={showFilters ? "top-[290px]" : "top-[200px]"}
+            onFocusNamespace={groupOf(selected) && groupOf(selected) !== focus?.group ? () => focusNamespace(groupOf(selected)!) : undefined}
           />
         )}
       </AnimatePresence>

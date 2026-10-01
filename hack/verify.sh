@@ -5,7 +5,7 @@
 # concurrent headless Chrome runs would skew each other's frame rates.
 #
 # Usage: hack/verify.sh [scenario ...]
-#   scenarios: functional labels layout perf webgl stream nometrics auth (default: all)
+#   scenarios: functional labels layout perf webgl stream nometrics auth focus (default: all)
 # Env: THROTTLE (perf CPU slowdown, default 4), VERIFY_OUT (screenshots dir).
 set -euo pipefail
 
@@ -16,7 +16,7 @@ WORK="$(mktemp -d)"
 FAKE_PORT=4078
 PREVIEW_PORT=5199
 SCENARIOS=("$@")
-[ ${#SCENARIOS[@]} -eq 0 ] && SCENARIOS=(functional labels layout perf webgl stream nometrics auth)
+[ ${#SCENARIOS[@]} -eq 0 ] && SCENARIOS=(functional labels layout perf webgl stream nometrics auth focus)
 
 until mkdir "$LOCK" 2>/dev/null; do
   echo "verify: waiting for $(cat "$LOCK/owner" 2>/dev/null || echo 'another run') ..."
@@ -74,6 +74,7 @@ for scenario in "${SCENARIOS[@]}"; do
     functional|labels|webgl) start_fake -pods 1000 -churn 0; target="$URL" ;;
     nometrics) start_fake -pods 200 -churn 0 -metrics=false; target="$URL" ;;
     auth) start_fake -pods 200 -churn 0 -password verify-secret; target="$URL" ;;
+    focus) start_fake -pods 3000 -churn 500ms; target="$URL" ;;
     layout) start_fake -pods 1000 -churn 500ms -churn-size 1; target="$URL?stats" ;;
     perf) start_fake -pods 3000 -churn 500ms; target="$URL?stats" ;;
     stream)

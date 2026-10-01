@@ -31,7 +31,7 @@ Both views render the same graph:
 - **Topology**: how traffic reaches your workloads, from Internet → Load Balancer → Ingress → Service → Workload → Pod.
 - **Clusters**: a hierarchical view (Cluster → Node → Workload → Pod) that shows where every Pod runs, including CronJob → Job → Pod.
 
-Objects group by namespace, and adding a Pod never rearranges the rest of the map. Names appear where there is room and more detail shows up as you zoom in. Click a node or search for it and the camera flies to it; `R` reframes the whole graph, and the 3D/2D toggle flattens either view. Pods are colored by their real state (running, pending, completed, failed). It stays at 60 fps with thousands of Pods.
+Objects group by namespace, and adding a Pod never rearranges the rest of the map. Names appear where there is room and more detail shows up as you zoom in. Click a namespace's name to focus it: the other namespaces shrink to labeled dots, and Escape steps back out. Click a node or search for it and the camera flies to it; `R` reframes the whole graph, and the 3D/2D toggle flattens either view. Pods are colored by their real state (running, pending, completed, failed). It stays at 60 fps with thousands of Pods.
 
 Deployments, StatefulSets, DaemonSets, Jobs, and CronJobs all appear, each with its own color. A Pod that restarted in the last 10 minutes pulses, and its panel shows the restart count, the last termination reason (`OOMKilled`, `Error`), and recent Warning events. Selecting a Pod draws the PVCs, ConfigMaps, and Secrets it uses; only their names come from the Pod spec, their contents are never read. With metrics-server installed, busy Pods and nodes are larger and brighter, relative to their requests or allocatable capacity.
 

@@ -195,6 +195,7 @@ export function clustersLabels(graph: ClusterGalaxyGraph): LabelCandidate[] {
     rank: 1 - keys.length / maxGroup,
     keys,
     style: "group",
+    group: id,
   }));
   for (const n of graph.nodes) {
     const base = { id: n.id, text: n.name, keys: [n.id], radius: n.size };

@@ -31,6 +31,8 @@ interface Props {
   onClose: () => void;
   /** Positioning classes; each view places the panel below its own controls. */
   className: string;
+  /** Shown as "Focus namespace" when the object is namespaced and not already focused. */
+  onFocusNamespace?: () => void;
 }
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
@@ -65,7 +67,7 @@ function UsageRow({ label, now, base, format, baseLabel }: { label: string; now:
 }
 
 /** Shared detail panel for the selected object in both views. */
-export default function DetailPanel({ node, icon, typeLabel, details, deleted, onClose, className }: Props) {
+export default function DetailPanel({ node, icon, typeLabel, details, deleted, onClose, className, onFocusNamespace }: Props) {
   const { owners, hpa, policies, refs, pvc, pod, warnings, usage } = details;
   const meta = node.metadata ?? {};
   const refRows: [string, string[] | undefined][] = [
@@ -104,7 +106,20 @@ export default function DetailPanel({ node, icon, typeLabel, details, deleted, o
         <Section title="DETAILS">
           <Row label="type">{typeLabel}</Row>
           <Row label="id" mono>{node.id}</Row>
-          {node.namespace && <Row label="namespace">{node.namespace}</Row>}
+          {node.namespace && (
+            <div>
+              namespace: <span className="text-white/90">{node.namespace}</span>
+              {onFocusNamespace && (
+                <button
+                  type="button"
+                  onClick={onFocusNamespace}
+                  className="ml-2 rounded border border-white/15 px-1.5 text-[10px] text-white/70 hover:bg-white/10 hover:text-white"
+                >
+                  Focus
+                </button>
+              )}
+            </div>
+          )}
           {node.status && (
             <div>
               status: <span style={{ color: node.state ? STATE_COLORS[node.state].color : "#fff" }}>{node.status}</span>
